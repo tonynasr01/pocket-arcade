@@ -1,7 +1,7 @@
 POCKET ARCADE - SETUP BEFORE UPLOADING
 
 1) FIND AND REPLACE in ALL files (most code editors: "Replace in files"):
-   YOUR-DOMAIN.com    -> your real domain, e.g. pocketarcade.fun
+   pocket-arcade.games    -> your real domain, e.g. pocketarcade.fun
    you@example.com    -> the email visitors should contact
    0000000000000000   -> your AdSense publisher number (digits after "pub-")
 

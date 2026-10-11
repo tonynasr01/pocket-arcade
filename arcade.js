@@ -952,7 +952,7 @@ addEventListener('hashchange',route);
 /* ---------- ads ---------- */
 (function(){
   const ins=[...document.querySelectorAll('ins.adsbygoogle')];
-  if(ins.some(i=>/0000000000000000/.test(i.dataset.adClient))){ins.forEach(i=>i.closest('.ad').classList.add('off'));return}
+  if(ins.some(i=>/8892414071435713/.test(i.dataset.adClient))){ins.forEach(i=>i.closest('.ad').classList.add('off'));return}
   ins.forEach(()=>{try{(window.adsbygoogle=window.adsbygoogle||[]).push({})}catch(e){}});
 })();
 route();
