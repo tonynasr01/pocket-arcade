@@ -1402,44 +1402,72 @@ function taxi(root,S){
 }
 
 const BUBLV=[[[3]],[[3],[2]],[[4]],[[3],[3]],[[4],[2],[2]],[[4],[4]]];
+const BUBPW={double:{ico:'⚡',name:'Double shot',dur:10},freeze:{ico:'❄️',name:'Freeze',dur:4},shield:{ico:'🛡️',name:'Shield',dur:0},slow:{ico:'🐢',name:'Slow motion',dur:8},life:{ico:'❤️',name:'Extra life',dur:0}};
 function bubbles(root,S){
   const L=S.level;const st=status(root,'');const W=480,H=360,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const FL=H-20,RAD=[0,9,15,23,32],BH=[0,90,140,190,235],CL=[null,K.c3,K.c2,K.c6,K.c1];
-  let me,balls,shot,lives,state,score,inv,t=0,moveDir=0;
+  let me,balls,shots,drops,pw,lives,state,score,inv,t=0,moveDir=0;
   function reset(){
-    me={x:W/2,w:26,h:34};shot=null;inv=0;state='ready';
+    me={x:W/2,w:26,h:34};shots=[];drops=[];pw={double:0,freeze:0,slow:0,shield:false};inv=0;state='ready';
     balls=BUBLV[L-1].map(([s],i,a)=>({s,x:W*(i+1)/(a.length+1),y:120,vx:(i%2?-1:1)*70,vy:0}));
   }
-  lives=3;score=0;reset();st('Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱. Pop every bubble.');
-  function fire(){if(state==='over'||state==='win')return;if(state==='ready')state='play';if(!shot){shot={x:me.x,y:FL-me.h};beep(700,40)}}
-  S.on(window,'keydown',e=>{if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();fire()}});
+  lives=3;score=0;reset();st('Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱. Grab power-ups that drop!');
+  function fire(){
+    if(state==='over'||state==='win')return;if(state==='ready')state='play';
+    if(shots.length<(pw.double>0?2:1)){shots.push({x:me.x,y:FL-me.h,born:t});beep(760,40)}
+  }
+  S.on(window,'keydown',e=>{if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();if(!e.repeat)fire()}});
   const pad=el('div','row bpad',root);
   controls(pad,S,{axis:'x',onMove:v=>{moveDir=v;if(v&&state==='ready')state='play'}});
-  const fb=el('button','btn bfire',pad,'🔱');fb.setAttribute('aria-label','Shoot');S.on(fb,'pointerdown',e=>{e.preventDefault();fire()});
+  const fb=el('button','btn bfire',pad,'🔱');fb.setAttribute('aria-label','Shoot');S.on(fb,'pointerdown',e=>{e.preventDefault();restartAnim(fb,'hit');fire()});
   let mx=null;
   S.on(c,'pointermove',e=>{if(e.pointerType==='mouse')mx=c.pos(e).x});
-  S.on(c,'pointerdown',e=>{if(e.pointerType==='mouse')mx=c.pos(e).x;else mx=c.pos(e).x;fire()});
+  S.on(c,'pointerdown',e=>{mx=c.pos(e).x;fire()});
   S.on(c,'pointerleave',e=>{if(e.pointerType!=='mouse')mx=null});
   function pop(b){
-    balls.splice(balls.indexOf(b),1);score+=10*(5-b.s);fx.add(b.x,b.y,CL[b.s],16,200);beep(500+b.s*-60+300,70);
+    balls.splice(balls.indexOf(b),1);score+=10*(5-b.s);fx.add(b.x,b.y,CL[b.s],16,200);beep(800-b.s*60,70);
     if(b.s>1)for(const d of[-1,1])balls.push({s:b.s-1,x:b.x,y:b.y,vx:d*Math.abs(b.vx||70),vy:-260});
+    if(balls.length&&Math.random()<.24){
+      const r=Math.random(),type=r<.08?'life':r<.36?'double':r<.6?'freeze':r<.8?'slow':'shield';
+      drops.push({type,x:b.x,y:b.y,vy:-120,life:7});
+    }
     if(!balls.length){state='win';best('bubbles'+L,score);st(`Level clear! Score ${score}.`);S.after(300,S.next)}
+  }
+  function collect(d){
+    const P=BUBPW[d.type];beep(1040,90);setTimeout(()=>beep(1320,90),90);fx.add(d.x,d.y,K.c2,18,180);S.fx.toast(`${P.ico} ${P.name}`);
+    if(d.type==='life')lives=Math.min(5,lives+1);else if(d.type==='shield')pw.shield=true;else pw[d.type]=P.dur;
+  }
+  function harpoon(sx,sy){
+    const by=FL-me.h+4,g=x.createLinearGradient(0,by,0,sy);g.addColorStop(0,'rgba(91,108,255,.15)');g.addColorStop(1,'rgba(91,108,255,.55)');
+    x.lineCap='round';x.strokeStyle=g;x.lineWidth=9;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
+    x.strokeStyle='#fff';x.lineWidth=3;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
+    x.strokeStyle=K.c4;x.lineWidth=1.5;x.setLineDash([3,6]);x.lineDashOffset=-t*60;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();x.setLineDash([]);
+    x.save();x.translate(sx,sy);x.shadowColor=cssv('--c2');x.shadowBlur=12;
+    x.fillStyle=K.c2;x.beginPath();x.moveTo(0,-12);x.lineTo(7,4);x.lineTo(2,2);x.lineTo(2,12);x.lineTo(-2,12);x.lineTo(-2,2);x.lineTo(-7,4);x.closePath();x.fill();
+    x.shadowBlur=0;x.lineWidth=1.8;x.strokeStyle=K.edge;x.lineJoin='round';x.stroke();
+    x.fillStyle='rgba(255,255,255,.8)';x.beginPath();x.moveTo(0,-9);x.lineTo(2.5,0);x.lineTo(0,1);x.closePath();x.fill();x.restore();x.lineCap='butt';
   }
   S.loop(dt=>{
     t+=dt;inv=Math.max(0,inv-dt);
     if(state==='play'){
+      pw.double=Math.max(0,pw.double-dt);pw.freeze=Math.max(0,pw.freeze-dt);pw.slow=Math.max(0,pw.slow-dt);
       let dir=moveDir;if(k.ArrowLeft||k.a)dir=-1;if(k.ArrowRight||k.d)dir=1;
       if(dir)me.x+=dir*230*dt;else if(mx!=null&&Math.abs(mx-me.x)>4)me.x+=Math.sign(mx-me.x)*Math.min(Math.abs(mx-me.x),230*dt);
       me.x=clamp(me.x,me.w/2,W-me.w/2);
-      if(shot){shot.y-=520*dt;if(shot.y<=0)shot=null}
+      for(const sh of shots)sh.y-=560*dt;shots=shots.filter(sh=>sh.y>0);
+      for(const d of drops){d.vy+=500*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;if(Math.abs(d.x-me.x)<me.w/2+12&&d.y>FL-me.h-12){d.got=true;collect(d)}}
+      drops=drops.filter(d=>!d.got&&d.life>0);
+      const bt=pw.freeze>0?0:pw.slow>0?dt*.45:dt;
       for(const b of balls.slice()){
-        b.vy+=420*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;const r=RAD[b.s];
+        b.vy+=420*bt;b.x+=b.vx*bt;b.y+=b.vy*bt;const r=RAD[b.s];
         if(b.x<r){b.x=r;b.vx=Math.abs(b.vx)}if(b.x>W-r){b.x=W-r;b.vx=-Math.abs(b.vx)}
         if(b.y>FL-r){b.y=FL-r;b.vy=-Math.sqrt(2*420*BH[b.s])}
         if(b.y<r){b.y=r;b.vy=Math.abs(b.vy)}
-        if(shot&&Math.abs(b.x-shot.x)<r&&b.y+r>shot.y){shot=null;pop(b);continue}
+        const hit=shots.find(sh=>Math.abs(b.x-sh.x)<r+2&&b.y+r>sh.y-12);
+        if(hit){shots.splice(shots.indexOf(hit),1);pop(b);continue}
         const cx=clamp(b.x,me.x-me.w/2,me.x+me.w/2),cy=clamp(b.y,FL-me.h,FL);
         if(!inv&&(b.x-cx)**2+(b.y-cy)**2<r*r*.8){
+          if(pw.shield){pw.shield=false;inv=1.5;beep(400,200);fx.add(me.x,FL-me.h/2,K.c3,24,220);S.fx.toast('🛡️ Shield saved you');continue}
           lives--;S.shake();beep(150,300,'sawtooth');fx.add(me.x,FL-me.h/2,K.c4,24,220);
           if(lives<=0){state='over';st(`Out of lives on level ${L}. Score ${score}. Press ↻ to try again.`)}
           else{reset();st(`Ouch! ${lives} ${lives===1?'life':'lives'} left. Tap shoot to restart the level.`)}
@@ -1448,16 +1476,24 @@ function bubbles(root,S){
       }
     }
     x.fillStyle=K.board;x.fillRect(0,0,W,H);
+    if(pw.freeze>0){x.fillStyle='rgba(120,200,255,.14)';x.fillRect(0,0,W,FL)}
     x.fillStyle=K.line;x.fillRect(0,FL,W,H-FL);x.fillStyle=K.edge;x.fillRect(0,FL,W,3);
-    if(shot){x.strokeStyle=K.muted;x.lineWidth=2;x.beginPath();for(let y=FL-me.h;y>shot.y;y-=8){x.lineTo(shot.x+(y/8%2?2:-2),y)}x.stroke();x.fillStyle=K.ink;x.beginPath();x.moveTo(shot.x,shot.y-8);x.lineTo(shot.x-5,shot.y+2);x.lineTo(shot.x+5,shot.y+2);x.fill()}
-    for(const b of balls){const r=RAD[b.s];x.fillStyle=CL[b.s];x.beginPath();x.arc(b.x,b.y,r,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();x.fillStyle='rgba(255,255,255,.55)';x.beginPath();x.arc(b.x-r*.35,b.y-r*.35,r*.28,0,7);x.fill()}
+    for(const sh of shots)harpoon(sh.x,sh.y);
+    for(const b of balls){const r=RAD[b.s];x.fillStyle=CL[b.s];x.beginPath();x.arc(b.x,b.y,r,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=pw.freeze>0?'#7CC8FF':K.edge;x.stroke();x.fillStyle='rgba(255,255,255,.55)';x.beginPath();x.arc(b.x-r*.35,b.y-r*.35,r*.28,0,7);x.fill()}
+    x.textAlign='center';x.textBaseline='middle';
+    for(const d of drops){if(d.life<2&&Math.floor(t*8)%2)continue;const bob=d.y>=FL-12?Math.sin(t*5)*2:0;x.fillStyle=K.board;x.beginPath();x.arc(d.x,d.y+bob,12,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.c2;x.stroke();x.font='14px sans-serif';x.fillText(BUBPW[d.type].ico,d.x,d.y+bob+1)}
+    x.textBaseline='alphabetic';
     if(!(inv&&Math.floor(t*12)%2)){
-      const px=me.x,py=FL;x.fillStyle=K.c4;rr(x,px-me.w/2,py-me.h+10,me.w,me.h-10,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
+      const px=me.x,py=FL;
+      if(pw.shield){x.strokeStyle=K.c3;x.globalAlpha=.6+.25*Math.sin(t*6);x.lineWidth=3;x.beginPath();x.ellipse(px,py-me.h/2,me.w*.95,me.h*.75,0,0,7);x.stroke();x.globalAlpha=1}
+      x.fillStyle=K.c4;rr(x,px-me.w/2,py-me.h+10,me.w,me.h-10,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
       x.fillStyle='#FFD9B0';x.beginPath();x.arc(px,py-me.h+6,9,0,7);x.fill();x.stroke();
       x.fillStyle='#1E1F5C';x.beginPath();x.arc(px-3,py-me.h+5,1.6,0,7);x.arc(px+3,py-me.h+5,1.6,0,7);x.fill();
     }
     fx.draw(x,dt);
     x.fillStyle=K.ink;x.font=`16px ${DISPLAY}`;x.textAlign='left';x.fillText(score,12,26);x.textAlign='right';x.fillStyle=K.c1;x.fillText('♥'.repeat(Math.max(0,lives)),W-12,26);
+    const act=[pw.double>0&&`⚡${Math.ceil(pw.double)}`,pw.freeze>0&&`❄️${Math.ceil(pw.freeze)}`,pw.slow>0&&`🐢${Math.ceil(pw.slow)}`,pw.shield&&'🛡️'].filter(Boolean);
+    if(act.length){x.font=`13px ${DISPLAY}`;x.textAlign='center';x.fillStyle=K.ink;x.fillText(act.join('   '),W/2,26)}
     if(state==='ready'){x.fillStyle=K.muted;x.font=`16px ${DISPLAY}`;x.textAlign='center';x.fillText('Shoot to start',W/2,H/2+40)}
   });
 }
@@ -1772,7 +1808,7 @@ const GAMES=[
   {id:'taxi',name:'Rush Taxi',icon:'🚕',blurb:'Pick up passengers and race the clock.',help:'Drag or use ← → to steer and ↓ to brake. Drive past a waving passenger in the outside lane, then reach the 🏁 on the same side.',mount:taxi,run:true,unit:'dollars',isNew:true},
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop the ball through the gaps.',help:'Drag sideways or use ← → to spin the tower. Avoid red. Fall through 3 rings in a row to smash the next one.',mount:helix,levels:10,isNew:true},
-  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. On a computer you can also point and click.',mount:bubbles,levels:6,isNew:true},
+  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Walk over dropped power-ups: ⚡ double shot, ❄️ freeze, 🐢 slow motion, 🛡️ shield, ❤️ extra life.',mount:bubbles,levels:6,isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer, from Easy to Hard.',help:'You play White. Tap a piece, then a highlighted square. Pawns promote to queens automatically.',mount:chess,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];

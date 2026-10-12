@@ -282,8 +282,9 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .pc.b{color:#1E1F5C;text-shadow:0 .3cqw 0 rgba(255,255,255,.4)}
 
 /* Bubble Pop buttons */
-.bpad{align-items:center;gap:22px}
-.bfire{width:84px;height:84px;border-radius:50%;font-size:2rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.bpad{width:min(100%,480px);justify-content:space-between;align-items:center;gap:40px;padding:0 8px;flex-wrap:nowrap}
+.bfire.hit{animation:press .15s}
+.bfire{flex:none;width:92px;height:92px;border-radius:50%;font-size:2rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 @media (hover:hover) and (pointer:fine){.bpad{display:none}}
 
 /* In-game level-up pill */
