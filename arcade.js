@@ -1406,12 +1406,18 @@ const BUBPW={double:{ico:'⚡',name:'Double shot',dur:10},freeze:{ico:'❄️',n
 function bubbles(root,S){
   const L=S.level;const st=status(root,'');const W=480,H=360,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const FL=H-20,RAD=[0,9,15,23,32],BH=[0,90,140,190,235],CL=[null,K.c3,K.c2,K.c6,K.c1];
-  let me,balls,shots,drops,pw,lives,state,score,inv,t=0,moveDir=0;
-  function reset(){
-    me={x:W/2,w:26,h:34};shots=[];drops=[];pw={double:0,freeze:0,slow:0,shield:false};inv=0;state='ready';
-    balls=BUBLV[L-1].map(([s],i,a)=>({s,x:W*(i+1)/(a.length+1),y:120,vx:(i%2?-1:1)*70,vy:0}));
+  let me,balls,shots,drops,pw,lives,state,score,inv,lvl=1,dropsLeft,t=0,moveDir=0,face=1,walk=0;
+  let useMouse=store.get('bubmouse')===true;
+  function layout(n){
+    if(n<=BUBLV.length)return BUBLV[n-1].map(([s])=>s);
+    const big=Math.min(6,2+Math.floor((n-6)/3)),out=[];for(let i=0;i<big;i++)out.push(i<2+Math.floor((n-6)/4)?4:3);return out;
   }
-  lives=3;score=0;reset();st('Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱. Grab power-ups that drop!');
+  function reset(){
+    me={x:W/2,w:26,h:34};shots=[];drops=[];pw={double:0,freeze:0,slow:0,shield:false};inv=0;state='ready';dropsLeft=lvl<4?1:2;
+    const sp=70+Math.min(70,Math.max(0,lvl-6)*7),ls=layout(lvl);
+    balls=ls.map((s,i)=>({s,x:W*(i+1)/(ls.length+1),y:100+(i%2)*30,vx:(i%2?-1:1)*sp,vy:0}));
+  }
+  lives=3;score=0;S.show(1);reset();st('Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱. Grab power-ups that drop!');
   function fire(){
     if(state==='over'||state==='win')return;if(state==='ready')state='play';
     if(shots.length<(pw.double>0?2:1)){shots.push({x:me.x,y:FL-me.h,born:t});beep(760,40)}
@@ -1421,24 +1427,58 @@ function bubbles(root,S){
   controls(pad,S,{axis:'x',onMove:v=>{moveDir=v;if(v&&state==='ready')state='play'}});
   const fb=el('button','btn bfire',pad,'🔱');fb.setAttribute('aria-label','Shoot');S.on(fb,'pointerdown',e=>{e.preventDefault();restartAnim(fb,'hit');fire()});
   let mx=null;
-  S.on(c,'pointermove',e=>{if(e.pointerType==='mouse')mx=c.pos(e).x});
-  S.on(c,'pointerdown',e=>{mx=c.pos(e).x;fire()});
+  const mb=el('div','row bmouse',root,'<button class="btn ghost" aria-pressed="false"></button>'),mbtn=$('button',mb);
+  const paintMouse=()=>{mbtn.textContent=`🖱️ Mouse control: ${useMouse?'On':'Off'}`;mbtn.setAttribute('aria-pressed',useMouse);mbtn.classList.toggle('on',useMouse)};paintMouse();
+  S.on(mbtn,'click',()=>{useMouse=!useMouse;store.set('bubmouse',useMouse);mx=null;paintMouse();mbtn.blur()});
+  S.on(c,'pointermove',e=>{if(e.pointerType==='mouse'&&useMouse)mx=c.pos(e).x});
+  S.on(c,'pointerdown',e=>{if(e.pointerType!=='mouse'||useMouse)mx=c.pos(e).x;fire()});
   S.on(c,'pointerleave',e=>{if(e.pointerType!=='mouse')mx=null});
   function pop(b){
     balls.splice(balls.indexOf(b),1);score+=10*(5-b.s);fx.add(b.x,b.y,CL[b.s],16,200);beep(800-b.s*60,70);
     if(b.s>1)for(const d of[-1,1])balls.push({s:b.s-1,x:b.x,y:b.y,vx:d*Math.abs(b.vx||70),vy:-260});
-    if(balls.length&&Math.random()<.24){
+    if(balls.length&&dropsLeft>0&&Math.random()<.12){dropsLeft--;
       const r=Math.random(),type=r<.08?'life':r<.36?'double':r<.6?'freeze':r<.8?'slow':'shield';
       drops.push({type,x:b.x,y:b.y,vy:-120,life:7});
     }
-    if(!balls.length){state='win';best('bubbles'+L,score);st(`Level clear! Score ${score}.`);S.after(300,S.next)}
+    if(!balls.length){
+      state='win';score+=50*lvl;lvl++;S.show(lvl);if(lvl%5===1)lives=Math.min(5,lives+1);
+      FX.confetti(80);S.fx.toast(`Level ${lvl}`,lvl%5===1?'Bonus life! ❤️':'More bubbles');beep(990,200);
+      st(`Level clear! +${50*(lvl-1)} bonus. Score ${score}.`);
+      S.after(1600,()=>{if(state==='win'){reset();st(`Level ${lvl}. Shoot to start.`)}});
+    }
   }
   function collect(d){
     const P=BUBPW[d.type];beep(1040,90);setTimeout(()=>beep(1320,90),90);fx.add(d.x,d.y,K.c2,18,180);S.fx.toast(`${P.ico} ${P.name}`);
     if(d.type==='life')lives=Math.min(5,lives+1);else if(d.type==='shield')pw.shield=true;else pw[d.type]=P.dur;
   }
+  function hero(px,py){
+    const E=K.edge,sw=walk?Math.sin(walk):0,bob=walk?Math.abs(Math.cos(walk))*1.5:0,f=face;
+    x.lineWidth=2;x.strokeStyle=E;x.lineJoin='round';
+    x.fillStyle='rgba(0,0,0,.16)';x.beginPath();x.ellipse(px,py-1,13,3.5,0,0,7);x.fill();
+    // legs and shoes
+    for(const[s2,o]of[[-1,sw],[1,-sw]]){const lx=px+s2*5+o*3;x.fillStyle='#3B3F7A';rr(x,lx-3,py-12,6,10,2);x.fill();x.fillStyle='#1E1F5C';rr(x,lx-4+f*1.5,py-4,9,4,2);x.fill()}
+    const top=py-36-bob;
+    // launcher held up in front
+    x.fillStyle='#8A8FB8';rr(x,px+f*9-2.5,top+8,5,16,2);x.fill();x.stroke();x.fillStyle=K.c2;rr(x,px+f*9-3.5,top+5,7,5,2);x.fill();x.stroke();
+    // body
+    x.fillStyle=K.c4;rr(x,px-9,top+16,18,15,6);x.fill();x.stroke();
+    x.fillStyle=K.c2;x.fillRect(px-8,top+26,16,3);
+    x.fillStyle='#fff';x.beginPath();x.moveTo(px-3,top+16);x.lineTo(px,top+20);x.lineTo(px+3,top+16);x.fill();
+    // arms
+    x.fillStyle='#FFD9B0';x.beginPath();x.arc(px+f*9,top+20,3,0,7);x.fill();x.stroke();
+    x.strokeStyle=K.c4;x.lineWidth=4;x.lineCap='round';x.beginPath();x.moveTo(px-f*8,top+19);x.lineTo(px-f*10,top+26+sw*2);x.stroke();x.lineCap='butt';
+    x.strokeStyle=E;x.lineWidth=2;x.fillStyle='#FFD9B0';x.beginPath();x.arc(px-f*10,top+27+sw*2,2.6,0,7);x.fill();x.stroke();
+    // head
+    x.fillStyle='#FFD9B0';x.beginPath();x.arc(px,top+8,10,0,7);x.fill();x.stroke();
+    x.fillStyle='#6B3E2E';x.beginPath();x.arc(px,top+6,10,Math.PI*1.05,Math.PI*1.95);x.quadraticCurveTo(px+f*4,top-1,px-f*9,top+5);x.fill();
+    x.fillStyle=K.c1;x.beginPath();x.ellipse(px,top-1,10.5,4,0,Math.PI,0);x.fill();x.stroke();x.fillRect(px+(f>0?2:-12),top-2,10,3);
+    x.fillStyle='#fff';x.beginPath();x.ellipse(px-3.5+f*1.5,top+8,2.6,3,0,0,7);x.ellipse(px+3.5+f*1.5,top+8,2.6,3,0,0,7);x.fill();
+    x.fillStyle='#1E1F5C';x.beginPath();x.arc(px-3.5+f*2.3,top+8.5,1.5,0,7);x.arc(px+3.5+f*2.3,top+8.5,1.5,0,7);x.fill();
+    x.fillStyle='rgba(255,110,130,.45)';x.beginPath();x.arc(px-6,top+12,2,0,7);x.arc(px+6,top+12,2,0,7);x.fill();
+    x.strokeStyle=E;x.lineWidth=1.5;x.beginPath();x.arc(px+f,top+12,2.6,.2,Math.PI-.2);x.stroke();
+  }
   function harpoon(sx,sy){
-    const by=FL-me.h+4,g=x.createLinearGradient(0,by,0,sy);g.addColorStop(0,'rgba(91,108,255,.15)');g.addColorStop(1,'rgba(91,108,255,.55)');
+    const by=FL-me.h-6,g=x.createLinearGradient(0,by,0,sy);g.addColorStop(0,'rgba(91,108,255,.15)');g.addColorStop(1,'rgba(91,108,255,.55)');
     x.lineCap='round';x.strokeStyle=g;x.lineWidth=9;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
     x.strokeStyle='#fff';x.lineWidth=3;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
     x.strokeStyle=K.c4;x.lineWidth=1.5;x.setLineDash([3,6]);x.lineDashOffset=-t*60;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();x.setLineDash([]);
@@ -1452,8 +1492,9 @@ function bubbles(root,S){
     if(state==='play'){
       pw.double=Math.max(0,pw.double-dt);pw.freeze=Math.max(0,pw.freeze-dt);pw.slow=Math.max(0,pw.slow-dt);
       let dir=moveDir;if(k.ArrowLeft||k.a)dir=-1;if(k.ArrowRight||k.d)dir=1;
+      const ox=me.x;
       if(dir){me.x+=dir*230*dt;mx=null}else if(mx!=null){if(Math.abs(mx-me.x)>4)me.x+=Math.sign(mx-me.x)*Math.min(Math.abs(mx-me.x),230*dt);else mx=null}
-      me.x=clamp(me.x,me.w/2,W-me.w/2);
+      me.x=clamp(me.x,me.w/2,W-me.w/2);if(Math.abs(me.x-ox)>.1){face=Math.sign(me.x-ox);walk+=dt*14}else walk=0;
       for(const sh of shots)sh.y-=560*dt;shots=shots.filter(sh=>sh.y>0);
       for(const d of drops){d.vy+=500*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;if(Math.abs(d.x-me.x)<me.w/2+12&&d.y>FL-me.h-12){d.got=true;collect(d)}}
       drops=drops.filter(d=>!d.got&&d.life>0);
@@ -1469,7 +1510,7 @@ function bubbles(root,S){
         if(!inv&&(b.x-cx)**2+(b.y-cy)**2<r*r*.8){
           if(pw.shield){pw.shield=false;inv=1.5;beep(400,200);fx.add(me.x,FL-me.h/2,K.c3,24,220);S.fx.toast('🛡️ Shield saved you');continue}
           lives--;S.shake();beep(150,300,'sawtooth');fx.add(me.x,FL-me.h/2,K.c4,24,220);
-          if(lives<=0){state='over';st(`Out of lives on level ${L}. Score ${score}. Press ↻ to try again.`)}
+          if(lives<=0){state='over';const nb=best('bubbles',score);st(`Out of lives on level ${lvl}. Score ${score}.${nb?' New best!':''} Press ↻ to play again.`)}
           else{reset();st(`Ouch! ${lives} ${lives===1?'life':'lives'} left. Tap shoot to restart the level.`)}
           break;
         }
@@ -1486,15 +1527,13 @@ function bubbles(root,S){
     if(!(inv&&Math.floor(t*12)%2)){
       const px=me.x,py=FL;
       if(pw.shield){x.strokeStyle=K.c3;x.globalAlpha=.6+.25*Math.sin(t*6);x.lineWidth=3;x.beginPath();x.ellipse(px,py-me.h/2,me.w*.95,me.h*.75,0,0,7);x.stroke();x.globalAlpha=1}
-      x.fillStyle=K.c4;rr(x,px-me.w/2,py-me.h+10,me.w,me.h-10,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
-      x.fillStyle='#FFD9B0';x.beginPath();x.arc(px,py-me.h+6,9,0,7);x.fill();x.stroke();
-      x.fillStyle='#1E1F5C';x.beginPath();x.arc(px-3,py-me.h+5,1.6,0,7);x.arc(px+3,py-me.h+5,1.6,0,7);x.fill();
+      hero(px,py);
     }
     fx.draw(x,dt);
     x.fillStyle=K.ink;x.font=`16px ${DISPLAY}`;x.textAlign='left';x.fillText(score,12,26);x.textAlign='right';x.fillStyle=K.c1;x.fillText('♥'.repeat(Math.max(0,lives)),W-12,26);
     const act=[pw.double>0&&`⚡${Math.ceil(pw.double)}`,pw.freeze>0&&`❄️${Math.ceil(pw.freeze)}`,pw.slow>0&&`🐢${Math.ceil(pw.slow)}`,pw.shield&&'🛡️'].filter(Boolean);
     if(act.length){x.font=`13px ${DISPLAY}`;x.textAlign='center';x.fillStyle=K.ink;x.fillText(act.join('   '),W/2,26)}
-    if(state==='ready'){x.fillStyle=K.muted;x.font=`16px ${DISPLAY}`;x.textAlign='center';x.fillText('Shoot to start',W/2,H/2+40)}
+    if(state==='ready'){x.fillStyle=K.muted;x.font=`16px ${DISPLAY}`;x.textAlign='center';x.fillText(lvl>1?`Level ${lvl} · shoot to start`:'Shoot to start',W/2,H/2+40)}
   });
 }
 
@@ -1808,7 +1847,7 @@ const GAMES=[
   {id:'taxi',name:'Rush Taxi',icon:'🚕',blurb:'Pick up passengers and race the clock.',help:'Drag or use ← → to steer and ↓ to brake. Drive past a waving passenger in the outside lane, then reach the 🏁 on the same side.',mount:taxi,run:true,unit:'dollars',isNew:true},
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop the ball through the gaps.',help:'Drag sideways or use ← → to spin the tower. Avoid red. Fall through 3 rings in a row to smash the next one.',mount:helix,levels:10,isNew:true},
-  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Walk over dropped power-ups: ⚡ double shot, ❄️ freeze, 🐢 slow motion, 🛡️ shield, ❤️ extra life.',mount:bubbles,levels:6,isNew:true},
+  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Walk over dropped power-ups: ⚡ double shot, ❄️ freeze, 🐢 slow motion, 🛡️ shield, ❤️ extra life. On a computer you can turn on mouse control under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer, from Easy to Hard.',help:'You play White. Tap a piece, then a highlighted square. Pawns promote to queens automatically.',mount:chess,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];

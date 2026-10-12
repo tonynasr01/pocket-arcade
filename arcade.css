@@ -286,6 +286,9 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .bfire.hit{animation:press .15s}
 .bfire{flex:none;width:92px;height:92px;border-radius:50%;font-size:2rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 @media (hover:hover) and (pointer:fine){.bpad{display:none}}
+.bmouse .btn{padding:8px 14px;font-size:.92rem}
+.bmouse .btn.on{background:var(--c2);color:#1E1F5C}
+@media (hover:none),(pointer:coarse){.bmouse{display:none}}
 
 /* In-game level-up pill */
 .toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
