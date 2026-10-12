@@ -234,6 +234,40 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .spad .btn{padding:10px 0;font-size:1.3rem;box-shadow:0 3px 0 var(--edge)}
 .spad .btn.done{opacity:.3}
 
+/* Solitaire */
+.sol{position:relative;width:320px;container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.sol::before{content:'';display:block;padding-top:140%}
+.slot{position:absolute;width:12.8cqw;height:17.9cqw;border:2px dashed var(--line);border-radius:1.6cqw;display:grid;place-items:center;color:var(--line);font:400 6cqw/1 var(--body)}
+.slot.stk{cursor:pointer;color:var(--muted);border-style:solid}
+.card2{position:absolute;width:12.8cqw;height:17.9cqw;padding:0;border:2px solid var(--edge);border-radius:1.6cqw;background:#fff;color:#1E1F5C;cursor:pointer;transition:left .18s ease,top .18s ease;animation:popin .3s var(--spring) both;-webkit-tap-highlight-color:transparent;overflow:hidden}
+.card2.red{color:#E2334F}
+.card2 .ci{position:absolute;left:.7cqw;top:.6cqw;font:800 3.7cqw/1 var(--body);display:flex;flex-direction:column;align-items:center;gap:.2cqw}
+.card2 .ci i{font-style:normal;font-size:3.3cqw}
+.card2 .cb{position:absolute;right:.7cqw;bottom:.5cqw;font-size:6.6cqw;line-height:1}
+.card2.down{background:var(--c4) repeating-linear-gradient(45deg,rgba(255,255,255,.2) 0 .8cqw,transparent .8cqw 1.6cqw)}
+.card2.down>*{visibility:hidden}
+.card2.nope{animation:shake .35s}
+.card2.wave{animation:pulse .3s ease-in-out 2 alternate}
+.mbar .btn:disabled{opacity:.4}
+
+/* Chess */
+.chess{display:grid;grid-template-columns:repeat(8,1fr);background:#C9CEFF;width:320px;border:3px solid var(--edge);border-radius:12px;overflow:hidden;container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.sq{aspect-ratio:1;min-width:0;border:0;padding:0;background:#EEEBFF;display:grid;place-items:center;position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent;animation:popin .3s var(--spring) both}
+.sq.dk{background:#9FA9FF}
+.sq.last{background-image:linear-gradient(rgba(255,197,61,.55),rgba(255,197,61,.55))}
+.sq.sel{background-image:linear-gradient(rgba(46,196,182,.6),rgba(46,196,182,.6))}
+.sq.chk{background-image:radial-gradient(circle,rgba(255,61,90,.85) 0 45%,rgba(255,61,90,.25) 75%)}
+.sq.tgt::after{content:'';position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(30,31,92,.32);pointer-events:none}
+.sq.cap::after{width:84%;height:84%;background:none;border:.9cqw solid rgba(30,31,92,.4)}
+.sq.nope{animation:shake .3s}
+.pc{font-size:10.5cqw;line-height:1;font-family:"Segoe UI Symbol","Apple Symbols","DejaVu Sans","Noto Sans Symbols 2",serif;pointer-events:none}
+.pc.w{color:#fff;-webkit-text-stroke:.35cqw #1E1F5C;text-shadow:0 .4cqw 0 rgba(30,31,92,.35)}
+.pc.b{color:#1E1F5C;text-shadow:0 .3cqw 0 rgba(255,255,255,.4)}
+
+/* Bubble Pop buttons */
+.bpad .btn{min-width:86px;height:58px;font-size:1.5rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+@media (hover:hover) and (pointer:fine){.bpad{display:none}}
+
 /* In-game level-up pill */
 .toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
 .toast b{font:400 1.15rem/1.2 var(--display)}
