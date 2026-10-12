@@ -177,6 +177,17 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 
 /* D-pad */
 .dpad{display:flex;justify-content:center;flex:none}
+.ctl{display:flex;flex-direction:column;align-items:center;gap:8px;flex:none}
+.ctl-body{display:flex;justify-content:center}
+.ctl-tg{display:flex;border:2px solid var(--edge);border-radius:999px;overflow:hidden;background:var(--board)}
+.ctl-tg button{border:0;background:none;color:var(--muted);font:800 .8rem var(--body);padding:5px 11px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ctl-tg button[aria-pressed="true"]{background:var(--c4);color:#fff}
+.arrows{display:grid;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,minmax(64px,92px));gap:8px;touch-action:none;user-select:none;-webkit-user-select:none}
+.arrows-x{grid-template-areas:"l r";grid-template-columns:repeat(2,minmax(70px,84px))}
+.arrows button{height:64px;font-size:1.6rem;padding:0;touch-action:none;-webkit-tap-highlight-color:transparent}
+.arrows button.hit{animation:press .15s}
+@keyframes press{50%{transform:translateY(3px) scale(.94);box-shadow:0 1px 0 var(--edge);background:var(--c2)}}
+.arrows [data-d=up]{grid-area:u}.arrows [data-d=left]{grid-area:l}.arrows [data-d=down]{grid-area:d}.arrows [data-d=right]{grid-area:r}
 .joy{position:relative;width:min(46vw,176px);aspect-ratio:1;border-radius:50%;background:var(--board);border:3px solid var(--edge);box-shadow:0 5px 0 var(--edge),inset 0 0 0 10px var(--line);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;flex:none}
 .joy-x{width:min(44vw,170px);aspect-ratio:auto;height:84px;border-radius:999px}
 .joy .ch{position:absolute;font-style:normal;font-size:1rem;color:var(--muted);opacity:.7;transition:color .1s,opacity .1s;pointer-events:none}

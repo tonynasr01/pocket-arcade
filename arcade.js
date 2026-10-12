@@ -360,7 +360,28 @@ function stick(parent,S,{axis='xy',onDir,onMove}){
   S.on(j,'pointerup',up);S.on(j,'pointercancel',up);
   return j;
 }
-function dpad(root,S,cb){const w=el('div','dpad',root);stick(w,S,{onDir:cb})}
+function arrows(parent,S,{axis='xy',onDir,onMove}){
+  const ds=axis==='x'?[['left','◀'],['right','▶']]:[['up','▲'],['left','◀'],['down','▼'],['right','▶']];
+  const p=el('div','arrows'+(axis==='x'?' arrows-x':''),parent,ds.map(([d,g])=>`<button class="btn ghost" data-d="${d}" aria-label="${d[0].toUpperCase()+d.slice(1)}">${g}</button>`).join(''));
+  p.querySelectorAll('button').forEach(b=>{
+    const d=b.dataset.d;
+    S.on(b,'pointerdown',e=>{e.preventDefault();restartAnim(b,'hit');if(navigator.vibrate)navigator.vibrate(8);onDir&&onDir(d);onMove&&onMove(d==='left'?-1:1)});
+    ['pointerup','pointerleave','pointercancel'].forEach(ev=>S.on(b,ev,()=>{onMove&&onMove(0)}));
+  });
+}
+/* touch controls with a remembered choice between the joystick wheel and arrow buttons */
+function controls(parent,S,opts){
+  const w=el('div','ctl',parent),body=el('div','ctl-body',w);
+  const tg=el('div','ctl-tg',w,'<button data-m="wheel">🕹️ Wheel</button><button data-m="arrows">✛ Arrows</button>');tg.setAttribute('role','group');tg.setAttribute('aria-label','Touch controls');
+  function draw(){
+    const m=store.get('ctl')==='arrows'?'arrows':'wheel';body.innerHTML='';opts.onMove&&opts.onMove(0);
+    (m==='wheel'?stick:arrows)(body,S,opts);
+    tg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));
+  }
+  tg.querySelectorAll('button').forEach(b=>S.on(b,'click',()=>{store.set('ctl',b.dataset.m);draw();requestAnimationFrame(fit)}));
+  draw();
+}
+function dpad(root,S,cb){const w=el('div','dpad',root);controls(w,S,{onDir:cb})}
 
 function snake(root,S){
   const st=status(root,'');const{c,x}=canvas(root,400,400);const K=pal();const fx=sparks();
@@ -369,7 +390,7 @@ function snake(root,S){
   const taken=(p)=>sn.some(s=>s.x===p.x&&s.y===p.y)||obs.some(o=>o.x===p.x&&o.y===p.y)||(food&&food.x===p.x&&food.y===p.y);
   function place(){let p;do{p={x:rand(N),y:rand(N)}}while(taken(p));return p}
   function addObs(n){for(let k=0;k<n;k++){let p,tries=0;do{p={x:rand(N),y:rand(N)};tries++}while((taken(p)||Math.abs(p.x-sn[0].x)+Math.abs(p.y-sn[0].y)<5)&&tries<200);obs.push(p)}}
-  function reset(){sn=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];obs=[];food=null;dir=DIRS.right;next=[];food=place();score=0;lvl=1;S.show(1);alive=true;started=false;acc=0;st('Press an arrow key, swipe, or push the joystick to start.')}
+  function reset(){sn=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];obs=[];food=null;dir=DIRS.right;next=[];food=place();score=0;lvl=1;S.show(1);alive=true;started=false;acc=0;st('Press an arrow key, swipe, or use the wheel or arrows to start.')}
   reset();
   function turn(d){
     if(!alive)reset();const D=DIRS[d];const last=next.length?next[next.length-1]:dir;
@@ -664,7 +685,7 @@ function blobmaze(root,S){
     const n=Math.min(4,1+lvl);
     en=[[8,7],[7,9],[9,9],[8,9]].slice(0,n).map(([a,b],i)=>({tx:a,ty:b,dx:0,dy:0,t:0,i,state:i?'pen':'roam',wait:i*3.5,door:false}));
   }
-  function reset(){score=0;lives=3;lvl=1;S.show(1);fill();place();state='ready';stT=0;st('Arrow keys, swipe, or the joystick to move. Eat every dot!')}
+  function reset(){score=0;lives=3;lvl=1;S.show(1);fill();place();state='ready';stT=0;st('Arrow keys, swipe, or the wheel or arrows to move. Eat every dot!')}
   const canGo=(e,dx,dy)=>{const ch=cell(e.tx+dx,e.ty+dy);if(ch==null||ch==='#')return false;if(ch==='-')return e.door;if(ch==='G')return e!==pl;return true};
   const pos=e=>({x:e.tx+e.dx*e.t,y:e.ty+e.dy*e.t});
   function advance(e,sp,dt,choose){
@@ -1095,7 +1116,7 @@ function bbtan(root,S){
 const PAPERLV=[[25,1],[35,2],[45,3],[55,3],[65,4]];
 function paper(root,S){
   const [GOAL,NB]=PAPERLV[S.level-1];
-  const st=status(root,'Swipe, use the arrow keys, or the joystick to start. Leave your land and loop back to claim more.');
+  const st=status(root,'Swipe, use the arrow keys, or the wheel or arrows to start. Leave your land and loop back to claim more.');
   const N=30,T=13,HD=34,W=N*T,H=W+HD,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
   const COL=[null,K.c4,K.c1,K.c6,K.c5,K.c3];
   const D={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},OPP={up:'down',down:'up',left:'right',right:'left'};
@@ -1389,11 +1410,11 @@ function bubbles(root,S){
     me={x:W/2,w:26,h:34};shot=null;inv=0;state='ready';
     balls=BUBLV[L-1].map(([s],i,a)=>({s,x:W*(i+1)/(a.length+1),y:120,vx:(i%2?-1:1)*70,vy:0}));
   }
-  lives=3;score=0;reset();st('Move with ← → or the joystick. Shoot with Space or 🔱. Pop every bubble.');
+  lives=3;score=0;reset();st('Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱. Pop every bubble.');
   function fire(){if(state==='over'||state==='win')return;if(state==='ready')state='play';if(!shot){shot={x:me.x,y:FL-me.h};beep(700,40)}}
   S.on(window,'keydown',e=>{if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();fire()}});
   const pad=el('div','row bpad',root);
-  stick(pad,S,{axis:'x',onMove:v=>{moveDir=v;if(v&&state==='ready')state='play'}});
+  controls(pad,S,{axis:'x',onMove:v=>{moveDir=v;if(v&&state==='ready')state='play'}});
   const fb=el('button','btn bfire',pad,'🔱');fb.setAttribute('aria-label','Shoot');S.on(fb,'pointerdown',e=>{e.preventDefault();fire()});
   let mx=null;
   S.on(c,'pointermove',e=>{if(e.pointerType==='mouse')mx=c.pos(e).x});
@@ -1735,23 +1756,23 @@ const GAMES=[
   {id:'whack',name:'Whack-a-Mole',icon:'🔨',blurb:'Hit enough moles before time runs out.',help:'Tap moles while they are up. From level 3, bombs cost you 3 points.',mount:whack,levels:10,unit:'moles'},
   {id:'simon',name:'Simon Says',icon:'🔴',blurb:'Repeat a pattern that grows every level.',help:'Watch the pads light up, then tap them in the same order. Sound on helps.',mount:simon,run:true,unit:'levels'},
   {id:'hangman',name:'Hangman',icon:'🔤',blurb:'Guess the word one letter at a time.',help:'Tap letters or type on your keyboard. Words get longer each level.',mount:hangman,levels:5},
-  {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. Swipe or use the joystick on a phone.',mount:snake,run:true,unit:'points'},
+  {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone.',mount:snake,run:true,unit:'points'},
   {id:'pong',name:'Pong',icon:'🏓',blurb:'Beat a computer that gets sharper each level.',help:'Move your finger or mouse over the court, or use the up and down keys.',mount:pong,levels:5},
   {id:'flappy',name:'Flappy Bird',icon:'🐦',blurb:'Flap through gaps that keep getting tighter.',help:'Tap, click, or press Space to flap.',mount:flappy,run:true,unit:'points'},
   {id:'tower',name:'Tower Block',icon:'🧱',blurb:'Drop sliding blocks to build the tallest tower.',help:'Tap, click, or press Space to drop. Line blocks up perfectly to keep them wide.',mount:tower,run:true,unit:'floors'},
   {id:'crane',name:'Sky Crane',icon:'🏗️',blurb:'Drop swinging blocks to stack a wobbly skyscraper.',help:'Tap, click, or press Space to release the block. Perfect drops steady the tower.',mount:crane,run:true,unit:'floors',isNew:true},
-  {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe or use the joystick on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
+  {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
   {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys.',mount:breakout,levels:5,unit:'points'},
   {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'},
   {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Pick a board size at the top. Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,open:true,names:['Tiny','Easy','Medium','Hard','Expert'],isNew:true},
   {id:'sudoku',name:'Sudoku',icon:'🔢',blurb:'Fill the grid so every row, column and box has 1 to 9.',help:'Pick a difficulty at the top. Tap a square, then a number. Turn on ✏️ Notes to pencil in options. Keyboard: arrows, 1–9, Backspace, N.',mount:sudoku,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true},
   {id:'bbtan',name:'Brick Balls',icon:'🔵',blurb:'Aim, shoot, and smash numbered bricks before they land.',help:'Drag to aim and let go to shoot, or use ← → and Space. Grab +1 rings for extra balls.',mount:bbtan,run:true,unit:'rounds',isNew:true},
-  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys, WASD, swipe, or the joystick. Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,isNew:true},
+  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys, WASD, swipe, or the wheel or arrows. Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,isNew:true},
   {id:'runner',name:'Rail Runner',icon:'🚆',blurb:'Dodge trains, jump barriers, and grab coins.',help:'Swipe or use the arrow keys: left and right to switch tracks, up to jump, down to roll.',mount:runner,run:true,unit:'points',isNew:true},
   {id:'taxi',name:'Rush Taxi',icon:'🚕',blurb:'Pick up passengers and race the clock.',help:'Drag or use ← → to steer and ↓ to brake. Drive past a waving passenger in the outside lane, then reach the 🏁 on the same side.',mount:taxi,run:true,unit:'dollars',isNew:true},
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop the ball through the gaps.',help:'Drag sideways or use ← → to spin the tower. Avoid red. Fall through 3 rings in a row to smash the next one.',mount:helix,levels:10,isNew:true},
-  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← → or the joystick and shoot with Space or 🔱. On a computer you can also point and click.',mount:bubbles,levels:6,isNew:true},
+  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. On a computer you can also point and click.',mount:bubbles,levels:6,isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer, from Easy to Hard.',help:'You play White. Tap a piece, then a highlighted square. Pawns promote to queens automatically.',mount:chess,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
