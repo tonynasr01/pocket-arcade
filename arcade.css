@@ -176,8 +176,10 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .key.no{opacity:.3;animation:shake .3s}
 
 /* D-pad */
-.dpad{display:grid;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,62px);gap:6px;flex:none}
-.dpad button{height:50px;font-size:1.2rem;padding:0}
+.dpad{display:grid;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,minmax(72px,100px));gap:8px;flex:none;touch-action:none;user-select:none;-webkit-user-select:none}
+.dpad button{height:68px;font-size:1.7rem;padding:0;-webkit-tap-highlight-color:transparent}
+.dpad button.hit{animation:press .15s}
+@keyframes press{50%{transform:translateY(3px) scale(.94);box-shadow:0 1px 0 var(--edge);background:var(--c2)}}
 .dpad [data-d=up]{grid-area:u}.dpad [data-d=left]{grid-area:l}.dpad [data-d=down]{grid-area:d}.dpad [data-d=right]{grid-area:r}
 @media (hover:hover) and (pointer:fine){.dpad{display:none}}
 
@@ -231,6 +233,30 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .spad{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(100%,460px);flex:none}
 .spad .btn{padding:10px 0;font-size:1.3rem;box-shadow:0 3px 0 var(--edge)}
 .spad .btn.done{opacity:.3}
+
+/* In-game level-up pill */
+.toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
+.toast b{font:400 1.15rem/1.2 var(--display)}
+.toast small{font:800 .9rem var(--body)}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}20%{transform:translate(-50%,-50%) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,-80%)}}
+
+/* Favorites and search */
+.tile{position:relative}
+.fav{position:absolute;top:10px;right:10px;width:38px;height:38px;padding:0;display:grid;place-items:center;border:2px solid #1E1F5C;border-radius:50%;background:rgba(255,255,255,.55);color:rgba(30,31,92,.3);font:400 1.25rem/1 var(--body);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fav:hover{color:rgba(30,31,92,.6)}
+.fav[aria-pressed="true"]{background:#fff;color:#FF3D5A}
+.fav.bump,.fav-stage.bump{animation:bump .35s var(--spring)}
+.fav-stage{color:var(--muted)}
+.fav-stage[aria-pressed="true"]{color:#FF3D5A}
+.shelf.quiet .tile{animation:none}
+.shelf-h{grid-column:1/-1;font-family:var(--display);font-weight:400;font-size:clamp(1.2rem,5vw,1.5rem);margin:8px 0 -4px}
+.shelf-h:first-child{margin-top:0}
+.shelf .none{grid-column:1/-1;color:var(--muted);font-weight:800;text-align:center;margin:20px 0}
+.search{position:relative;max-width:440px;margin:0 0 22px}
+.search span{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:1.1rem;pointer-events:none}
+.search input{width:100%;font:800 1.05rem var(--body);padding:13px 18px 13px 46px;border:3px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);box-shadow:0 4px 0 var(--edge);-webkit-appearance:none;appearance:none}
+.search input::placeholder{color:var(--muted);font-weight:400}
+@media (max-width:400px){.bar{gap:6px}.ibtn{width:40px;height:40px;font-size:1.1rem}.lvl{height:40px}.lvl span{padding:0 3px;font-size:.88rem}.lvl button{width:24px}}
 
 /* Ads, guide, footer */
 .ad{margin:28px auto;text-align:center;min-height:0}

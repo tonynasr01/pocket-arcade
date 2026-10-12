@@ -20,6 +20,8 @@
 <meta name="twitter:description" content="Play 17 free online games instantly: Snake, 2048, Pong, Breakout, Flappy Bird, Memory, Hangman, Tic-Tac-Toe, Sudoku and more. No download or sign-up. Works on phone and PC.">
 <meta name="twitter:image" content="https://pocket-arcade.games/og-image.png">
 <meta name="theme-color" content="#5B6CFF">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -35,11 +37,12 @@
 <div class="wrap">
   <header>
     <h1 id="logo">Pocket Arcade</h1>
-    <p class="intro">Play 17 free online games instantly, with no download and no sign-up. Clear a level to unlock the next one.</p>
+    <p class="intro">Play 17 free online games instantly, with no download and no sign-up. Tap ♥ on a game to keep it at the top.</p>
   </header>
   <div class="ad"><small>Advertisement</small>
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8892414071435713" data-ad-slot="1111111111" data-ad-format="auto" data-full-width-responsive="true"></ins>
   </div>
+  <div class="search" role="search"><span aria-hidden="true">🔍</span><input id="q" type="search" placeholder="Search games" aria-label="Search games" autocomplete="off" enterkeyhint="search"></div>
   <main id="shelf" class="shelf">
     <a class="tile" href="tic-tac-toe.html" data-id="tictactoe" style="--tc:#FF8A99;--k:0"><span class="ico" aria-hidden="true">⭕</span><b>Tic-Tac-Toe</b><span class="d">Three in a row against the computer.</span><span class="meta"></span></a>
     <a class="tile" href="rock-paper-scissors.html" data-id="rps" style="--tc:#FFD166;--k:1"><span class="ico" aria-hidden="true">✊</span><b>Rock Paper Scissors</b><span class="d">First to five wins the match.</span><span class="meta"></span></a>

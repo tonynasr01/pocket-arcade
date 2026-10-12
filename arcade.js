@@ -49,14 +49,15 @@ function held(S){
   S.on(window,'keyup',e=>{k[e.key]=false});
   return k;
 }
-function onSwipe(S,target,cb){
-  let sx=null,sy=null;
-  S.on(target,'pointerdown',e=>{sx=e.clientX;sy=e.clientY});
-  S.on(target,'pointerup',e=>{
-    if(sx==null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
-    if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
-    cb(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+function onSwipe(S,target,cb,cont){
+  let sx=null,sy=null,fired=false;target.style.touchAction='none';
+  S.on(target,'pointerdown',e=>{if(e.target.closest('.dpad'))return;sx=e.clientX;sy=e.clientY;fired=false});
+  S.on(target,'pointermove',e=>{
+    if(sx==null||(fired&&!cont))return;const dx=e.clientX-sx,dy=e.clientY-sy;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<(cont?18:24))return;
+    cb(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));fired=true;sx=e.clientX;sy=e.clientY;
   });
+  ['pointerup','pointercancel'].forEach(t=>S.on(target,t,()=>{sx=null}));
 }
 let actx;
 function beep(f,ms,type){
@@ -92,6 +93,13 @@ const FX=(()=>{
       if(REDUCED)return;const C=['--c1','--c2','--c3','--c4','--c5','--c6'].map(cssv);
       for(let i=0;i<n;i++){const left=i%2===0;P.push({x:left?-10:innerWidth+10,y:innerHeight*.75,vx:(left?1:-1)*(6+Math.random()*10),vy:-(10+Math.random()*12),g:.32,a:Math.random()*6,va:(Math.random()-.5)*.4,s:6+Math.random()*8,c:C[rand(6)],t:2.4+Math.random()})}
       if(!run){run=true;requestAnimationFrame(tick)}
+    },
+    toast(text,sub){
+      const t=el('div','toast',document.body,`<b></b>${sub?'<small></small>':''}`);
+      t.querySelector('b').textContent=text;if(sub)t.querySelector('small').textContent=sub;
+      const a=document.querySelector('#game .status'),r=a&&a.getBoundingClientRect();
+      t.style.top=(r&&r.height?r.top+r.height/2:90)+'px';
+      setTimeout(()=>t.remove(),1700);
     },
     banner(text,sub){
       const b=el('div','banner',document.body,`<span></span>${sub?'<small></small>':''}`);
@@ -293,7 +301,7 @@ function simon(root,S){
     idx++;
     if(idx===seq.length){
       busy=true;st('Nice!');
-      if(seq.length%5===0){S.fx.confetti(80);S.fx.banner(`Level ${seq.length+1}`,'Getting faster')}
+      if(seq.length%5===0){S.fx.confetti(80);S.fx.toast(`Level ${seq.length+1}`,'Getting faster')}
       seq.push(rand(4));S.after(seq.length%5===1&&seq.length>1?1600:700,playSeq);
     }
   }
@@ -335,7 +343,7 @@ function hangman(root,S){
 
 function dpad(root,S,cb){
   const p=el('div','dpad',root,'<button class="btn ghost" data-d="up" aria-label="Up">▲</button><button class="btn ghost" data-d="left" aria-label="Left">◀</button><button class="btn ghost" data-d="down" aria-label="Down">▼</button><button class="btn ghost" data-d="right" aria-label="Right">▶</button>');
-  p.querySelectorAll('button').forEach(b=>S.on(b,'pointerdown',e=>{e.preventDefault();cb(b.dataset.d)}));
+  p.querySelectorAll('button').forEach(b=>S.on(b,'pointerdown',e=>{e.preventDefault();restartAnim(b,'hit');if(navigator.vibrate)navigator.vibrate(8);cb(b.dataset.d)}));
 }
 
 function snake(root,S){
@@ -364,12 +372,12 @@ function snake(root,S){
     if(h.x===food.x&&h.y===food.y){
       score++;fx.add(food.x*C+C/2,food.y*C+C/2,K.c1,16);beep(600+score*8,70);food=place();
       const nl=1+Math.floor(score/5);
-      if(nl>lvl){lvl=nl;S.show(lvl);S.fx.banner(`Level ${lvl}`,lvl>=3?'Watch out for blocks':'Faster!');beep(990,200);if(lvl>=3)addObs(lvl>=6?4:3)}
+      if(nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,lvl>=3?'Watch out for blocks':'Faster!');beep(990,200);if(lvl>=3)addObs(lvl>=6?4:3)}
       st(`Score ${score}. Level ${lvl}.`);
     }else sn.pop();
   }
   S.on(window,'keydown',e=>{const d=KEYDIR[e.key];if(d){e.preventDefault();turn(d)}});
-  onSwipe(S,c,turn);dpad(root,S,turn);
+  onSwipe(S,root,turn,true);dpad(root,S,turn);
   S.loop(dt=>{
     t+=dt;
     if(started&&alive){acc+=dt;const sp=Math.max(.055,.13-(lvl-1)*.012);while(acc>sp){acc-=sp;step();if(!alive)break}}
@@ -441,7 +449,7 @@ function flappy(root,S){
         p.x-=sp*dt;
         if(!p.passed&&p.x+PWd<bird.x){
           p.passed=true;score++;beep(760,60);
-          const nl=1+Math.floor(score/8);if(nl>lvl){lvl=nl;S.show(lvl);S.fx.banner(`Level ${lvl}`,'Tighter gaps');beep(990,200)}
+          const nl=1+Math.floor(score/8);if(nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,'Tighter gaps');beep(990,200)}
         }
         if(bird.x+bird.r-3>p.x&&bird.x-bird.r+3<p.x+PWd&&(bird.y-bird.r+3<p.gy||bird.y+bird.r-3>p.gy+p.G))die();
       }
@@ -498,7 +506,7 @@ function tower(root,S){
     }
     stack.push({x:cur.x,w:cur.w,f:cur.f,c:cur.c,land:.2});score++;
     const nl=1+Math.floor(score/10);
-    if(nl>lvl){lvl=nl;S.show(lvl);S.fx.confetti(70);S.fx.banner(`Level ${lvl}`,'Faster blocks');beep(990,220)}
+    if(nl>lvl){lvl=nl;S.show(lvl);S.fx.confetti(70);S.fx.toast(`Level ${lvl}`,'Faster blocks');beep(990,220)}
     st(`${score} ${score===1?'floor':'floors'}. Level ${lvl}.`);
     spawn();
   }
@@ -572,7 +580,7 @@ function crane(root,S){
     fx.add(tx+off,y0,K.muted,8,90);
     floors.push({x:tx+off-swayAt(n+1),w:BW,c:blk.c,land:.25});score++;
     const nl=1+Math.floor(score/10);
-    if(nl>lvl){lvl=nl;S.show(lvl);S.fx.confetti(70);S.fx.banner(`Level ${lvl}`,'Faster swing');beep(990,220)}
+    if(nl>lvl){lvl=nl;S.show(lvl);S.fx.confetti(70);S.fx.toast(`Level ${lvl}`,'Faster swing');beep(990,220)}
     st(`${score} ${score===1?'floor':'floors'}. Level ${lvl}.${swayAmp>25?' The tower is wobbling!':''}`);
     blk.mode='wait';waitT=.35;
   }
@@ -657,7 +665,7 @@ function blobmaze(root,S){
     const ch=dots.get(k);dots.delete(k);
     if(ch==='o'){score+=50;fr=Math.max(2.5,7.5-lvl*.8);chain=0;beep(300,220);en.forEach(q=>{if(q.state==='roam'&&(q.dx||q.dy)){q.tx=(q.tx+q.dx+NX)%NX;q.ty+=q.dy;q.dx=-q.dx;q.dy=-q.dy;q.t=1-q.t}})}
     else{score+=10;beep(dots.size%2?620:700,30)}
-    if(!dots.size){state='clear';stT=0;lvl++;S.show(lvl);S.fx.confetti(90);S.fx.banner(`Level ${lvl}`,'Faster spikers');beep(990,250)}
+    if(!dots.size){state='clear';stT=0;lvl++;S.show(lvl);S.fx.confetti(90);S.fx.toast(`Level ${lvl}`,'Faster spikers');beep(990,250)}
   }
   function target(e){
     if(e.state==='leave')return[8,7];
@@ -684,7 +692,7 @@ function blobmaze(root,S){
     if((pl.dx||pl.dy)&&a===-pl.dx&&b===-pl.dy){pl.tx=(pl.tx+pl.dx+NX)%NX;pl.ty+=pl.dy;pl.dx=a;pl.dy=b;pl.t=1-pl.t}
   }
   S.on(window,'keydown',e=>{const d=KEYDIR[e.key];if(d){e.preventDefault();turn(d)}});
-  onSwipe(S,c,turn);dpad(root,S,turn);
+  onSwipe(S,root,turn,true);dpad(root,S,turn);
   reset();
   S.loop(dt=>{
     t+=dt;
@@ -698,7 +706,7 @@ function blobmaze(root,S){
         const sp=e.state==='leave'?4:fr>0?3.4:Math.min(8,5.2+.45*(lvl-1));advance(e,sp,dt,chooseEn);
         const a=pos(e),b=pos(pl);let dx=Math.abs(a.x-b.x);dx=Math.min(dx,NX-dx);
         if(dx+Math.abs(a.y-b.y)<.75&&e.state==='roam'){
-          if(fr>0){const pts=200*2**chain++;score+=pts;e.state='dead';e.wait=3;fx.add(a.x*T+T/2,a.y*T+T/2+OY,ECOL[e.i],24,220);S.fx.banner(`+${pts}`);beep(880,150)}
+          if(fr>0){const pts=200*2**chain++;score+=pts;e.state='dead';e.wait=3;fx.add(a.x*T+T/2,a.y*T+T/2+OY,ECOL[e.i],24,220);S.fx.toast(`+${pts}`);beep(880,150)}
           else{state='dying';stT=0;S.shake();beep(110,600,'sawtooth');fx.add(b.x*T+T/2,b.y*T+T/2+OY,K.c3,36,240);break}
         }
       }
@@ -831,7 +839,7 @@ function g2048(root,S){
       ks.forEach((k,j)=>{if(b[k]!==res.a[j])moved=true;b[k]=res.a[j];if(res.m[j])merged.add(k)});
     }
     if(!moved)return;const n=add();render([n],merged);best('2048',score);beep(merged.size?560:400,50);
-    if(Math.max(...b)>=target(lvl)){lvl++;S.show(lvl);S.fx.confetti(90);S.fx.banner(`Level ${lvl}`,`Next goal: ${target(lvl)}`);beep(990,220)}
+    if(Math.max(...b)>=target(lvl)){lvl++;S.show(lvl);S.fx.confetti(90);S.fx.toast(`Level ${lvl}`,`Next goal: ${target(lvl)}`);beep(990,220)}
     st(`Score ${score}. Next goal: ${target(lvl)}.`);
     if(!canMove()){over=true;S.shake();st(`No moves left. Level ${lvl}, score ${score}. Best ${store.get('best:2048')}.`)}
   }
@@ -1015,6 +1023,9 @@ const GAMES=[
   {id:'sudoku',name:'Sudoku',icon:'🔢',blurb:'Fill the grid so every row, column and box has 1 to 9.',help:'Pick a difficulty at the top. Tap a square, then a number. Turn on ✏️ Notes to pencil in options. Keyboard: arrows, 1–9, Backspace, N.',mount:sudoku,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
+const TAGS={tictactoe:'board strategy classic x o two',rps:'hand quick luck',guess:'numbers brain math',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic'};
+const favs=()=>store.get('favs')||[];
+const isFav=id=>favs().includes(id);
 
 /* ---------- level state ---------- */
 const unl=g=>g.run?1:g.open?g.levels:clamp(store.get('unl:'+g.id)||1,1,g.levels);
@@ -1059,32 +1070,58 @@ const isFS=()=>!!(document.fullscreenElement||document.webkitFullscreenElement);
 function enterFS(){if(!canFS||isFS())return;try{const d=document.documentElement;const p=(d.requestFullscreen||d.webkitRequestFullscreen).call(d);if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 function exitFS(){if(!isFS())return;try{const p=(document.exitFullscreen||document.webkitExitFullscreen).call(document);if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 $('#fs').hidden=!canFS;
-$('#fs').addEventListener('click',()=>isFS()?exitFS():enterFS());
+let fsOff=false;
+$('#fs').addEventListener('click',()=>{fsOff=isFS();fsOff?exitFS():enterFS()});
+/* phones: go full screen on the first touch in a game if we are not already */
+stage.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&!fsOff&&!isFS())enterFS()});
 
 /* ---------- shelf & router ---------- */
 (function logo(){
   const h=$('#logo');if(!h)return;const txt=h.textContent;h.setAttribute('aria-label',txt);let n=0;
   h.innerHTML=txt.split(' ').map(w=>`<span class="w" aria-hidden="true">${w.split('').map(ch=>{const i=n++;return`<span class="l" style="--i:${i};color:var(--c${i%6+1})">${ch}</span>`}).join('')}</span>`).join(' ');
 })();
+function favBtn(g){return`<button class="fav" data-fav="${g.id}" aria-pressed="${isFav(g.id)}" aria-label="${isFav(g.id)?'Remove '+g.name+' from':'Add '+g.name+' to'} favorites">♥</button>`}
 function renderShelf(){
-  shelf.innerHTML='';
-  GAMES.forEach((g,i)=>{
-    const a=el('a','tile',shelf);a.href=PAGES[g.id];a.dataset.id=g.id;a.style.setProperty('--tc',TC[i%TC.length]);a.style.setProperty('--k',i);
+  const q=(qIn&&qIn.value||'').trim().toLowerCase(),F=favs();let k=0;
+  shelf.innerHTML='';shelf.classList.toggle('quiet',!!q||shelf.dataset.drawn==='1');shelf.dataset.drawn='1';
+  const head=t=>el('h2','shelf-h',shelf,t);
+  const tile=g=>{
+    const i=GAMES.indexOf(g),a=el('a','tile',shelf);a.href=PAGES[g.id];a.dataset.id=g.id;a.style.setProperty('--tc',TC[i%TC.length]);a.style.setProperty('--k',k++);
     const b=store.get('best:'+g.id);const chips=[];
     if(!g.run&&!g.open)chips.push(`Level ${unl(g)} of ${g.levels}`);
     if(g.open)chips.push(`${g.levels} modes`);
     if(g.isNew)chips.unshift('New!');
     if(b!=null&&g.unit)chips.push(`Best ${b} ${g.unit}`);
-    a.innerHTML=`<span class="ico" aria-hidden="true">${g.icon}</span><b>${g.name}</b><span class="d">${g.blurb}</span><span class="meta">${chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>`;
-  });
+    a.innerHTML=`<span class="ico" aria-hidden="true">${g.icon}</span><b>${g.name}</b><span class="d">${g.blurb}</span><span class="meta">${chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>${favBtn(g)}`;
+  };
+  if(q){
+    const m=GAMES.filter(g=>(g.name+' '+g.blurb+' '+g.help+' '+(TAGS[g.id]||'')).toLowerCase().includes(q)).sort((a,b)=>F.includes(b.id)-F.includes(a.id));
+    m.forEach(tile);if(!m.length)el('p','none',shelf).textContent=`No games match "${qIn.value.trim()}".`;
+  }else if(F.length){
+    head('♥ Your favorites');GAMES.filter(g=>F.includes(g.id)).forEach(tile);
+    head('All games');GAMES.filter(g=>!F.includes(g.id)).forEach(tile);
+  }else GAMES.forEach(tile);
 }
+function toggleFav(id){
+  const F=favs(),on=!F.includes(id);store.set('favs',on?[...F,id]:F.filter(x=>x!==id));beep(on?880:440,70);
+  if(shelf&&!document.body.classList.contains('playing'))renderShelf();
+  document.querySelectorAll(`.fav[data-fav="${id}"]`).forEach(b=>{b.setAttribute('aria-pressed',on);restartAnim(b,'bump')});
+  if(curGame&&curGame.id===id)paintFav();
+}
+const qIn=$('#q');
+if(qIn){qIn.addEventListener('input',renderShelf);addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==qIn&&!document.body.classList.contains('playing')){e.preventDefault();qIn.focus()}})}
+document.querySelectorAll('.tile[data-id]').forEach(t=>{const g=GAMES.find(x=>x.id===t.dataset.id);if(g&&!t.closest('#shelf'))t.insertAdjacentHTML('beforeend',favBtn(g))});
+document.addEventListener('click',e=>{const f=e.target.closest('.fav');if(!f)return;e.preventDefault();e.stopPropagation();toggleFav(f.dataset.fav)},true);
+const stFav=el('button','btn ghost ibtn fav-stage',null,'♥');$('#back').after(stFav);
+function paintFav(){const on=isFav(curGame.id);stFav.setAttribute('aria-pressed',on);stFav.setAttribute('aria-label',on?'Remove from favorites':'Add to favorites')}
+stFav.addEventListener('click',()=>{if(curGame)toggleFav(curGame.id)});
 if(shelf)shelf.addEventListener('click',e=>{const t=e.target.closest('.tile');if(t&&t.dataset.id){e.preventDefault();location.hash=t.dataset.id;enterFS()}});
 document.querySelectorAll('[data-play]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();location.hash=b.dataset.play;enterFS()}));
 $('#back').addEventListener('click',exitFS);
 
 function route(){
   if(scope){scope.dispose();scope=null}
-  gameEl.innerHTML='';gameEl.classList.remove('shake');
+  gameEl.innerHTML='';gameEl.classList.remove('shake');gameEl.style.touchAction='';document.querySelectorAll('.toast').forEach(t=>t.remove());
   const g=GAMES.find(x=>x.id===location.hash.slice(1));
   if(!g){
     document.body.classList.remove('playing');stage.hidden=true;document.title=BASE_TITLE;if(shelf)renderShelf();return;
@@ -1092,7 +1129,7 @@ function route(){
   curGame=g;curLv=curLevel(g);
   document.body.classList.add('playing');stage.hidden=false;restartAnim(stage,'in');
   $('#gtitle').textContent=g.name;$('#ghelp').textContent=g.help;document.title=g.name+' · Pocket Arcade';
-  lvName.textContent='';chip(g,curLv);
+  lvName.textContent='';chip(g,curLv);paintFav();
   scope=makeScope();
   Object.assign(scope,{level:curLv,fx:FX,shake,next:()=>levelUp(g,curLv),show:n=>chip(g,n)});
   g.mount(gameEl,scope);
