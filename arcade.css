@@ -176,11 +176,17 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .key.no{opacity:.3;animation:shake .3s}
 
 /* D-pad */
-.dpad{display:grid;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,minmax(72px,100px));gap:8px;flex:none;touch-action:none;user-select:none;-webkit-user-select:none}
-.dpad button{height:68px;font-size:1.7rem;padding:0;-webkit-tap-highlight-color:transparent}
-.dpad button.hit{animation:press .15s}
-@keyframes press{50%{transform:translateY(3px) scale(.94);box-shadow:0 1px 0 var(--edge);background:var(--c2)}}
-.dpad [data-d=up]{grid-area:u}.dpad [data-d=left]{grid-area:l}.dpad [data-d=down]{grid-area:d}.dpad [data-d=right]{grid-area:r}
+.dpad{display:flex;justify-content:center;flex:none}
+.joy{position:relative;width:min(46vw,176px);aspect-ratio:1;border-radius:50%;background:var(--board);border:3px solid var(--edge);box-shadow:0 5px 0 var(--edge),inset 0 0 0 10px var(--line);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;flex:none}
+.joy-x{width:min(44vw,170px);aspect-ratio:auto;height:84px;border-radius:999px}
+.joy .ch{position:absolute;font-style:normal;font-size:1rem;color:var(--muted);opacity:.7;transition:color .1s,opacity .1s;pointer-events:none}
+.joy .u{top:9%;left:50%;transform:translateX(-50%)}.joy .d{bottom:9%;left:50%;transform:translateX(-50%)}
+.joy .l{left:9%;top:50%;transform:translateY(-50%)}.joy .r{right:9%;top:50%;transform:translateY(-50%)}
+.joy-x .l{left:10%}.joy-x .r{right:10%}
+.joy[data-dir=up] .u,.joy[data-dir=down] .d,.joy[data-dir=left] .l,.joy[data-dir=right] .r{color:var(--c4);opacity:1}
+.knob{position:absolute;left:50%;top:50%;width:42%;aspect-ratio:1;margin:-21% 0 0 -21%;border-radius:50%;background:var(--c4) radial-gradient(circle at 35% 30%,rgba(255,255,255,.45),transparent 55%);border:3px solid var(--edge);box-shadow:0 4px 0 var(--edge);transition:transform .12s ease-out;pointer-events:none}
+.joy-x .knob{width:60px;height:60px;margin:-30px 0 0 -30px}
+.joy.on .knob{transition:none;background-color:var(--c2)}
 @media (hover:hover) and (pointer:fine){.dpad{display:none}}
 
 /* 2048 */
@@ -265,7 +271,8 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .pc.b{color:#1E1F5C;text-shadow:0 .3cqw 0 rgba(255,255,255,.4)}
 
 /* Bubble Pop buttons */
-.bpad .btn{min-width:86px;height:58px;font-size:1.5rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.bpad{align-items:center;gap:22px}
+.bfire{width:84px;height:84px;border-radius:50%;font-size:2rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 @media (hover:hover) and (pointer:fine){.bpad{display:none}}
 
 /* In-game level-up pill */
