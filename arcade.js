@@ -840,8 +840,78 @@ function g2048(root,S){
   const a1=add(),a2=add();render([a1,a2]);
 }
 
+const MINELV=[[8,8],[9,10],[10,15],[12,24],[14,34]];
+function mines(root,S){
+  const [N,M]=MINELV[S.level-1];
+  const st=status(root,`Clear the board without hitting any of the ${M} mines.`);
+  const bar=el('div','row mbar',root,`<span class="mleft">💣 ${M}</span><button class="btn ghost mmode" aria-pressed="false">⛏️ Dig</button><span class="mtime">⏱️ 0</span>`);
+  const left=$('.mleft',bar),mode=$('.mmode',bar),clock=$('.mtime',bar);
+  const g=el('div','mines',root);g.style.gridTemplateColumns=`repeat(${N},1fr)`;g.style.setProperty('--n',N);g.dataset.ar=1;g.dataset.max=N*52;
+  const mine=Array(N*N).fill(false),adj=Array(N*N).fill(0),open=Array(N*N).fill(false),flag=Array(N*N).fill(false);
+  let started=false,over=false,flagMode=false,safe=N*N-M,flags=0,t0=0,secs=0;
+  const nb=i=>{const r=i/N|0,c=i%N,o=[];for(let y=r-1;y<=r+1;y++)for(let x=c-1;x<=c+1;x++)if((y!==r||x!==c)&&y>=0&&y<N&&x>=0&&x<N)o.push(y*N+x);return o};
+  const cells=[...Array(N*N)].map((_,i)=>{
+    const b=el('button','mc',g);b.style.animationDelay=Math.min(i*6,400)+'ms';b.setAttribute('aria-label',`Row ${(i/N|0)+1}, column ${i%N+1}, hidden`);
+    let timer=null,long=false;
+    S.on(b,'pointerdown',e=>{long=false;if(e.pointerType==='mouse')return;clearTimeout(timer);timer=setTimeout(()=>{long=true;toggle(i);if(navigator.vibrate)navigator.vibrate(25)},380)});
+    ['pointerup','pointerleave','pointercancel'].forEach(t=>S.on(b,t,()=>clearTimeout(timer)));
+    S.on(b,'click',()=>{if(long){long=false;return}flagMode&&!open[i]?toggle(i):reveal(i)});
+    S.on(b,'contextmenu',e=>{e.preventDefault();if(!long)toggle(i)});
+    return b;
+  });
+  S.on(g,'keydown',e=>{const i=cells.indexOf(e.target);if(i>=0&&(e.key==='f'||e.key==='F')){e.preventDefault();toggle(i)}});
+  S.on(mode,'click',()=>{flagMode=!flagMode;mode.textContent=flagMode?'🚩 Flag':'⛏️ Dig';mode.setAttribute('aria-pressed',flagMode);mode.classList.toggle('on',flagMode);restartAnim(mode,'bump')});
+  S.every(250,()=>{if(!started||over)return;const s=Math.floor((performance.now()-t0)/1000);if(s!==secs){secs=s;clock.textContent=`⏱️ ${s}`}});
+  const counter=()=>{left.textContent=`💣 ${M-flags}`};
+  function plant(first){
+    const ban=new Set([first,...nb(first)]);const spots=shuffle([...Array(N*N).keys()].filter(i=>!ban.has(i))).slice(0,M);
+    spots.forEach(i=>{mine[i]=true;nb(i).forEach(j=>adj[j]++)});
+    started=true;t0=performance.now();
+  }
+  function toggle(i){
+    if(over||open[i])return;flag[i]=!flag[i];flags+=flag[i]?1:-1;
+    const c=cells[i];c.classList.toggle('f',flag[i]);c.textContent=flag[i]?'🚩':'';
+    c.setAttribute('aria-label',`Row ${(i/N|0)+1}, column ${i%N+1}, ${flag[i]?'flagged':'hidden'}`);
+    if(flag[i])restartAnim(c,'plant');counter();beep(flag[i]?720:420,50);
+  }
+  function show(i,d){
+    open[i]=true;safe--;const c=cells[i];c.classList.add('o');c.style.animationDelay=Math.min(d*28,500)+'ms';
+    c.textContent=adj[i]||'';c.dataset.n=adj[i];c.setAttribute('aria-label',`Row ${(i/N|0)+1}, column ${i%N+1}, ${adj[i]?adj[i]+' nearby':'empty'}`);
+  }
+  function flood(start){
+    const q=[[start,0]];show(start,0);let n=1;
+    while(q.length){const[i,d]=q.shift();if(adj[i])continue;for(const j of nb(i))if(!open[j]&&!flag[j]&&!mine[j]){show(j,d+1);q.push([j,d+1]);n++}}
+    return n;
+  }
+  function reveal(i){
+    if(over||flag[i])return;
+    if(!started)plant(i);
+    if(open[i]){
+      if(!adj[i])return;const around=nb(i);
+      if(around.filter(j=>flag[j]).length!==adj[i])return;
+      const todo=around.filter(j=>!open[j]&&!flag[j]);if(!todo.length)return;
+      const hit=todo.find(j=>mine[j]);if(hit!=null){lose(hit);return}
+      todo.forEach(j=>{if(!open[j])flood(j)});beep(560,60);
+    }else if(mine[i]){lose(i);return}
+    else{const n=flood(i);beep(n>1?620:500,n>1?90:50)}
+    if(safe===0)win();
+  }
+  function lose(i){
+    over=true;cells[i].classList.add('boom');
+    mine.forEach((m,j)=>{const c=cells[j];if(m&&!flag[j]){c.classList.add('o','mine');c.textContent='💣';c.style.animationDelay=(j===i?0:120+rand(500))+'ms'}else if(!m&&flag[j])c.classList.add('x')});
+    S.shake();beep(160,400,'sawtooth');st('Boom! You hit a mine. Press ↻ to try again.');
+  }
+  function win(){
+    over=true;const t=Math.max(1,Math.round((performance.now()-t0)/1000));clock.textContent=`⏱️ ${t}`;
+    mine.forEach((m,j)=>{if(m&&!flag[j]){flag[j]=true;cells[j].classList.add('f');cells[j].textContent='🚩'}});flags=M;counter();
+    const rec=best('mines'+S.level,t,true);
+    st(`Board cleared in ${t} second${t===1?"":"s"}!`+(rec?' New best time.':` Best: ${store.get('best:mines'+S.level)}s.`));
+    S.after(400,S.next);
+  }
+}
+
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "rps": "rock-paper-scissors.html", "guess": "number-guessing-game.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "rps": "rock-paper-scissors.html", "guess": "number-guessing-game.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html"};
 const BASE_TITLE=document.title;
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer.',help:'Tap a square to place your X. Switch difficulty with the arrows at the top.',mount:tictactoe,levels:3,open:true,names:['Easy','Medium','Hard']},
@@ -858,7 +928,8 @@ const GAMES=[
   {id:'crane',name:'Sky Crane',icon:'🏗️',blurb:'Drop swinging blocks to stack a wobbly skyscraper.',help:'Tap, click, or press Space to release the block. Perfect drops steady the tower.',mount:crane,run:true,unit:'floors',isNew:true},
   {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe or use the buttons on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
   {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys.',mount:breakout,levels:5,unit:'points'},
-  {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'}
+  {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'},
+  {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
 
