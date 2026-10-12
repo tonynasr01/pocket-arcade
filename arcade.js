@@ -1452,7 +1452,7 @@ function bubbles(root,S){
     if(state==='play'){
       pw.double=Math.max(0,pw.double-dt);pw.freeze=Math.max(0,pw.freeze-dt);pw.slow=Math.max(0,pw.slow-dt);
       let dir=moveDir;if(k.ArrowLeft||k.a)dir=-1;if(k.ArrowRight||k.d)dir=1;
-      if(dir)me.x+=dir*230*dt;else if(mx!=null&&Math.abs(mx-me.x)>4)me.x+=Math.sign(mx-me.x)*Math.min(Math.abs(mx-me.x),230*dt);
+      if(dir){me.x+=dir*230*dt;mx=null}else if(mx!=null){if(Math.abs(mx-me.x)>4)me.x+=Math.sign(mx-me.x)*Math.min(Math.abs(mx-me.x),230*dt);else mx=null}
       me.x=clamp(me.x,me.w/2,W-me.w/2);
       for(const sh of shots)sh.y-=560*dt;shots=shots.filter(sh=>sh.y>0);
       for(const d of drops){d.vy+=500*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;if(Math.abs(d.x-me.x)<me.w/2+12&&d.y>FL-me.h-12){d.got=true;collect(d)}}
