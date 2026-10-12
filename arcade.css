@@ -212,6 +212,26 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .mc[data-n="5"]{color:var(--c6)}.mc[data-n="6"]{color:#1E9E92}.mc[data-n="7"]{color:var(--ink)}.mc[data-n="8"]{color:var(--muted)}
 
 
+/* Sudoku */
+.mbar .smis.bump{animation:bump .35s var(--spring)}
+.sud{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;width:320px;background:var(--edge);border:3px solid var(--edge);border-radius:14px;container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.sbox{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border-radius:6px;overflow:hidden}
+.sc{aspect-ratio:1;min-width:0;padding:0;border:0;background:var(--board);color:color-mix(in srgb,var(--c4) 72%,var(--ink));font:800 6.4cqw/1 var(--body);display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;animation:popin .3s var(--spring) both}
+.sc.given{color:var(--ink);font-family:var(--display);font-weight:400;font-size:5.6cqw}
+.sc.peer{background:color-mix(in srgb,var(--c4) 16%,var(--board))}
+.sc.same{background:color-mix(in srgb,var(--c2) 45%,var(--board))}
+.sc.sel{background:color-mix(in srgb,var(--c4) 42%,var(--board));box-shadow:inset 0 0 0 2px var(--c4)}
+.sc.err{color:var(--c1);background:color-mix(in srgb,var(--c1) 16%,var(--board))}
+.sc.err.sel{background:color-mix(in srgb,var(--c1) 30%,var(--board))}
+.sc.pop{animation:pop .3s var(--spring)}
+.sc.wave{animation:pulse .3s ease-in-out 2 alternate}
+.sc:focus-visible{outline-offset:-3px}
+.sc .nt{display:grid;grid-template-columns:repeat(3,1fr);width:100%;height:100%;padding:6%;font:800 2.3cqw/1 var(--body);color:var(--muted)}
+.sc .nt i{font-style:normal;display:grid;place-items:center}
+.spad{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(100%,460px);flex:none}
+.spad .btn{padding:10px 0;font-size:1.3rem;box-shadow:0 3px 0 var(--edge)}
+.spad .btn.done{opacity:.3}
+
 /* Ads, guide, footer */
 .ad{margin:28px auto;text-align:center;min-height:0}
 .ad small{display:block;color:var(--muted);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}

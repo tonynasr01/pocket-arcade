@@ -910,8 +910,90 @@ function mines(root,S){
   }
 }
 
+const SUDLV=[40,33,28,24];
+const sudOk=(g,i,v)=>{const r=i/9|0,c=i%9,br=r-r%3,bc=c-c%3;for(let k=0;k<9;k++)if(g[r*9+k]===v||g[k*9+c]===v||g[(br+(k/3|0))*9+bc+k%3]===v)return false;return true};
+function sudCount(p){
+  let at=-1,cs=null;
+  for(let i=0;i<81;i++)if(!p[i]){const o=[];for(let v=1;v<=9;v++)if(sudOk(p,i,v))o.push(v);if(!o.length)return 0;if(!cs||o.length<cs.length){at=i;cs=o;if(o.length===1)break}}
+  if(at<0)return 1;let n=0;
+  for(const v of cs){p[at]=v;n+=sudCount(p);if(n>1)break}
+  p[at]=0;return n;
+}
+function sudGen(clues){
+  const sol=Array(81).fill(0);
+  (function fill(i){if(i===81)return true;for(const v of shuffle([1,2,3,4,5,6,7,8,9]))if(sudOk(sol,i,v)){sol[i]=v;if(fill(i+1))return true}sol[i]=0;return false})(0);
+  const p=sol.slice();let left=81;
+  for(const i of shuffle([...Array(81).keys()])){if(left<=clues)break;const v=p[i];p[i]=0;if(sudCount(p)!==1)p[i]=v;else left--}
+  return{p,sol};
+}
+function sudoku(root,S){
+  const {p,sol}=sudGen(SUDLV[S.level-1]);
+  const st=status(root,'Fill every row, column and box with 1 to 9.');
+  const bar=el('div','row mbar',root,`<span class="smis">❌ 0/3</span><button class="btn ghost snote" aria-pressed="false">✏️ Notes</button><span class="mtime">⏱️ 0</span>`);
+  const mis=$('.smis',bar),noteBtn=$('.snote',bar),clock=$('.mtime',bar);
+  const g=el('div','sud',root);g.dataset.ar=1;g.dataset.max=560;
+  const val=p.slice(),given=p.map(v=>v>0),notes=Array(81).fill(0),cells=Array(81);
+  let sel=-1,mistakes=0,over=false,noteMode=false,secs=0;const t0=performance.now();
+  for(let b=0;b<9;b++){const box=el('div','sbox',g);for(let k=0;k<9;k++){
+    const r=(b/3|0)*3+(k/3|0),c=(b%3)*3+k%3,i=r*9+c;
+    const e=cells[i]=el('button','sc'+(given[i]?' given':''),box);e.style.animationDelay=Math.min(i*5,400)+'ms';
+    S.on(e,'click',()=>{sel=i;paint();beep(480,30)});
+  }}
+  const pad=el('div','spad',root);
+  const keys=[1,2,3,4,5,6,7,8,9,0].map(v=>{const b=el('button','btn ghost',pad,v||'⌫');b.setAttribute('aria-label',v?'Enter '+v:'Erase');S.on(b,'click',()=>input(v));return b});
+  const peer=(i,j)=>i!==j&&((i/9|0)===(j/9|0)||i%9===j%9||(((i/27|0)===(j/27|0))&&((i%9/3|0)===(j%9/3|0))));
+  const name=i=>`Row ${(i/9|0)+1}, column ${i%9+1}`;
+  function draw(i){
+    const e=cells[i],v=val[i];e.classList.toggle('err',!!v&&v!==sol[i]);
+    if(v){e.textContent=v;e.setAttribute('aria-label',`${name(i)}, ${v}`)}
+    else if(notes[i]){e.innerHTML='<span class="nt">'+[1,2,3,4,5,6,7,8,9].map(n=>`<i>${notes[i]>>n&1?n:''}</i>`).join('')+'</span>';e.setAttribute('aria-label',`${name(i)}, notes`)}
+    else{e.textContent='';e.setAttribute('aria-label',`${name(i)}, empty`)}
+  }
+  function paint(){
+    const sv=sel>=0?val[sel]:0;
+    cells.forEach((e,i)=>{e.classList.toggle('sel',i===sel);e.classList.toggle('peer',sel>=0&&peer(i,sel));e.classList.toggle('same',!!sv&&i!==sel&&val[i]===sv)});
+    keys.forEach((b,k)=>{if(k<9)b.classList.toggle('done',val.filter((v,i)=>v===k+1&&v===sol[i]).length===9)});
+  }
+  function input(v){
+    if(over||sel<0||given[sel]||val[sel]===sol[sel])return;
+    if(!v){val[sel]=0;notes[sel]=0;draw(sel);paint();beep(300,40);return}
+    if(noteMode){if(val[sel])return;notes[sel]^=1<<v;draw(sel);beep(620,30);return}
+    val[sel]=v;notes[sel]=0;draw(sel);restartAnim(cells[sel],'pop');
+    if(v!==sol[sel]){
+      mistakes++;mis.textContent=`❌ ${mistakes}/3`;restartAnim(mis,'bump');beep(180,200,'sawtooth');
+      if(mistakes>=3){over=true;S.shake();st('Three mistakes. Game over. Press ↻ for a new puzzle.')}
+      else st(`${v} doesn't fit there. ${3-mistakes} ${3-mistakes===1?'mistake':'mistakes'} left.`);
+    }else{
+      for(let j=0;j<81;j++)if(notes[j]>>v&1&&peer(j,sel)){notes[j]&=~(1<<v);draw(j)}
+      beep(660,60);
+      if(val.every((x,i)=>x===sol[i]))win();
+    }
+    paint();
+  }
+  function win(){
+    over=true;sel=-1;const t=Math.max(1,Math.round((performance.now()-t0)/1000));clock.textContent=`⏱️ ${fmt(t)}`;
+    cells.forEach((e,i)=>{e.style.animationDelay=((i/9|0)+i%9)*30+'ms';restartAnim(e,'wave')});
+    const rec=best('sudoku'+S.level,t,true);
+    st(`Solved in ${fmt(t)}!`+(rec?' New best time.':` Best: ${fmt(store.get('best:sudoku'+S.level))}.`));
+    S.after(600,S.next);
+  }
+  const fmt=s=>`${s/60|0}:${String(s%60).padStart(2,'0')}`;
+  S.on(noteBtn,'click',()=>{noteMode=!noteMode;noteBtn.classList.toggle('on',noteMode);noteBtn.setAttribute('aria-pressed',noteMode);restartAnim(noteBtn,'bump')});
+  S.every(250,()=>{if(over)return;const s=Math.floor((performance.now()-t0)/1000);if(s!==secs){secs=s;clock.textContent=`⏱️ ${fmt(s)}`}});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    const d=KEYDIR[e.key];
+    if(d&&e.key.startsWith('Arrow')){e.preventDefault();if(sel<0)sel=0;else{const r=sel/9|0,c=sel%9;sel=d==='up'?((r+8)%9)*9+c:d==='down'?((r+1)%9)*9+c:d==='left'?r*9+(c+8)%9:r*9+(c+1)%9}cells[sel].focus();paint()}
+    else if(/^[1-9]$/.test(e.key))input(+e.key);
+    else if(e.key==='Backspace'||e.key==='Delete'||e.key==='0')input(0);
+    else if(e.key==='n'||e.key==='N')noteBtn.click();
+  });
+  clock.textContent='⏱️ 0:00';
+  cells.forEach((_,i)=>draw(i));paint();
+}
+
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "rps": "rock-paper-scissors.html", "guess": "number-guessing-game.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "rps": "rock-paper-scissors.html", "guess": "number-guessing-game.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html"};
 const BASE_TITLE=document.title;
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer.',help:'Tap a square to place your X. Switch difficulty with the arrows at the top.',mount:tictactoe,levels:3,open:true,names:['Easy','Medium','Hard']},
@@ -929,13 +1011,14 @@ const GAMES=[
   {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe or use the buttons on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
   {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys.',mount:breakout,levels:5,unit:'points'},
   {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'},
-  {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,isNew:true}
+  {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Pick a board size at the top. Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,open:true,names:['Tiny','Easy','Medium','Hard','Expert'],isNew:true},
+  {id:'sudoku',name:'Sudoku',icon:'🔢',blurb:'Fill the grid so every row, column and box has 1 to 9.',help:'Pick a difficulty at the top. Tap a square, then a number. Turn on ✏️ Notes to pencil in options. Keyboard: arrows, 1–9, Backspace, N.',mount:sudoku,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true}
 ];
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
 
 /* ---------- level state ---------- */
 const unl=g=>g.run?1:g.open?g.levels:clamp(store.get('unl:'+g.id)||1,1,g.levels);
-const curLevel=g=>g.run?1:clamp(store.get('cur:'+g.id)||unl(g),1,unl(g));
+const curLevel=g=>g.run?1:clamp(store.get('cur:'+g.id)||(g.open?1:unl(g)),1,unl(g));
 const lvlName=(g,n)=>g.names?g.names[n-1]:'Level '+n;
 
 const shelf=$('#shelf'),stage=$('#stage'),gameEl=$('#game'),lvName=$('#lvName'),lvPrev=$('#lvPrev'),lvNext=$('#lvNext');
