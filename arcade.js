@@ -2097,20 +2097,20 @@ function fuse(root,S){
   const st=status(root,'Collect every bomb. Grab the glowing lit bomb for double points. Catch ❤ for an extra life and avoid the enemies!');
   const W=400,H=480,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const GY=452,PW=16,PH=24;
-  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
+  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,sched={},lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
   const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
   function makeBombs(){
     const out=[],tries=[];
     const free=(bx,by)=>by<GY-14&&by>40&&bx>18&&bx<W-18&&!plats.some(p=>bx>p.x-14&&bx<p.x+p.w+14&&by>p.y-18&&by<p.y+22)&&!out.some(b=>Math.hypot(b.x-bx,b.y-by)<30);
     const shapes=[(cx,cy,i)=>[cx+i*30-45,cy],(cx,cy,i)=>[cx,cy+i*30-45],(cx,cy,i)=>[cx+Math.cos(i*1.57)*34,cy+Math.sin(i*1.57)*34]];
     let guard=0;
-    while(out.length<16&&guard<4000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<16)out.push({x:bx,y:by,got:false})}
-    while(out.length<16){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
+    while(out.length<24&&guard<4000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<24)out.push({x:bx,y:by,got:false})}
+    while(out.length<24){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
     return out;
   }
   function startLevel(){
     lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:py,w}));
-    lball=null;lifeAt=4+rand(8);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
+    lball=null;sched={P:6+rand(10),B:mult<5?3+rand(16):99,L:lvl%2===1?8+rand(12):99};bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
     me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2,walk:0};state='ready';S.show(lvl);
   }
   function respawn(){me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2.5,walk:0};en.forEach(e=>{e.y=-30;e.x=rand(W);e.kind='walker';e.age=0;e.vx=(rand(2)?1:-1)*45})}
@@ -2140,14 +2140,19 @@ function fuse(root,S){
     const b=bombs[i];b.got=true;collected++;
     if(i===litI){litCount++;const v=200*mult;score+=v;fx.add(b.x,b.y,'#FFC53D',16,200);beep(1000,70);lightNext(i)}
     else{score+=100*mult;fx.add(b.x,b.y,K.c4,8,140);beep(760,50)}
-    if((collected===5||collected===11)&&!pball)pball={x:W/2,y:60,vx:90*(rand(2)?1:-1),vy:60};
-    if(collected===lifeAt&&!lball&&lives<5)lball={x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:70,life:12};
-    if((collected===3||collected===9)&&!bball&&mult<5)bball={x:rand(W-80)+40,y:60,vx:70*(rand(2)?1:-1),vy:50};
+    trySpecial();
     checkClear();
   }
   function checkClear(){
-    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const bonus=litCount>=14?50000:litCount>=10?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
+    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const bonus=litCount>=20?50000:litCount>=15?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
       const lb=`${litCount} lit bomb${litCount===1?'':'s'}`;S.fx.toast(`Level ${lvl} clear!`,`${lb} · +${bonus.toLocaleString()}`);st(`Level clear! ${lb} for a ${bonus.toLocaleString()} bonus.`)}
+  }
+  function trySpecial(){
+    if(pball||bball||lball)return;
+    const mk=()=>({x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:60,life:10});
+    if(collected>=sched.P){sched.P=99;pball=mk()}
+    else if(collected>=sched.B){sched.B=99;if(mult<5)bball=mk()}
+    else if(collected>=sched.L){sched.L=99;if(lives<5)lball=mk()}
   }
   function hurt(){
     if(me.inv>0)return;lives--;S.shake();beep(150,350,'sawtooth');fx.add(me.x,me.y+PH/2,K.c1,28,240);
@@ -2189,7 +2194,8 @@ function fuse(root,S){
         }
       }
       en=en.filter(e=>!e.dead);
-      if(lball){lball.life-=dt;if(lball.life<=0)lball=null}
+      if(pball&&(pball.life-=dt)<=0)pball=null;if(bball&&(bball.life-=dt)<=0)bball=null;if(lball&&(lball.life-=dt)<=0)lball=null;
+      if(!pball&&!bball&&!lball)trySpecial();
       for(const ob of[pball,bball,lball]){if(!ob)continue;ob.x+=ob.vx*dt;ob.y+=ob.vy*dt;if(ob.x<12||ob.x>W-12)ob.vx*=-1;if(ob.y<40||ob.y>GY-12)ob.vy*=-1}
       if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
       if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;lives=Math.min(5,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
