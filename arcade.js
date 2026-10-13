@@ -1940,8 +1940,109 @@ function chess(root,S){
   draw();
 }
 
+/* Cannon Blast: drag the cannon, auto-fire, split numbered rocks; coins buy upgrades between levels */
+function blast(root,S){
+  const st=status(root,'Drag to move the cannon. It fires on its own. Break every rock and don\'t let one touch you.');
+  const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  const FL=H-46,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
+  const up={rate:store.get('bb:rate')||1,dmg:store.get('bb:dmg')||1,coin:store.get('bb:coin')||1};
+  let coins=store.get('bb:coins')||0,lvl=Math.max(1,store.get('bb:lvl')||1);
+  let cx=W/2,balls,bullets,drops,queue,spawnT,fireT,state,total,done,t=0,dragX=null,hitT=0,earned=0;
+  const rate=()=>7+up.rate*1.6,dmg=()=>up.dmg,cost=k2=>Math.round(12*Math.pow(1.45,up[k2]-1));
+  const shop=el('div','row bbshop',root);
+  const bR=el('button','btn ghost',shop),bD=el('button','btn ghost',shop),bC=el('button','btn ghost',shop),bGo=el('button','btn',shop,'▶ Play');
+  function paintShop(){
+    bR.innerHTML=`🔥 Fire rate <small>Lv ${up.rate} · 🪙${cost('rate')}</small>`;bD.innerHTML=`💥 Power <small>Lv ${up.dmg} · 🪙${cost('dmg')}</small>`;bC.innerHTML=`🪙 Coin value <small>Lv ${up.coin} · 🪙${cost('coin')}</small>`;
+    bR.disabled=coins<cost('rate');bD.disabled=coins<cost('dmg');bC.disabled=coins<cost('coin');
+  }
+  function buy(k2){const c2=cost(k2);if(coins<c2)return;coins-=c2;up[k2]++;store.set('bb:'+k2,up[k2]);store.set('bb:coins',coins);beep(880,80);setTimeout(()=>beep(1180,90),80);paintShop()}
+  S.on(bR,'click',()=>buy('rate'));S.on(bD,'click',()=>buy('dmg'));S.on(bC,'click',()=>buy('coin'));S.on(bGo,'click',()=>startLevel());
+  function showShop(on){shop.style.visibility=on?'visible':'hidden';if(on)paintShop()}
+  function hpFor(n,s){return Math.max(2,Math.round((4+n*3.2)*[0,.4,.7,1,1.5][s]*(.75+Math.random()*.5)*Math.pow(1.06,n)))}
+  function setup(){
+    const cnt=Math.min(6,1+Math.floor((lvl+1)/2)),q=[];
+    for(let i=0;i<cnt;i++){const s=Math.min(4,2+(lvl>2&&Math.random()<.5?1:0)+(lvl>6&&Math.random()<.4?1:0));q.push({s,hp:hpFor(lvl,s)})}
+    total=q.reduce((n,b)=>n+b.hp*(2**b.s-1),0);
+    queue=q;balls=[];bullets=[];drops=[];spawnT=.4;fireT=0;done=0;earned=0;state='ready';S.show(lvl);showShop(true);
+  }
+  function startLevel(){if(state!=='ready')return;state='play';showShop(false);st(`Level ${lvl}. Break every rock!`);beep(660,80)}
+  function spawn(){const b=queue.shift(),side=rand(2);balls.push({s:b.s,hp:b.hp,max:b.hp,x:side?W+RAD[b.s]:-RAD[b.s],y:70+rand(60),vx:(side?-1:1)*(55+Math.random()*25),vy:0,enter:true,hit:0})}
+  function lose(){
+    state='dead';hitT=0;bullets=[];S.shake();beep(130,400,'sawtooth');fx.add(cx,CY-20,K.c1,36,260);
+    store.set('bb:coins',coins);st(`A rock hit your cannon on level ${lvl}. Upgrade and try again!`);
+  }
+  function win(){
+    state='clear';hitT=0;bullets=[];beep(990,200);FX.confetti(80);const nb=best('blast',lvl);
+    S.fx.toast(`Level ${lvl} cleared!`,`+${earned} 🪙`);lvl++;store.set('bb:lvl',lvl);store.set('bb:coins',coins);
+    st(`Level cleared!${nb?' New best!':''} Spend your coins, then tap Play.`);
+  }
+  S.on(c,'pointerdown',e=>{dragX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')startLevel();else if(state==='dead'&&hitT>.6)setup();else if(state==='clear'&&hitT>.8)setup()});
+  S.on(c,'pointermove',e=>{if(dragX==null)return;const nx=c.pos(e).x;cx=clamp(cx+(nx-dragX)*1.25,22,W-22);dragX=nx});
+  ['pointerup','pointercancel'].forEach(ev=>S.on(c,ev,()=>{dragX=null}));
+  S.on(window,'keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();if(state==='ready')startLevel();else if((state==='dead'&&hitT>.6)||(state==='clear'&&hitT>.8))setup()}});
+  setup();
+  function split(b){
+    fx.add(b.x,b.y,col(b),16+b.s*3,220);beep(240+b.s*30,90,'square');
+    const n=1+b.s+rand(2);for(let i=0;i<n;i++)drops.push({x:b.x,y:b.y,vx:(Math.random()-.5)*160,vy:-150-Math.random()*120,v:up.coin,t:0});
+    if(b.s>1){const hp=Math.max(1,Math.ceil(b.max/2));for(const d of[-1,1])balls.push({s:b.s-1,hp,max:hp,x:b.x+d*6,y:b.y,vx:d*70,vy:-260,enter:false,hit:0})}
+  }
+  function col(b){const f=b.max;return f>=60?K.c5:f>=30?K.c1:f>=15?K.c6:f>=7?K.c2:K.c3}
+  S.loop(dt=>{
+    t+=dt;hitT+=dt;
+    if(k.ArrowLeft||k.a)cx=clamp(cx-300*dt,22,W-22);if(k.ArrowRight||k.d)cx=clamp(cx+300*dt,22,W-22);
+    if(state==='play'){
+      if(queue.length){spawnT-=dt;if(spawnT<=0){spawn();spawnT=Math.max(1.6,3.4-lvl*.08)}}
+      fireT-=dt;while(fireT<=0){bullets.push({x:cx+(bullets.length%2?3:-3),y:CY-40});fireT+=1/rate()}
+      for(const u of bullets)u.y-=720*dt;
+      for(const b of balls){
+        b.hit=Math.max(0,b.hit-dt);const r=RAD[b.s];b.vy+=420*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+        if(b.enter){if(b.x>r&&b.x<W-r)b.enter=false}else{if(b.x<r){b.x=r;b.vx=Math.abs(b.vx)}if(b.x>W-r){b.x=W-r;b.vx=-Math.abs(b.vx)}}
+        if(b.y>FL-r){b.y=FL-r;b.vy=-Math.sqrt(2*420*BH[b.s])}
+        if(b.y<r){b.y=r;b.vy=Math.abs(b.vy)}
+        for(const u of bullets){if(u.dead)continue;if((u.x-b.x)**2+(u.y-b.y)**2<(r+4)**2){u.dead=true;b.hp-=dmg();b.hit=.06;done+=Math.min(dmg(),b.hp+dmg());if(b.hp<=0){b.dead=true;split(b);break}}}
+        const nx=clamp(b.x,cx-20,cx+20),ny=clamp(b.y,CY-44,CY+4);if(!b.dead&&(b.x-nx)**2+(b.y-ny)**2<r*r*.85){lose();break}
+      }
+      bullets=bullets.filter(u=>!u.dead&&u.y>-10);balls=balls.filter(b=>!b.dead);
+      if(state==='play'&&!queue.length&&!balls.length)win();
+    }else if(state==='dead'||state==='clear'){for(const b of balls){b.vy+=420*dt;b.y=Math.min(FL-RAD[b.s],b.y+b.vy*dt*.4)}}
+    for(const d of drops){d.t+=dt;if(d.t<.5){d.vy+=600*dt;d.x+=d.vx*dt;d.y=Math.min(FL-6,d.y+d.vy*dt)}else{const ax=cx-d.x,ay=CY-20-d.y,dd=Math.hypot(ax,ay)||1;d.x+=ax/dd*Math.min(dd,520*dt);d.y+=ay/dd*Math.min(dd,520*dt);if(dd<16){d.got=true;coins+=d.v;earned+=d.v;store.set('bb:coins',coins);beep(1300,25)}}}
+    drops=drops.filter(d=>!d.got);
+    // scene
+    const sky=x.createLinearGradient(0,0,0,FL);sky.addColorStop(0,K.board);sky.addColorStop(1,K.line);x.fillStyle=sky;x.fillRect(0,0,W,H);
+    x.fillStyle=K.muted;x.globalAlpha=.18;for(let i=0;i<6;i++){const mx=(i*83+20)%W;x.beginPath();x.moveTo(mx-70,FL);x.lineTo(mx,FL-90-(i%3)*30);x.lineTo(mx+70,FL);x.fill()}x.globalAlpha=1;
+    x.fillStyle=K.c3;x.fillRect(0,FL,W,H-FL);x.fillStyle=K.edge;x.fillRect(0,FL,W,3);x.fillStyle='rgba(0,0,0,.12)';for(let i=0;i<W;i+=18)x.fillRect(i+((t*0)%18),FL+10,9,4);
+    x.fillStyle=K.c2;for(const u of bullets){rr(x,u.x-2.5,u.y-8,5,14,2.5);x.fill()}
+    for(const b of balls){
+      const r=RAD[b.s]*(1+b.hit*1.5),g=x.createRadialGradient(b.x-r*.35,b.y-r*.4,r*.15,b.x,b.y,r),cc=col(b);
+      g.addColorStop(0,'rgba(255,255,255,.85)');g.addColorStop(.25,cc);g.addColorStop(1,cc);
+      x.fillStyle=g;x.beginPath();x.arc(b.x,b.y,r,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
+      x.fillStyle='rgba(30,31,92,.18)';x.beginPath();x.arc(b.x+r*.3,b.y+r*.25,r*.18,0,7);x.arc(b.x-r*.25,b.y+r*.4,r*.12,0,7);x.fill();
+      x.textAlign='center';x.textBaseline='middle';x.font=`${Math.max(11,r*.75)}px ${DISPLAY}`;x.lineWidth=4;x.strokeStyle='rgba(30,31,92,.75)';x.strokeText(b.hp,b.x,b.y+1);x.fillStyle='#fff';x.fillText(b.hp,b.x,b.y+1);x.textBaseline='alphabetic';
+    }
+    for(const d of drops){x.fillStyle='#FFC53D';x.beginPath();x.arc(d.x,d.y,5.5,0,7);x.fill();x.strokeStyle='#A86B00';x.lineWidth=1.5;x.stroke()}
+    // cannon
+    if(state!=='dead'||Math.floor(t*10)%2){
+      x.save();x.translate(cx,CY);x.lineWidth=2.5;x.strokeStyle=K.edge;
+      x.fillStyle='#5A5F96';rr(x,-7,-46,14,30,4);x.fill();x.stroke();x.fillStyle=K.c2;rr(x,-9,-50,18,8,3);x.fill();x.stroke();
+      x.fillStyle=K.c4;rr(x,-22,-24,44,20,9);x.fill();x.stroke();
+      for(const wx of[-14,14]){x.fillStyle='#2B2E5E';x.beginPath();x.arc(wx,-3,9,0,7);x.fill();x.stroke();x.fillStyle=K.muted;x.beginPath();x.arc(wx,-3,3,0,7);x.fill()}
+      x.restore();
+    }
+    fx.draw(x,dt);
+    // HUD
+    const prog=state==='play'||state==='clear'?Math.min(1,done/Math.max(1,total)):0;
+    x.fillStyle=K.board;rr(x,12,12,W-24,34,12);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
+    x.fillStyle=K.line;rr(x,92,24,W-190,10,5);x.fill();x.fillStyle=K.c3;rr(x,92,24,Math.max(10,(W-190)*prog),10,5);x.fill();
+    x.fillStyle=K.ink;x.font=`14px ${DISPLAY}`;x.textAlign='left';x.textBaseline='middle';x.fillText(`Lv ${lvl}`,22,30);
+    x.textAlign='right';x.fillText(`${coins}`,W-24,30);x.fillStyle='#FFC53D';x.beginPath();x.arc(W-30-x.measureText(`${coins}`).width-6,29,6,0,7);x.fill();x.textBaseline='alphabetic';
+    if(state==='ready'){x.fillStyle='rgba(0,0,0,.3)';x.fillRect(0,H/2-50,W,96);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText(`Level ${lvl}`,W/2,H/2-12);x.font=`14px ${DISPLAY}`;x.fillText('Upgrade below, then tap to start',W/2,H/2+18)}
+    if(state==='dead'){x.fillStyle='rgba(0,0,0,.4)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font=`30px ${DISPLAY}`;x.fillText('Crushed!',W/2,H/2-10);x.font=`14px ${DISPLAY}`;x.fillText('Tap to upgrade and retry',W/2,H/2+20)}
+    if(state==='clear'){x.fillStyle='rgba(0,0,0,.3)';x.fillRect(0,H/2-50,W,96);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText('Level cleared!',W/2,H/2-12);x.font=`14px ${DISPLAY}`;x.fillText(`+${earned} coins · tap to continue`,W/2,H/2+18)}
+  });
+}
+
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "runner": "rail-runner.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "runner": "rail-runner.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html"};
 const BASE_TITLE=document.title;
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
@@ -1966,11 +2067,12 @@ const GAMES=[
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
+  {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. Upgrade your cannon.',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero. Collect coins and buy upgrades between levels.',mount:blast,run:true,unit:'levels',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',runner:'subway surfers subway surf runner endless train',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',runner:'subway surfers subway surf runner endless train',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two'};
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
