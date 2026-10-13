@@ -2097,7 +2097,7 @@ function fuse(root,S){
   const st=status(root,'Collect every bomb. Grab the one with the lit fuse for double points. Avoid the enemies!');
   const W=400,H=480,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const GY=452,PW=16,PH=24;
-  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,moveDir=0,jumpHeld=false,eaten=0;
+  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
   const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
   function makeBombs(){
     const out=[],tries=[];
@@ -2121,11 +2121,16 @@ function fuse(root,S){
     jumpHeld=true;if(me.ground){me.vy=-470;me.ground=false;me.jT=.32;beep(520,60)}
   }
   function jumpUp(){jumpHeld=false;me.jT=0}
-  S.on(window,'keydown',e=>{if(e.repeat)return;if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){e.preventDefault();jumpDown()}});
-  S.on(window,'keyup',e=>{if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W')jumpUp()});
+  function downOn(){if(state==='ready'){state='play'}downHeld=true;if(me.ground&&me.y+PH<GY-2){dropT=.22;me.ground=false;me.vy=120}}
+  function downOff(){downHeld=false}
+  S.on(window,'keydown',e=>{if(e.repeat)return;if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){e.preventDefault();jumpDown()}if(e.key==='ArrowDown'||e.key==='s'||e.key==='S'){e.preventDefault();downOn()}});
+  S.on(window,'keyup',e=>{if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W')jumpUp();if(e.key==='ArrowDown'||e.key==='s'||e.key==='S')downOff()});
   const pad=el('div','row bpad',root);
   controls(pad,S,{axis:'x',onMove:v=>{moveDir=v;if(v&&state==='ready')state='play'}});
-  const jb=el('button','btn bfire',pad,'⤒');jb.setAttribute('aria-label','Jump');
+  const bw=el('div','fjbtns',pad);
+  const db=el('button','btn ghost fjdown',bw,'⤓');db.setAttribute('aria-label','Drop down');
+  S.on(db,'pointerdown',e=>{e.preventDefault();restartAnim(db,'hit');downOn()});['pointerup','pointercancel','pointerleave'].forEach(ev=>S.on(db,ev,downOff));
+  const jb=el('button','btn bfire',bw,'⤒');jb.setAttribute('aria-label','Jump');
   S.on(jb,'pointerdown',e=>{e.preventDefault();restartAnim(jb,'hit');jumpDown()});['pointerup','pointercancel','pointerleave'].forEach(ev=>S.on(jb,ev,jumpUp));
   function lightNext(fromI){
     const left=bombs.map((b,i)=>[b,i]).filter(([b])=>!b.got);if(!left.length){litI=-1;return}
@@ -2151,7 +2156,7 @@ function fuse(root,S){
     if(o.x<w/2){o.x=w/2;o.vx=Math.abs(o.vx)*(o.bounce?1:0)}if(o.x>W-w/2){o.x=W-w/2;o.vx=-Math.abs(o.vx)*(o.bounce?1:0)}
     if(o.y<34){o.y=34;if(o.vy<0)o.vy=0}
     if(o.y+h>=GY&&o.vy>=0){o.y=GY-h;o.vy=0;o.ground=true}
-    for(const p of plats){if(o.x+w/2<=p.x||o.x-w/2>=p.x+p.w)continue;
+    if(!o.thru)for(const p of plats){if(o.x+w/2<=p.x||o.x-w/2>=p.x+p.w)continue;
       if(o.vy>=0&&py0+h<=p.y+1&&o.y+h>=p.y){o.y=p.y-h;o.vy=0;o.ground=true}
       else if(o.vy<0&&py0>=p.y+10-1&&o.y<=p.y+10){o.y=p.y+10;o.vy=0;o.jT=0}}
   }
@@ -2162,7 +2167,9 @@ function fuse(root,S){
       let dir=moveDir;if(k.ArrowLeft||k.a||k.A)dir=-1;if(k.ArrowRight||k.d||k.D)dir=1;
       me.vx=dir*170;if(dir){me.face=dir;if(me.ground)me.walk+=dt*14}else me.walk=0;
       const g=me.jT>0&&jumpHeld?260:1000;me.jT=Math.max(0,me.jT-dt);me.vy+=g*dt;
-      if(jumpHeld&&me.vy>0&&!me.ground)me.vy=Math.min(me.vy,70);
+      if(downHeld&&!me.ground){me.jT=0;me.vy=Math.max(me.vy+1600*dt,me.vy<0?me.vy:420)}
+      else if(jumpHeld&&me.vy>0&&!me.ground)me.vy=Math.min(me.vy,70);
+      dropT=Math.max(0,dropT-dt);me.thru=dropT>0;
       moveBody(me,PW,PH,dt);
       bombs.forEach((b,i)=>{if(!b.got&&Math.abs(b.x-me.x)<16&&Math.abs(b.y-(me.y+PH/2))<20)grab(i)});
       // enemies
@@ -2265,7 +2272,7 @@ const GAMES=[
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. Grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
-  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Grab the bomb with the lit fuse for double points, avoid the enemies, and take the P ball to turn them into coins.',mount:fuse,run:true,unit:'points',isNew:true},
+  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the bomb with the lit fuse for double points, avoid the enemies, and take the P ball to turn them into coins.',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
