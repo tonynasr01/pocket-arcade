@@ -2099,13 +2099,15 @@ function fuse(root,S){
   const GY=452,PW=16,PH=24;
   let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,sched=[],levelT=0,gapT=0,lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
   const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
+  const bombTotal=()=>Math.min(40,24+Math.floor((lvl-1)/2)*2);
   function makeBombs(){
+    const N=bombTotal();
     const out=[],tries=[];
     const free=(bx,by)=>by<GY-14&&by>40&&bx>18&&bx<W-18&&!plats.some(p=>bx>p.x-14&&bx<p.x+p.w+14&&by>p.y-18&&by<p.y+22)&&!out.some(b=>Math.hypot(b.x-bx,b.y-by)<30);
     const shapes=[(cx,cy,i)=>[cx+i*30-45,cy],(cx,cy,i)=>[cx,cy+i*30-45],(cx,cy,i)=>[cx+Math.cos(i*1.57)*34,cy+Math.sin(i*1.57)*34]];
     let guard=0;
-    while(out.length<24&&guard<4000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<24)out.push({x:bx,y:by,got:false})}
-    while(out.length<24){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
+    while(out.length<N&&guard<6000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<N)out.push({x:bx,y:by,got:false})}
+    for(let g2=0;out.length<N&&g2<20000;g2++){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
     return out;
   }
   function startLevel(){
@@ -2144,7 +2146,7 @@ function fuse(root,S){
     checkClear();
   }
   function checkClear(){
-    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const bonus=litCount>=20?50000:litCount>=15?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
+    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const nb2=bombs.length,bonus=litCount>=nb2-4?50000:litCount>=Math.round(nb2*.62)?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
       const lb=`${litCount} lit bomb${litCount===1?'':'s'}`;S.fx.toast(`Level ${lvl} clear!`,`${lb} · +${bonus.toLocaleString()}`);st(`Level clear! ${lb} for a ${bonus.toLocaleString()} bonus.`)}
   }
   function trySpecial(){
@@ -2201,7 +2203,7 @@ function fuse(root,S){
       if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;gapT=8;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
       if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;gapT=8;lives=Math.min(3,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
       if(bball&&Math.hypot(bball.x-me.x,bball.y-(me.y+PH/2))<22){bball=null;gapT=8;mult=Math.min(5,mult+1);S.fx.toast(`Bonus ×${mult}`);beep(1100,160)}
-    }else if(state==='clear'){clearT+=dt;if(clearT>2.2){lvl++;startLevel();S.fx.toast(`Level ${lvl}`,'More enemies');st(`Level ${lvl}. Jump to start.`)}}
+    }else if(state==='clear'){clearT+=dt;if(clearT>2.2){lvl++;startLevel();S.fx.toast(`Level ${lvl}`,`${bombTotal()} bombs · more enemies`);st(`Level ${lvl}. Jump to start.`)}}
     else if(state==='over')deadT+=dt;
     drawScene(dt);
   });
