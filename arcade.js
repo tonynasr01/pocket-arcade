@@ -2097,7 +2097,7 @@ function fuse(root,S){
   const st=status(root,'Collect every bomb. Grab the glowing lit bomb for double points. Catch ❤ for an extra life and avoid the enemies!');
   const W=400,H=480,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const GY=452,PW=16,PH=24;
-  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,sched={},lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
+  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,sched=[],levelT=0,gapT=0,lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
   const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
   function makeBombs(){
     const out=[],tries=[];
@@ -2110,7 +2110,7 @@ function fuse(root,S){
   }
   function startLevel(){
     lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:py,w}));
-    lball=null;sched={P:6+rand(10),B:mult<5?3+rand(16):99,L:lvl%3===0&&Math.random()<.6?10+rand(10):99};bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
+    lball=null;levelT=0;gapT=0;sched=[{k:'P',at:5+rand(8)},{k:'B',at:6+rand(13)}];if(Math.random()<.5)sched.push({k:'P',at:15+rand(7)});if(Math.random()<.2)sched.push({k:'L',at:8+rand(12)});sched.sort((p,q)=>p.at-q.at);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
     me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2,walk:0};state='ready';S.show(lvl);
   }
   function respawn(){me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2.5,walk:0};en.forEach(e=>{e.y=-30;e.x=rand(W);e.kind='walker';e.age=0;e.vx=(rand(2)?1:-1)*45})}
@@ -2148,11 +2148,10 @@ function fuse(root,S){
       const lb=`${litCount} lit bomb${litCount===1?'':'s'}`;S.fx.toast(`Level ${lvl} clear!`,`${lb} · +${bonus.toLocaleString()}`);st(`Level clear! ${lb} for a ${bonus.toLocaleString()} bonus.`)}
   }
   function trySpecial(){
-    if(pball||bball||lball)return;
-    const mk=()=>({x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:60,life:10});
-    if(collected>=sched.P){sched.P=99;pball=mk()}
-    else if(collected>=sched.B){sched.B=99;if(mult<5)bball=mk()}
-    else if(collected>=sched.L){sched.L=99;if(lives<5)lball=mk()}
+    // one bonus ball at a time, never in the first 12s of a level, at least 8s apart
+    if(pball||bball||lball||levelT<12||gapT>0||!sched.length||collected<sched[0].at)return;
+    const it=sched.shift(),mk=()=>({x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:60,life:10});
+    if(it.k==='P')pball=mk();else if(it.k==='B'){if(mult<5)bball=mk()}else if(lives<5)lball=mk();
   }
   function hurt(){
     if(me.inv>0)return;lives--;S.shake();beep(150,350,'sawtooth');fx.add(me.x,me.y+PH/2,K.c1,28,240);
@@ -2194,12 +2193,14 @@ function fuse(root,S){
         }
       }
       en=en.filter(e=>!e.dead);
+      levelT+=dt;const had=!!(pball||bball||lball);
       if(pball&&(pball.life-=dt)<=0)pball=null;if(bball&&(bball.life-=dt)<=0)bball=null;if(lball&&(lball.life-=dt)<=0)lball=null;
-      if(!pball&&!bball&&!lball)trySpecial();
+      if(had&&!(pball||bball||lball))gapT=8;gapT=Math.max(0,gapT-dt);
+      trySpecial();
       for(const ob of[pball,bball,lball]){if(!ob)continue;ob.x+=ob.vx*dt;ob.y+=ob.vy*dt;if(ob.x<12||ob.x>W-12)ob.vx*=-1;if(ob.y<40||ob.y>GY-12)ob.vy*=-1}
-      if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
-      if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;lives=Math.min(5,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
-      if(bball&&Math.hypot(bball.x-me.x,bball.y-(me.y+PH/2))<22){bball=null;mult=Math.min(5,mult+1);S.fx.toast(`Bonus ×${mult}`);beep(1100,160)}
+      if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;gapT=8;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
+      if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;gapT=8;lives=Math.min(5,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
+      if(bball&&Math.hypot(bball.x-me.x,bball.y-(me.y+PH/2))<22){bball=null;gapT=8;mult=Math.min(5,mult+1);S.fx.toast(`Bonus ×${mult}`);beep(1100,160)}
     }else if(state==='clear'){clearT+=dt;if(clearT>2.2){lvl++;startLevel();S.fx.toast(`Level ${lvl}`,'More enemies');st(`Level ${lvl}. Jump to start.`)}}
     else if(state==='over')deadT+=dt;
     drawScene(dt);
