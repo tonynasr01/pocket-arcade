@@ -2094,27 +2094,27 @@ const FJLAY=[
   {p:[[60,390,80],[260,390,80],[160,300,80],[60,210,80],[260,210,80],[160,120,80]],sky:'temple'}
 ];
 function fuse(root,S){
-  const st=status(root,'Collect every bomb. Grab the live bomb before its countdown runs out for double points. Avoid the enemies!');
+  const st=status(root,'Collect every bomb. Grab the glowing lit bomb for double points. Catch ❤ for an extra life and avoid the enemies!');
   const W=400,H=480,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const GY=452,PW=16,PH=24;
-  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,fuseT=0,fuseMax=10,blasts=[],moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
+  let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
   const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
   function makeBombs(){
     const out=[],tries=[];
     const free=(bx,by)=>by<GY-14&&by>40&&bx>18&&bx<W-18&&!plats.some(p=>bx>p.x-14&&bx<p.x+p.w+14&&by>p.y-18&&by<p.y+22)&&!out.some(b=>Math.hypot(b.x-bx,b.y-by)<30);
     const shapes=[(cx,cy,i)=>[cx+i*30-45,cy],(cx,cy,i)=>[cx,cy+i*30-45],(cx,cy,i)=>[cx+Math.cos(i*1.57)*34,cy+Math.sin(i*1.57)*34]];
     let guard=0;
-    while(out.length<24&&guard<4000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<24)out.push({x:bx,y:by,got:false})}
-    while(out.length<24){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
+    while(out.length<16&&guard<4000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<16)out.push({x:bx,y:by,got:false})}
+    while(out.length<16){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
     return out;
   }
   function startLevel(){
     lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:py,w}));
-    bombs=makeBombs();litI=rand(bombs.length);litCount=0;fuseMax=Math.max(6,10.5-lvl*.5);fuseT=fuseMax;blasts=[];collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
+    lball=null;lifeAt=4+rand(8);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
     me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2,walk:0};state='ready';S.show(lvl);
   }
   function respawn(){me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2.5,walk:0};en.forEach(e=>{e.y=-30;e.x=rand(W);e.kind='walker';e.age=0;e.vx=(rand(2)?1:-1)*45})}
-  startLevel();st('Collect every bomb. Grab the live bomb before its countdown runs out for double points. Avoid the enemies!');
+  startLevel();st('Collect every bomb. Grab the glowing lit bomb for double points. Catch ❤ for an extra life and avoid the enemies!');
   function jumpDown(){
     if(state==='over'){lvl=1;score=0;lives=3;mult=1;startLevel();return}
     if(state==='ready')state='play';
@@ -2134,25 +2134,20 @@ function fuse(root,S){
   S.on(jb,'pointerdown',e=>{e.preventDefault();restartAnim(jb,'hit');jumpDown()});['pointerup','pointercancel','pointerleave'].forEach(ev=>S.on(jb,ev,jumpUp));
   function lightNext(fromI){
     const left=bombs.map((b,i)=>[b,i]).filter(([b])=>!b.got);if(!left.length){litI=-1;return}
-    const f=bombs[fromI];left.sort((a,b2)=>Math.hypot(a[0].x-f.x,a[0].y-f.y)-Math.hypot(b2[0].x-f.x,b2[0].y-f.y));litI=left[0][1];fuseT=fuseMax;
+    const f=bombs[fromI];left.sort((a,b2)=>Math.hypot(a[0].x-f.x,a[0].y-f.y)-Math.hypot(b2[0].x-f.x,b2[0].y-f.y));litI=left[0][1];
   }
   function grab(i){
     const b=bombs[i];b.got=true;collected++;
     if(i===litI){litCount++;const v=200*mult;score+=v;fx.add(b.x,b.y,'#FFC53D',16,200);beep(1000,70);lightNext(i)}
     else{score+=100*mult;fx.add(b.x,b.y,K.c4,8,140);beep(760,50)}
-    if(collected%9===0&&!pball)pball={x:W/2,y:60,vx:90*(rand(2)?1:-1),vy:60};
-    if(collected%12===6&&!bball&&mult<5)bball={x:rand(W-80)+40,y:60,vx:70*(rand(2)?1:-1),vy:50};
+    if((collected===5||collected===11)&&!pball)pball={x:W/2,y:60,vx:90*(rand(2)?1:-1),vy:60};
+    if(collected===lifeAt&&!lball&&lives<5)lball={x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:70,life:12};
+    if((collected===3||collected===9)&&!bball&&mult<5)bball={x:rand(W-80)+40,y:60,vx:70*(rand(2)?1:-1),vy:50};
     checkClear();
   }
   function checkClear(){
-    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const bonus=litCount>=20?50000:litCount>=15?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
+    if(collected===bombs.length&&state==='play'){state='clear';clearT=0;const bonus=litCount>=14?50000:litCount>=10?20000:litCount*500;score+=bonus;FX.confetti(80);beep(990,250);
       const lb=`${litCount} lit bomb${litCount===1?'':'s'}`;S.fx.toast(`Level ${lvl} clear!`,`${lb} · +${bonus.toLocaleString()}`);st(`Level clear! ${lb} for a ${bonus.toLocaleString()} bonus.`)}
-  }
-  function explode(){
-    const b=bombs[litI];b.got=true;collected++;blasts.push({x:b.x,y:b.y,t:0});S.shake();beep(90,500,'sawtooth');fx.add(b.x,b.y,'#FF8A3D',40,320);fx.add(b.x,b.y,'#FFC53D',24,240);
-    S.fx.toast('💥 Boom!','The live bomb went off');
-    if(Math.hypot(me.x-b.x,me.y+PH/2-b.y)<62)hurt();
-    if(state==='play'){lightNext(litI);checkClear()}
   }
   function hurt(){
     if(me.inv>0)return;lives--;S.shake();beep(150,350,'sawtooth');fx.add(me.x,me.y+PH/2,K.c1,28,240);
@@ -2173,7 +2168,6 @@ function fuse(root,S){
     t+=dt;
     if(state==='play'){
       me.inv=Math.max(0,me.inv-dt);power=Math.max(0,power-dt);
-      if(litI>=0&&!bombs[litI].got){fuseT-=dt;if(fuseT<=0)explode()}
       let dir=moveDir;if(k.ArrowLeft||k.a||k.A)dir=-1;if(k.ArrowRight||k.d||k.D)dir=1;
       me.vx=dir*170;if(dir){me.face=dir;if(me.ground)me.walk+=dt*14}else me.walk=0;
       const g=me.jT>0&&jumpHeld?260:1000;me.jT=Math.max(0,me.jT-dt);me.vy+=g*dt;
@@ -2184,19 +2178,21 @@ function fuse(root,S){
       bombs.forEach((b,i)=>{if(!b.got&&Math.abs(b.x-me.x)<16&&Math.abs(b.y-(me.y+PH/2))<20)grab(i)});
       // enemies
       spawnT-=dt;const cap=Math.min(7,1+Math.ceil(lvl*.8)+Math.floor(collected/8));
-      if(spawnT<=0&&en.length<cap){en.push({x:30+rand(W-60),y:40,vx:(rand(2)?1:-1)*(45+lvl*4),vy:0,kind:'walker',age:0,ground:false});spawnT=Math.max(2.2,5-lvl*.3)}
+      if(spawnT<=0&&en.length<cap){en.push({x:30+rand(W-60),y:40,vx:(rand(2)?1:-1)*(45+lvl*4),vy:0,kind:'walker',age:0,ground:false,safe:3});spawnT=Math.max(2.2,5-lvl*.3)}
       for(const e of en){
-        e.age+=dt;
-        if(e.kind==='walker'){e.vy+=900*dt;e.bounce=true;moveBody(e,18,20,dt);if(e.ground&&!onPlat(e.x+Math.sign(e.vx)*12,e.y+20,4))e.vx*=-1;if(e.age>6+rand(4)){e.kind='bird';e.vy=-60}}
+        e.age+=dt;e.safe=Math.max(0,(e.safe||0)-dt);
+        if(e.kind==='walker'){e.vy=e.safe>0&&!e.ground?Math.min(e.vy+900*dt,55):e.vy+900*dt;if(e.safe>0&&!e.ground)e.vx*=.98;e.bounce=true;moveBody(e,18,20,dt);if(e.ground&&!onPlat(e.x+Math.sign(e.vx)*12,e.y+20,4))e.vx*=-1;if(e.age>6+rand(4)){e.kind='bird';e.vy=-60}}
         else{const sp=60+lvl*8+Math.min(40,e.age*2),ax=me.x-e.x,ay=me.y-e.y,d=Math.hypot(ax,ay)||1;e.vx+=(ax/d*sp-e.vx)*dt*1.2;e.vy+=(ay/d*sp-e.vy)*dt*1.2+Math.sin(t*3+e.age)*8*dt;e.x=clamp(e.x+e.vx*dt,10,W-10);e.y=clamp(e.y+e.vy*dt,36,GY-12)}
-        if(Math.abs(e.x-me.x)<16&&Math.abs(e.y+10-(me.y+PH/2))<20){
+        if(!e.safe&&Math.abs(e.x-me.x)<16&&Math.abs(e.y+10-(me.y+PH/2))<20){
           if(power>0){e.dead=true;eaten++;const v=[100,200,500,1000,2000][Math.min(4,eaten-1)]*mult;score+=v;fx.add(e.x,e.y,K.c2,18,200);beep(1200,80);S.fx.toast(`+${v}`)}
           else hurt();
         }
       }
       en=en.filter(e=>!e.dead);
-      for(const ob of[pball,bball]){if(!ob)continue;ob.x+=ob.vx*dt;ob.y+=ob.vy*dt;if(ob.x<12||ob.x>W-12)ob.vx*=-1;if(ob.y<40||ob.y>GY-12)ob.vy*=-1}
+      if(lball){lball.life-=dt;if(lball.life<=0)lball=null}
+      for(const ob of[pball,bball,lball]){if(!ob)continue;ob.x+=ob.vx*dt;ob.y+=ob.vy*dt;if(ob.x<12||ob.x>W-12)ob.vx*=-1;if(ob.y<40||ob.y>GY-12)ob.vy*=-1}
       if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
+      if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;lives=Math.min(5,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
       if(bball&&Math.hypot(bball.x-me.x,bball.y-(me.y+PH/2))<22){bball=null;mult=Math.min(5,mult+1);S.fx.toast(`Bonus ×${mult}`);beep(1100,160)}
     }else if(state==='clear'){clearT+=dt;if(clearT>2.2){lvl++;startLevel();S.fx.toast(`Level ${lvl}`,'More enemies');st(`Level ${lvl}. Jump to start.`)}}
     else if(state==='over')deadT+=dt;
@@ -2218,26 +2214,26 @@ function fuse(root,S){
     for(const p of plats){x.fillStyle='#E85D4A';rr(x,p.x,p.y,p.w,10,3);x.fill();x.strokeStyle='#7A2418';x.lineWidth=1.5;for(let bx=p.x+12;bx<p.x+p.w;bx+=12){x.beginPath();x.moveTo(bx,p.y+1);x.lineTo(bx,p.y+9);x.stroke()}x.fillStyle='rgba(255,255,255,.35)';x.fillRect(p.x+2,p.y+1,p.w-4,2)}
     // bombs
     bombs.forEach((b,i)=>{if(b.got)return;const lit=i===litI;
-      const fr=lit?Math.max(0,fuseT/fuseMax):1,danger=lit&&fr<.35,pul=lit?1+Math.sin(t*(danger?22:10))*.12:1;
-      if(lit){x.fillStyle=`rgba(255,${danger?60:120},60,${.25+.2*Math.sin(t*12)})`;x.beginPath();x.arc(b.x,b.y+2,16*pul,0,7);x.fill();
-        x.strokeStyle=danger?'#FF3D5A':'#FFC53D';x.lineWidth=3;x.beginPath();x.arc(b.x,b.y+2,13,-Math.PI/2,-Math.PI/2+Math.PI*2*fr);x.stroke()}
-      x.fillStyle='#1E1F3A';x.beginPath();x.arc(b.x,b.y+2,9*pul,0,7);x.fill();x.fillStyle=lit?(danger&&Math.floor(t*10)%2?'#C8283C':'#8E2A3A'):'#2B2E5E';x.beginPath();x.arc(b.x,b.y+2,8*pul,0,7);x.fill();
+      const pul=lit?1+Math.sin(t*10)*.1:1;
+      if(lit){x.fillStyle=`rgba(255,120,60,${.25+.2*Math.sin(t*12)})`;x.beginPath();x.arc(b.x,b.y+2,16*pul,0,7);x.fill();
+}
+      x.fillStyle='#1E1F3A';x.beginPath();x.arc(b.x,b.y+2,9*pul,0,7);x.fill();x.fillStyle=lit?'#8E2A3A':'#2B2E5E';x.beginPath();x.arc(b.x,b.y+2,8*pul,0,7);x.fill();
       x.fillStyle='rgba(255,255,255,.55)';x.beginPath();x.arc(b.x-3,b.y-1,2.4,0,7);x.fill();
-      const fl=lit?.35+.65*fr:1,tipX=b.x+3+2*fl,tipY=b.y-5-9*fl;
+      const fl=1,tipX=b.x+3+2*fl,tipY=b.y-5-9*fl;
       x.strokeStyle='#C9A66B';x.lineWidth=2;x.beginPath();x.moveTo(b.x+3,b.y-5);x.quadraticCurveTo(b.x+3+5*fl,b.y-5-6*fl,tipX,tipY);x.stroke();
-      if(lit){for(let s2=0;s2<6;s2++){const a2=t*20+s2*1.05,rr2=3+Math.random()*(danger?7:4);x.fillStyle=['#FFF','#FFC53D','#FF8A3D','#FF5D73','#FFF','#FFC53D'][s2];x.beginPath();x.arc(tipX+Math.cos(a2)*rr2,tipY+Math.sin(a2)*rr2,1.7,0,7);x.fill()}
+      if(lit){for(let s2=0;s2<6;s2++){const a2=t*20+s2*1.05,rr2=3+Math.random()*4;x.fillStyle=['#FFF','#FFC53D','#FF8A3D','#FF5D73','#FFF','#FFC53D'][s2];x.beginPath();x.arc(tipX+Math.cos(a2)*rr2,tipY+Math.sin(a2)*rr2,1.7,0,7);x.fill()}
         x.shadowColor='#FFC53D';x.shadowBlur=16;x.fillStyle='#FFE27A';x.beginPath();x.arc(tipX,tipY,2.8,0,7);x.fill();x.shadowBlur=0;
-        x.font=`11px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.lineWidth=3;x.strokeStyle='#1E1F3A';const n2=Math.ceil(fuseT);x.strokeText(n2,b.x,b.y+3);x.fillStyle='#fff';x.fillText(n2,b.x,b.y+3);x.textBaseline='alphabetic'}
+}
     });
-    for(const bl of blasts){bl.t+=dt;const r2=bl.t*220;x.strokeStyle=`rgba(255,138,61,${Math.max(0,1-bl.t*2)})`;x.lineWidth=8;x.beginPath();x.arc(bl.x,bl.y,r2,0,7);x.stroke();x.fillStyle=`rgba(255,220,120,${Math.max(0,.6-bl.t*2)})`;x.beginPath();x.arc(bl.x,bl.y,r2*.6,0,7);x.fill()}
-    blasts=blasts.filter(bl=>bl.t<.6);
-    for(const[ob,txt,col]of[[pball,'P','#2EC4B6'],[bball,'B','#FF5D73']]){if(!ob)continue;x.fillStyle=col;x.shadowColor=col;x.shadowBlur=14;x.beginPath();x.arc(ob.x,ob.y,11,0,7);x.fill();x.shadowBlur=0;x.fillStyle='#fff';x.font=`13px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText(txt,ob.x,ob.y+1);x.textBaseline='alphabetic'}
+    for(const[ob,txt,col]of[[pball,'P','#2EC4B6'],[bball,'B','#FF8A3D'],[lball,'❤','#FF3D6E']]){if(!ob||(ob.life!=null&&ob.life<3&&Math.floor(t*8)%2))continue;x.fillStyle=col;x.shadowColor=col;x.shadowBlur=14;x.beginPath();x.arc(ob.x,ob.y,11,0,7);x.fill();x.shadowBlur=0;x.fillStyle='#fff';x.font=`13px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText(txt,ob.x,ob.y+1);x.textBaseline='alphabetic'}
     // enemies
     for(const e of en){
+      if(e.safe>0){x.globalAlpha=.35+.35*(Math.floor(t*8)%2);if(!e.ground&&e.kind==='walker'){x.strokeStyle='rgba(255,255,255,.6)';x.lineWidth=1;x.beginPath();x.moveTo(e.x-8,e.y);x.lineTo(e.x,e.y-16);x.lineTo(e.x+8,e.y);x.stroke();x.fillStyle='rgba(255,255,255,.75)';x.beginPath();x.arc(e.x,e.y-18,10,Math.PI,0);x.fill()}}
       if(power>0){x.fillStyle=Math.floor(t*8)%2&&power<1.5?'#fff':'#FFC53D';x.beginPath();x.ellipse(e.x,e.y+10,9*Math.abs(Math.cos(t*6)),9,0,0,7);x.fill();continue}
       if(e.kind==='walker'){x.fillStyle='#EDE6D3';rr(x,e.x-9,e.y,18,20,6);x.fill();x.strokeStyle='#B9AE95';x.lineWidth=1.5;for(let i=0;i<4;i++){x.beginPath();x.moveTo(e.x-9,e.y+4+i*4);x.lineTo(e.x+9,e.y+6+i*4);x.stroke()}x.fillStyle='#FF3D5A';x.beginPath();x.arc(e.x-3,e.y+6,1.8,0,7);x.arc(e.x+3,e.y+6,1.8,0,7);x.fill()}
       else{const fl=Math.sin(t*16+e.age)*6;x.fillStyle='#B06CFF';x.beginPath();x.ellipse(e.x,e.y+10,9,7,0,0,7);x.fill();x.beginPath();x.moveTo(e.x-4,e.y+8);x.lineTo(e.x-16,e.y+2+fl);x.lineTo(e.x-6,e.y+13);x.moveTo(e.x+4,e.y+8);x.lineTo(e.x+16,e.y+2+fl);x.lineTo(e.x+6,e.y+13);x.fill();x.fillStyle='#FFC53D';x.beginPath();x.moveTo(e.x+(e.vx>0?8:-8),e.y+10);x.lineTo(e.x+(e.vx>0?14:-14),e.y+12);x.lineTo(e.x+(e.vx>0?8:-8),e.y+13);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(e.x+(e.vx>0?3:-3),e.y+8,2,0,7);x.fill()}
     }
+    x.globalAlpha=1;
     // hero
     if(state!=='over'&&!(me.inv>0&&Math.floor(t*12)%2)){
       const px=me.x,py=me.y,f=me.face,air=!me.ground,sw=me.walk?Math.sin(me.walk):0,cape=air?(me.vy<0?-4:6):sw*2;
@@ -2289,7 +2285,7 @@ const GAMES=[
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. Grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
-  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the live bomb (the one with the lit fuse and countdown) for double points before it explodes, avoid the enemies, and take the P ball to turn them into coins.',mount:fuse,run:true,unit:'points',isNew:true},
+  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life.',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));

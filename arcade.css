@@ -305,9 +305,12 @@ body.playing,body.playing *{-webkit-user-select:none;user-select:none;-webkit-to
 body.playing .wrap{visibility:hidden}
 body.playing #stage input,#stage input{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 
-.fjbtns{display:flex;align-items:center;gap:12px;flex:none}
-.fjdown{width:66px;height:66px;border-radius:50%;font-size:1.6rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none}
+.bpad:has(.fjbtns){gap:14px}
+.fjbtns{display:flex;align-items:center;gap:10px;flex:none}
+.fjbtns .bfire{width:80px;height:80px}
+.fjdown{width:58px;height:58px;border-radius:50%;font-size:1.6rem;padding:0;touch-action:none;user-select:none;-webkit-user-select:none}
 .fjdown.hit{animation:press .15s}
+@media (max-width:360px){.bpad:has(.fjbtns){gap:8px;padding:0 4px}.bpad:has(.fjbtns) .joy-x{width:min(38vw,150px)}.fjbtns .bfire{width:70px;height:70px}.fjdown{width:52px;height:52px}}
 
 /* In-game level-up pill */
 .toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
