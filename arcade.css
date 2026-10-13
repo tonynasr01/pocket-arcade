@@ -303,11 +303,6 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 #stage{touch-action:manipulation}
 #stage input{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 
-/* Cannon Blast shop */
-.bbshop{gap:8px;flex-wrap:wrap;justify-content:center;max-width:480px}
-.bbshop .btn{padding:9px 12px;font-size:.92rem;display:flex;flex-direction:column;align-items:center;gap:3px}
-.bbshop small{font-weight:800;font-size:.75rem;opacity:.8}
-
 /* In-game level-up pill */
 .toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
 .toast b{font:400 1.15rem/1.2 var(--display)}
