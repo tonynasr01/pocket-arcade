@@ -174,45 +174,49 @@ function memory(root,S){
 }
 
 function whack(root,S){
-  const L=S.level,T=8+4*L,stay=Math.max(380,1000-60*L),gapT=Math.max(260,760-45*L),bombs=L>=3,DUR=30;
-  const st=status(root,`Hit ${T} moles in ${DUR} seconds.`+(bombs?' Avoid the bombs!':''));
-  const tb=el('div','timebar',root,'<i></i>');const tbi=$('i',tb);
+  const st=status(root,'Tap Start. Whack every mole before it hides. Miss 3 and the game is over.');
+  const lv=el('div','row wlives',root,'');
   const g=el('div','holes',root);g.dataset.ar=1;g.dataset.max=540;
   const bar=el('div','row',root);const sb=el('button','btn',bar,'Start');
-  let score=0,time=DUR,running=false;const tok=Array(9).fill(0),kind=Array(9).fill('');
-  const show=()=>st(`Score ${score} of ${T}. ${time}s left.`);
+  let score=0,lives=3,running=false,t0=0,lvl=1;const tok=Array(9).fill(0),kind=Array(9).fill('');
+  const el2=()=>(performance.now()-t0)/1000;
+  const paint=()=>{lv.innerHTML=`<b>Score ${score}</b><span class="hearts">${'❤️'.repeat(Math.max(0,lives))}${'🤍'.repeat(Math.max(0,3-lives))}</span>`};paint();
   const holes=[...Array(9)].map((_,i)=>{
     const h=el('button','hole',g,'<span class="mole"></span>');h.setAttribute('aria-label','Hole '+(i+1));
     S.on(h,'pointerdown',e=>{e.preventDefault();hit(i)});S.on(h,'click',e=>{if(e.detail===0)hit(i)});return h;
   });
   function float(i,t,bad){const s=el('span','float'+(bad?' bad':''),holes[i],t);S.after(700,()=>s.remove())}
+  function lose(i,why){
+    lives--;paint();S.shake();beep(150,250,'sawtooth');if(i!=null)float(i,why,true);
+    if(lives<=0){
+      running=false;holes.forEach(h=>h.classList.remove('up'));sb.disabled=false;sb.textContent='Play again';
+      const nb=best('whack',score);st(`Game over! You whacked ${score} moles.${nb?' New best!':''}`);
+    }
+  }
   function hit(i){
     const h=holes[i];if(!running||!h.classList.contains('up'))return;
     tok[i]++;h.classList.remove('up');restartAnim(h,'bonk');S.after(220,()=>h.classList.remove('bonk'));
-    if(kind[i]==='💣'){score=Math.max(0,score-3);float(i,'-3',true);S.shake();beep(90,300,'sawtooth')}
-    else{score++;float(i,'+1');beep(700+score*10,80)}
-    show();
+    if(kind[i]==='💣'){lose(i,'💥')}
+    else if(kind[i]==='⭐'){score+=3;float(i,'+3');beep(1100,90)}
+    else{score++;float(i,'+1');beep(700+Math.min(score,60)*8,70)}
+    paint();
+    const nl=1+Math.floor(score/15);if(running&&nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,'Faster moles');beep(990,160)}
   }
   function spawn(){
-    if(!running)return;const i=rand(9);
+    if(!running)return;const s=el2(),i=rand(9);
+    const stay=Math.max(360,1050-s*9-score*6),gap=Math.max(200,760-s*7-score*5),bombs=s>15;
     if(!holes[i].classList.contains('up')){
-      kind[i]=bombs&&Math.random()<.2?'💣':'🐹';holes[i].querySelector('.mole').textContent=kind[i];
-      const t=++tok[i];holes[i].classList.add('up');S.after(stay,()=>{if(tok[i]===t)holes[i].classList.remove('up')});
+      const r=Math.random();kind[i]=bombs&&r<Math.min(.28,.1+s/300)?'💣':r>.95?'⭐':'🐹';holes[i].querySelector('.mole').textContent=kind[i];
+      const tk=++tok[i];holes[i].classList.add('up');
+      S.after(stay,()=>{if(tok[i]===tk&&running){holes[i].classList.remove('up');if(kind[i]==='🐹')lose(i,'Missed!')}});
     }
-    S.after(gapT*(.6+Math.random()*.8),spawn);
+    S.after(gap*(.6+Math.random()*.8),spawn);
+    if(s>25&&Math.random()<Math.min(.5,(s-25)/80))S.after(gap*.3,()=>{if(running)spawnOne()});
   }
+  function spawnOne(){const i=rand(9);if(holes[i].classList.contains('up'))return;const s=el2(),stay=Math.max(360,1050-s*9-score*6);kind[i]='🐹';holes[i].querySelector('.mole').textContent='🐹';const tk=++tok[i];holes[i].classList.add('up');S.after(stay,()=>{if(tok[i]===tk&&running){holes[i].classList.remove('up');lose(i,'Missed!')}})}
   S.on(sb,'click',()=>{
-    if(running)return;score=0;time=DUR;running=true;sb.disabled=true;show();
-    tbi.style.transition='none';tbi.style.width='100%';void tbi.offsetWidth;tbi.style.transition=`width ${DUR}s linear`;tbi.style.width='0%';
-    spawn();
-    const id=S.every(1000,()=>{
-      time--;show();
-      if(time<=0){
-        clearInterval(id);running=false;holes.forEach(h=>h.classList.remove('up'));sb.disabled=false;sb.textContent='Try again';best('whack',score);
-        if(score>=T){st(`You hit ${score}. Level cleared!`);S.next()}
-        else{st(`You hit ${score}. You need ${T}. Tap Try again.`);S.shake()}
-      }
-    });
+    if(running)return;score=0;lives=3;lvl=1;S.show(1);running=true;t0=performance.now();sb.disabled=true;sb.textContent='Whack!';paint();
+    st('Whack the moles! ⭐ is worth 3. Bombs come later: don\'t hit them.');spawn();
   });
 }
 
@@ -1634,19 +1638,19 @@ function bubbles(root,S){
 }
 
 function helix(root,S){
-  const L=S.level;const st=status(root,'Drag sideways or use ← → to spin the tower. Drop through the gaps and avoid red.');
+  const st=status(root,'Drag sideways or use ← → to spin the tower. Drop through the gaps and avoid red.');
   const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const CX=W/2,RX=128,RY=40,IR=24,GAPY=96,SEG=12,SA=Math.PI*2/SEG,BR=9,BRAD=(IR+RX)/2+6;
-  const NP=10+L*2;
-  const plats=[];
-  for(let i=0;i<NP;i++){
-    const segs=Array(SEG).fill('safe');
-    if(i===NP-1){plats.push({y:i*GAPY,segs,goal:true});break}
-    const g=rand(SEG),gw=L>6?1:2;for(let j=0;j<gw;j++)segs[(g+j)%SEG]='gap';
-    const nd=i===0?0:Math.min(5,rand(2+Math.floor(L/2)));
+  const plats=[];let made=0,score=0,lvl=1;S.show(1);
+  function addRing(){
+    const i=made++,segs=Array(SEG).fill('safe'),hard=Math.min(1,i/120);
+    const g=rand(SEG),gw=i>60&&Math.random()<hard?1:2;for(let j=0;j<gw;j++)segs[(g+j)%SEG]='gap';
+    const nd=i===0?0:Math.min(6,rand(1+Math.floor(i/10))+(i>20?1:0));
     for(let j=0;j<nd;j++){const p=(g+gw+1+rand(SEG-gw-2))%SEG;if(segs[p]==='safe')segs[p]='red'}
-    plats.push({y:i*GAPY,segs,off:i===0?0:Math.random()*Math.PI*2});
+    if(i>30&&Math.random()<hard*.6){const g2=(g+6)%SEG;if(segs[g2]==='safe')segs[g2]='gap'}
+    plats.push({y:i*GAPY,segs,off:i===0?0:Math.random()*Math.PI*2,col:i%10});
   }
+  for(let i=0;i<14;i++)addRing();
   let rot=0,ball={y:-70,vy:0},cam=-200,state='play',streak=0,passed=0,dragX=null,t=0,squish=0,ceil=-1e9;
   const segAt=(p,a)=>{let r=((a-p.off-rot)%(Math.PI*2)+Math.PI*4)%(Math.PI*2);return Math.floor(r/SA)};
   const FRONT=Math.PI/2;
@@ -1654,16 +1658,17 @@ function helix(root,S){
   S.on(c,'pointerdown',e=>{if(state==='over'){S.restart();return}dragX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}});
   S.on(c,'pointermove',e=>{if(dragX==null)return;const nx=c.pos(e).x;rot+=(nx-dragX)*.012;dragX=nx});
   ['pointerup','pointercancel'].forEach(ev=>S.on(c,ev,()=>{dragX=null}));
-  function die(){state='over';S.shake();beep(140,400,'sawtooth');fx.add(CX,ball.y-cam,K.c1,30,240);st(`Splat! You fell through ${passed} of ${NP-1} rings. Tap or press ↻ to try again.`)}
+  function ringUp(){const nl=1+Math.floor(passed/10);if(nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,'More red, fewer gaps');beep(990,160)}}
+  function die(){state='over';S.shake();beep(140,400,'sawtooth');fx.add(CX,ball.y-cam,K.c1,30,240);const nb=best('helix',score);st(`Splat! ${passed} rings, ${score} points.${nb?' New best!':''} Tap or press ↻ to play again.`)}
   function seg(p,i,yy,front){
     const a0=p.off+rot+i*SA+.02,a1=a0+SA-.04,ty=p.segs[i];if(ty==='gap')return;
     const m=(a0+a1)/2;if((Math.sin(m)>0)!==front)return;
     const pts=[];for(let j=0;j<=6;j++){const a=a0+(a1-a0)*j/6;pts.push([CX+RX*Math.cos(a),yy+RY*Math.sin(a)])}
     for(let j=6;j>=0;j--){const a=a0+(a1-a0)*j/6;pts.push([CX+IR*Math.cos(a),yy+IR*RY/RX*Math.sin(a)])}
-    const colr=p.goal?K.c3:ty==='red'?K.c1:K.c4;
+    const colr=ty==='red'?K.c1:[K.c4,K.c4,K.c5,K.c5,K.c3,K.c3,K.c6,K.c6,K.c4,K.c5][p.col];
     if(front){x.fillStyle=K.edge;x.beginPath();for(let j=0;j<=6;j++){const[a,b]=pts[j];j?x.lineTo(a,b+12):x.moveTo(a,b+12)}for(let j=6;j>=0;j--){const[a,b]=pts[j];x.lineTo(a,b)}x.fill()}
     x.fillStyle=colr;x.beginPath();pts.forEach(([a,b],j)=>j?x.lineTo(a,b):x.moveTo(a,b));x.closePath();x.fill();
-    x.fillStyle='rgba(255,255,255,.18)';if(ty!=='red'&&!p.goal&&i%2)x.fill();
+    x.fillStyle='rgba(255,255,255,.18)';if(ty!=='red'&&i%2)x.fill();
   }
   S.loop(dt=>{
     t+=dt;squish=Math.max(0,squish-dt);
@@ -1671,12 +1676,13 @@ function helix(root,S){
     if(state==='play'){
       const prevY=ball.y;ball.vy+=1500*dt;ball.y+=ball.vy*dt;
       if(ball.y-BR<ceil){ball.y=ceil+BR;ball.vy=Math.max(0,ball.vy)}
+      while(plats[plats.length-1].y<ball.y+H*1.5)addRing();
+      while(plats.length>30&&plats[0].y<ceil-GAPY*3)plats.shift();
       for(const p of plats){
         if(p.broken||p.y<=ceil||!(prevY<=p.y-BR&&ball.y>p.y-BR))continue;
         const sg=p.segs[segAt(p,FRONT)];
-        if(p.goal){ball.y=p.y-BR;state='win';fx.add(CX,p.y-cam,K.c3,40,260);beep(1100,200);st(`You reached the bottom! Level ${L} cleared.`);S.after(300,S.next);break}
-        if(sg==='gap'){passed++;streak++;ceil=p.y+2;beep(500+streak*80,40);continue}
-        if(streak>=3){p.broken=true;passed++;streak=0;ceil=p.y+2;fx.add(CX,p.y-cam,K.c4,30,260);beep(900,120);S.fx.toast('Smash!');continue}
+        if(sg==='gap'){passed++;streak++;score+=streak;ceil=p.y+2;beep(500+Math.min(streak,8)*80,40);ringUp();continue}
+        if(streak>=3){p.broken=true;passed++;score+=5+streak;streak=0;ceil=p.y+2;ringUp();fx.add(CX,p.y-cam,K.c4,30,260);beep(900,120);S.fx.toast('Smash!');continue}
         if(sg==='red'){ball.y=p.y-BR;die();break}
         ball.y=p.y-BR;ball.vy=-470;streak=0;squish=.12;beep(330,40);fx.add(CX,p.y-cam,K.c2,5,80);break;
       }
@@ -1699,8 +1705,10 @@ function helix(root,S){
       x.fillStyle=K.c2;x.beginPath();x.ellipse(bx,by+BR*sq*.3,BR*(1+sq*.5),BR*(1-sq*.4),0,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
     }
     fx.draw(x,dt);
-    const prog=Math.min(1,passed/(NP-1));x.fillStyle=K.line;rr(x,40,14,W-80,12,6);x.fill();x.fillStyle=K.c3;rr(x,40,14,Math.max(12,(W-80)*prog),12,6);x.fill();
-    x.fillStyle=K.ink;x.font=`14px ${DISPLAY}`;x.textAlign='left';x.fillText(L,16,25);x.textAlign='right';x.fillText(L+1,W-14,25);
+    x.textAlign='center';x.lineJoin='round';x.strokeStyle=K.board;x.font=`40px ${DISPLAY}`;x.lineWidth=7;x.strokeText(score,W/2,52);x.fillStyle=K.ink;x.fillText(score,W/2,52);
+    x.font=`13px ${DISPLAY}`;x.lineWidth=4;const bt=`Best ${Math.max(score,store.get('best:helix')||0)}`;x.strokeText(bt,W/2,72);x.fillStyle=K.muted;x.fillText(bt,W/2,72);
+    if(streak>=2&&state==='play'){x.font=`16px ${DISPLAY}`;x.lineWidth=4;x.strokeText(`Combo ×${streak}`,W/2,94);x.fillStyle=K.c6;x.fillText(`Combo ×${streak}`,W/2,94)}
+    if(state==='over'){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.font=`30px ${DISPLAY}`;x.fillText('Splat!',W/2,H/2-6);x.font=`14px ${DISPLAY}`;x.fillText('Tap to play again',W/2,H/2+22)}
   });
 }
 
@@ -1911,7 +1919,7 @@ function chess(root,S){
     over=true;
     if(!M.length&&CH.inCheck(s,s.w)){
       if(TWO){const wn=s.w?'Black':'White';st(`Checkmate! ${wn} wins. Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(`${wn} wins!`);beep(990,300)}
-      else if(!s.w){st('Checkmate! You win.');S.fx.banner('Checkmate!');beep(990,300);S.after(600,S.next)}
+      else if(!s.w){st('Checkmate! You win.');beep(990,300);S.after(600,S.next)}
       else{st('Checkmate. The computer wins. Press ↻ to play again.');S.shake();beep(150,400,'sawtooth')}
     }else st(`Draw${!M.length?' by stalemate':onlyK?': only kings are left':' by the 50-move rule'}. Press ↻ to play again.`);
     return true;
@@ -1924,26 +1932,26 @@ const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "wh
 const BASE_TITLE=document.title;
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
-  {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. More cards each level.',mount:memory,levels:5},
-  {id:'whack',name:'Whack-a-Mole',icon:'🔨',blurb:'Hit enough moles before time runs out.',help:'Tap moles while they are up. From level 3, bombs cost you 3 points.',mount:whack,levels:10,unit:'moles'},
+  {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
+  {id:'whack',name:'Whack-a-Mole',icon:'🔨',blurb:'Whack moles as they speed up. Miss 3 and you\'re out.',help:'Tap moles before they hide. Missing a mole or hitting a bomb costs a life. ⭐ is worth 3 points.',mount:whack,run:true,unit:'moles'},
   {id:'simon',name:'Simon Says',icon:'🔴',blurb:'Repeat a pattern that grows every level.',help:'Watch the pads light up, then tap them in the same order. Sound on helps.',mount:simon,run:true,unit:'levels'},
-  {id:'hangman',name:'Hangman',icon:'🔤',blurb:'Guess the word one letter at a time, solo or with a friend.',help:'Tap letters or type on your keyboard. Words get longer each level. Tap 2 players to type a secret word for a friend.',mount:hangman,levels:5},
+  {id:'hangman',name:'Hangman',icon:'🔤',blurb:'Guess the word one letter at a time, solo or with a friend.',help:'Tap letters or type on your keyboard. Pick a word length at the top, or tap 2 players to type a secret word for a friend.',mount:hangman,levels:5,open:true,names:['4 letters','5 letters','6 letters','7 letters','8+ letters']},
   {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone.',mount:snake,run:true,unit:'points'},
-  {id:'pong',name:'Pong',icon:'🏓',blurb:'Beat a computer that gets sharper each level.',help:'Move your finger or mouse over the court, or use the up and down keys.',mount:pong,levels:5},
+  {id:'pong',name:'Pong',icon:'🏓',blurb:'First to 5 against the computer. Pick how sharp it plays.',help:'Move your finger or mouse over the court, or use the up and down keys. Pick a mode at the top.',mount:pong,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Insane']},
   {id:'flappy',name:'Flappy Bird',icon:'🐦',blurb:'Flap through gaps that keep getting tighter.',help:'Tap, click, or press Space to flap.',mount:flappy,run:true,unit:'points'},
   {id:'tower',name:'Tower Block',icon:'🧱',blurb:'Drop sliding blocks to build the tallest tower.',help:'Tap, click, or press Space to drop. Line blocks up perfectly to keep them wide.',mount:tower,run:true,unit:'floors'},
   {id:'crane',name:'Sky Crane',icon:'🏗️',blurb:'Drop swinging blocks to stack a wobbly skyscraper.',help:'Tap, click, or press Space to release the block. Perfect drops steady the tower.',mount:crane,run:true,unit:'floors',isNew:true},
   {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
-  {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys.',mount:breakout,levels:5,unit:'points'},
+  {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys. Pick a brick layout at the top.',mount:breakout,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Master'],unit:'points'},
   {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'},
   {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Pick a board size at the top. Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,open:true,names:['Tiny','Easy','Medium','Hard','Expert'],isNew:true},
   {id:'sudoku',name:'Sudoku',icon:'🔢',blurb:'Fill the grid so every row, column and box has 1 to 9.',help:'Pick a difficulty at the top. Tap a square, then a number. Turn on ✏️ Notes to pencil in options. Keyboard: arrows, 1–9, Backspace, N.',mount:sudoku,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true},
   {id:'bbtan',name:'Brick Balls',icon:'🔵',blurb:'Aim, shoot, and smash numbered bricks before they land.',help:'Drag to aim and let go to shoot, or use ← → and Space. Grab +1 rings for extra balls.',mount:bbtan,run:true,unit:'rounds',isNew:true},
-  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys, WASD, swipe, or the wheel or arrows. Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,isNew:true},
+  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys, WASD, swipe, or the wheel or arrows. Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Master'],isNew:true},
   {id:'runner',name:'Rail Runner',icon:'🚆',blurb:'Dodge trains, jump barriers, and grab coins.',help:'Swipe or use the arrow keys: left and right to switch tracks, up to jump, down to roll.',mount:runner,run:true,unit:'points',isNew:true},
   {id:'taxi',name:'Rush Taxi',icon:'🚕',blurb:'Pick up passengers and race the clock.',help:'Drag or use ← → to steer and ↓ to brake. Drive past a waving passenger in the outside lane, then reach the 🏁 on the same side.',mount:taxi,run:true,unit:'dollars',isNew:true},
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
-  {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop the ball through the gaps.',help:'Drag sideways or use ← → to spin the tower. Avoid red. Fall through 3 rings in a row to smash the next one.',mount:helix,levels:10,isNew:true},
+  {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
@@ -1968,6 +1976,7 @@ function chip(g,n){
 }
 function levelUp(g,lv){
   FX.confetti();beep(660,120);setTimeout(()=>beep(880,120),120);setTimeout(()=>beep(1320,200),240);
+  if(g.open){FX.banner('You win!',`${lvlName(g,lv)} · press ↻ to play again`);return}
   if(lv<g.levels){
     if(!g.open)store.set('unl:'+g.id,Math.max(unl(g),lv+1));
     store.set('cur:'+g.id,lv+1);

@@ -122,6 +122,9 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 .timebar{width:min(100%,460px);height:14px;border:3px solid var(--edge);border-radius:999px;background:var(--board);overflow:hidden;flex:none}
 .timebar i{display:block;height:100%;width:100%;background:var(--c3)}
 
+.wlives{gap:18px;align-items:center;font-size:1.15rem}
+.wlives .hearts{letter-spacing:2px}
+
 /* Simon */
 .simon{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:320px}
 .pad{aspect-ratio:1;border:3px solid var(--edge);border-radius:18px;opacity:.45;cursor:pointer;padding:0;transition:opacity .1s,transform .15s var(--spring);touch-action:manipulation;position:relative;overflow:hidden}
