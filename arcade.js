@@ -2048,8 +2048,139 @@ function blast(root,S){
   });
 }
 
+/* Pinball: segment/circle physics with substeps, two flippers, bumpers, slingshots, lanes, drop targets */
+function pinball(root,S){
+  const st=status(root,'Hold Space, ↓ or touch to pull the plunger, let go to launch. Flippers: ← → or Z and M, or tap the left and right side.');
+  const W=360,H=640,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  const R=8,G=1050,SUB=10,OY=40;
+  const V=(a,b)=>({x:a,y:b+OY});
+  const segs=[],add=(a,b,kind='wall',e=.45)=>segs.push({a,b,kind,e});
+  // top arc
+  const arc=[];for(let i=0;i<=24;i++){const t=Math.PI+Math.PI*i/24;arc.push(V(180+166*Math.cos(t),125+110*Math.sin(t)))}
+  for(let i=0;i<arc.length-1;i++)add(arc[i],arc[i+1]);
+  add(V(14,125),V(14,410));add(V(14,410),V(108,512));               // left wall + left funnel
+  add(V(346,125),V(346,600));add(V(320,210),V(320,600));              // shooter lane walls
+  add(V(320,600),V(346,600));add(V(320,410),V(226,512));              // lane floor + right funnel
+  const SL=[[V(42,350),V(42,398),V(86,436)],[V(292,350),V(292,398),V(248,436)]];
+  for(const[A,B,C]of SL){add(A,B);add(B,C);add(A,C,'sling',.2)}
+  for(const px of[113,148,186,221])add(V(px,58),V(px,88),'post',.4);
+  const bumpers=[{x:110,y:190+OY,r:20,hit:0},{x:224,y:190+OY,r:20,hit:0},{x:167,y:258+OY,r:20,hit:0}];
+  const lanes=[{x:130,y:72+OY,on:false},{x:167,y:72+OY,on:false},{x:204,y:72+OY,on:false}];
+  const targets=[0,1,2].map(i=>({a:V(312,262+i*26),b:V(312,282+i*26),up:true,hit:0}));
+  const posts=[{x:108,y:512+OY,r:9},{x:226,y:512+OY,r:9}];
+  const FL=[{p:V(108,512),rest:.55,upA:-.45,ph:.55,w:0,len:50,key:false},{p:V(226,512),rest:Math.PI-.55,upA:Math.PI+.45,ph:Math.PI-.55,w:0,len:50,key:false}];
+  let ball,balls,score,mult,state,charge,saveT,saveUsed=false,flash=0,extraGiven,t=0,still=0;
+  function reset(){saveUsed=false;balls=3;score=0;mult=1;extraGiven=false;lanes.forEach(l=>l.on=false);targets.forEach(q=>q.up=true);newBall();state='launch'}
+  function newBall(){ball={x:333,y:592+OY-R,vx:0,vy:0};charge=0;state='launch';saveT=0}
+  reset();
+  const pts=n=>{score+=n*mult;if(!extraGiven&&score>=50000){extraGiven=true;balls++;S.fx.toast('Extra ball!');beep(1200,200)}};
+  // input
+  const press=(i,on)=>{FL[i].key=on;if(on&&state!=='over'){beep(i?260:240,25,'square')}};
+  const keyL=['ArrowLeft','z','Z','a','A','Shift'],keyR=['ArrowRight','m','M','/','d','D'];
+  let charging=false;
+  S.on(window,'keydown',e=>{
+    if(keyL.includes(e.key)){e.preventDefault();if(!e.repeat)press(0,true)}
+    if(keyR.includes(e.key)){e.preventDefault();if(!e.repeat)press(1,true)}
+    if(e.key===' '||e.key==='ArrowDown'||e.key==='Enter'){e.preventDefault();if(state==='over'){reset();return}if(state==='launch')charging=true}
+  });
+  S.on(window,'keyup',e=>{
+    if(keyL.includes(e.key))press(0,false);if(keyR.includes(e.key))press(1,false);
+    if((e.key===' '||e.key==='ArrowDown'||e.key==='Enter')&&charging){charging=false;launch()}
+  });
+  const touches=new Map();
+  S.on(c,'pointerdown',e=>{e.preventDefault();try{c.setPointerCapture(e.pointerId)}catch(_){}if(state==='over'){reset();return}
+    if(state==='launch'){charging=true;touches.set(e.pointerId,'launch');return}
+    const side=c.pos(e).x<W/2?0:1;touches.set(e.pointerId,side);press(side,true)});
+  const lift=e=>{const s=touches.get(e.pointerId);touches.delete(e.pointerId);if(s==='launch'){if(charging){charging=false;launch()}}else if(s!=null&&![...touches.values()].includes(s))press(s,false)};
+  S.on(c,'pointerup',lift);S.on(c,'pointercancel',lift);
+  function launch(){if(state!=='launch')return;ball.vy=-(1080+600*Math.min(1,charge));state='play';saveT=saveUsed?0:4;beep(300+charge*400,120);charge=0}
+  // physics helpers
+  function hitSeg(sg,dt){
+    const ax=sg.a.x,ay=sg.a.y,bx=sg.b.x,by=sg.b.y,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+    let u=((ball.x-ax)*dx+(ball.y-ay)*dy)/l2;u=clamp(u,0,1);const cx2=ax+dx*u,cy2=ay+dy*u;let nx=ball.x-cx2,ny=ball.y-cy2;const d=Math.hypot(nx,ny);
+    if(d>=R||d===0)return false;nx/=d;ny/=d;ball.x=cx2+nx*R;ball.y=cy2+ny*R;
+    const vn=ball.vx*nx+ball.vy*ny;if(vn<0){ball.vx-=(1+sg.e)*vn*nx;ball.vy-=(1+sg.e)*vn*ny}
+    if(sg.kind==='sling'&&vn<-60){ball.vx+=nx*420;ball.vy+=ny*420;sg.hit=.15;pts(10);beep(520,40,'square')}
+    return true;
+  }
+  function hitCircle(o,e,kick){
+    let nx=ball.x-o.x,ny=ball.y-o.y;const d=Math.hypot(nx,ny),rr2=o.r+R;if(d>=rr2||d===0)return false;nx/=d;ny/=d;ball.x=o.x+nx*rr2;ball.y=o.y+ny*rr2;
+    const vn=ball.vx*nx+ball.vy*ny;if(vn<0){ball.vx-=(1+e)*vn*nx;ball.vy-=(1+e)*vn*ny}if(kick){ball.vx+=nx*kick;ball.vy+=ny*kick}return true;
+  }
+  function hitFlipper(f){
+    const tx=f.p.x+Math.cos(f.ph)*f.len,ty=f.p.y+Math.sin(f.ph)*f.len,dx=tx-f.p.x,dy=ty-f.p.y,l2=dx*dx+dy*dy;
+    let u=clamp(((ball.x-f.p.x)*dx+(ball.y-f.p.y)*dy)/l2,0,1);const rad=9-4*u,cx2=f.p.x+dx*u,cy2=f.p.y+dy*u;let nx=ball.x-cx2,ny=ball.y-cy2;const d=Math.hypot(nx,ny);
+    if(d>=R+rad||d===0)return;nx/=d;ny/=d;ball.x=cx2+nx*(R+rad);ball.y=cy2+ny*(R+rad);
+    const rx=cx2-f.p.x,ry=cy2-f.p.y,vfx=-f.w*ry,vfy=f.w*rx,vrn=(ball.vx-vfx)*nx+(ball.vy-vfy)*ny;
+    if(vrn<0){ball.vx-=(1+.25)*vrn*nx;ball.vy-=(1+.25)*vrn*ny}
+  }
+  function step(dt){
+    for(const f of FL){const tgt=f.key?f.upA:f.rest,sp=f.key?20:11,dir=Math.sign(tgt-f.ph);const nv=f.ph+dir*sp*dt;
+      if((dir>0&&nv>=tgt)||(dir<0&&nv<=tgt)||dir===0){f.w=0;f.ph=tgt}else{f.w=dir*sp;f.ph=nv}}
+    if(state==='launch'){if(charging)charge=Math.min(1,charge+dt*1.1);ball.x=333;ball.y=592+OY-R+charge*14;return}
+    if(ball.x>320&&ball.y>560+OY&&ball.vy>=0){const keep=saveT;newBall();saveT=keep;return}
+    if(Math.hypot(ball.vx,ball.vy)<25&&!FL[0].key&&!FL[1].key){still+=dt;if(still>1.5){still=0;ball.vx+=(ball.x<167?1:-1)*(140+Math.random()*80);ball.vy-=260;S.fx.toast('Nudge!');beep(200,80)}}else still=0;
+    ball.vy+=G*dt;const sp=Math.hypot(ball.vx,ball.vy);if(sp>1700){ball.vx*=1700/sp;ball.vy*=1700/sp}
+    ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+    for(const sg of segs)hitSeg(sg,dt);
+    for(const q of targets)if(q.up&&hitSeg({a:q.a,b:q.b,e:.35,kind:'wall'},dt)){q.up=false;q.hit=.3;pts(300);beep(700,60);if(targets.every(z=>!z.up)){pts(5000);S.fx.toast('Targets cleared!','+5,000');beep(1000,200);setTimeout(()=>targets.forEach(z=>z.up=true),900)}}
+    for(const b of bumpers)if(hitCircle(b,.9,300)){b.hit=.18;pts(100);beep(380+rand(3)*80,50,'square');flash=.06}
+    for(const p of posts)hitCircle(p,.3,0);
+    for(const f of FL)hitFlipper(f);
+    for(const l of lanes)if(Math.hypot(ball.x-l.x,ball.y-l.y)<14&&ball.vy>0&&!l.cool){l.cool=true;if(!l.on){l.on=true;pts(500);beep(900,50)}if(lanes.every(z=>z.on)){mult=Math.min(5,mult+1);lanes.forEach(z=>z.on=false);S.fx.toast(`Multiplier ×${mult}`);beep(1100,200)}}
+    for(const l of lanes)if(Math.hypot(ball.x-l.x,ball.y-l.y)>22)l.cool=false;
+    if(ball.y>H+20){
+      if(saveT>0){S.fx.toast('Ball saved!');saveUsed=true;newBall();return}
+      balls--;saveUsed=false;beep(160,300,'sawtooth');S.shake();
+      if(balls<=0){state='over';const nb=best('pinball',score);st(`Game over! Final score ${score.toLocaleString()}.${nb?' New best!':''} Tap or press Space to play again.`)}
+      else{newBall();st(`${balls} ball${balls>1?'s':''} left. Hold and release to launch.`)}
+    }
+  }
+  S.loop(dt=>{
+    t+=dt;flash=Math.max(0,flash-dt);
+    if(state!=='over'){const h=dt/SUB;for(let i=0;i<SUB;i++)step(h);if(state==='play')saveT=Math.max(0,saveT-dt)}
+    for(const b of bumpers)b.hit=Math.max(0,b.hit-dt);for(const sg of segs)if(sg.hit)sg.hit=Math.max(0,sg.hit-dt);
+    // table
+    const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#1B1E5E');g.addColorStop(1,'#2C1F63');x.fillStyle=g;x.fillRect(0,0,W,H);
+    x.fillStyle=`rgba(255,255,255,${flash*2})`;x.fillRect(0,0,W,H);
+    x.strokeStyle='rgba(255,255,255,.06)';x.lineWidth=1;for(let i=-H;i<W;i+=26){x.beginPath();x.moveTo(i,OY);x.lineTo(i+H,H+OY);x.stroke()}
+    // decorations: center star & arrows
+    x.fillStyle='rgba(255,197,61,.12)';x.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr3=i%2?18:42;x.lineTo(167+Math.cos(a)*rr3,360+OY+Math.sin(a)*rr3)}x.fill();
+    for(const[ax,ay,c2]of[[80,318,'#FF5D73'],[254,318,'#2EC4B6']]){x.fillStyle=c2;x.globalAlpha=.25+.2*Math.sin(t*4);x.beginPath();x.moveTo(ax,ay+OY-14);x.lineTo(ax+10,ay+OY+4);x.lineTo(ax-10,ay+OY+4);x.fill();x.globalAlpha=1}
+    // walls
+    x.lineCap='round';x.lineJoin='round';
+    for(const sg of segs){x.strokeStyle=sg.kind==='sling'?(sg.hit?'#FFF':'#FF5D73'):sg.kind==='post'?'#C9CEFF':'#8F9BFF';x.lineWidth=sg.kind==='sling'?6:sg.kind==='post'?5:5;x.beginPath();x.moveTo(sg.a.x,sg.a.y);x.lineTo(sg.b.x,sg.b.y);x.stroke()}
+    for(const[A,B,C]of SL){x.fillStyle='rgba(255,93,115,.25)';x.beginPath();x.moveTo(A.x,A.y);x.lineTo(B.x,B.y);x.lineTo(C.x,C.y);x.fill()}
+    // lanes
+    for(const l of lanes){x.fillStyle=l.on?'#FFC53D':'rgba(255,255,255,.18)';x.shadowColor='#FFC53D';x.shadowBlur=l.on?14:0;x.beginPath();x.arc(l.x,l.y,7,0,7);x.fill();x.shadowBlur=0}
+    x.fillStyle='rgba(255,255,255,.55)';x.font=`10px ${DISPLAY}`;x.textAlign='center';x.fillText(`LANES ×${mult+(mult<5?1:0)}`,167,108+OY);
+    // targets
+    for(const q of targets){q.hit=Math.max(0,q.hit-dt);x.strokeStyle=q.up?'#FFC53D':'rgba(255,197,61,.2)';x.lineWidth=q.up?7:3;x.beginPath();x.moveTo(q.a.x,q.a.y);x.lineTo(q.b.x,q.b.y);x.stroke()}
+    // bumpers
+    for(const b of bumpers){const s2=1+b.hit*1.2;x.shadowColor='#2EC4B6';x.shadowBlur=b.hit?24:8;x.fillStyle=b.hit?'#FFFFFF':'#2EC4B6';x.beginPath();x.arc(b.x,b.y,b.r*s2,0,7);x.fill();x.shadowBlur=0;
+      x.fillStyle='#1B1E5E';x.beginPath();x.arc(b.x,b.y,b.r*.62,0,7);x.fill();x.fillStyle='#FF5D73';x.beginPath();x.arc(b.x,b.y,b.r*.38,0,7);x.fill()}
+    for(const p of posts){x.fillStyle='#C9CEFF';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}
+    // flippers
+    for(const f of FL){const tx=f.p.x+Math.cos(f.ph)*f.len,ty=f.p.y+Math.sin(f.ph)*f.len,nx=-(ty-f.p.y)/f.len,ny=(tx-f.p.x)/f.len;
+      x.fillStyle='#FFC53D';x.beginPath();x.arc(f.p.x,f.p.y,9,0,7);x.arc(tx,ty,5,0,7);x.fill();x.beginPath();x.moveTo(f.p.x+nx*9,f.p.y+ny*9);x.lineTo(tx+nx*5,ty+ny*5);x.lineTo(tx-nx*5,ty-ny*5);x.lineTo(f.p.x-nx*9,f.p.y-ny*9);x.fill();
+      x.fillStyle='#FF8A3D';x.beginPath();x.arc(f.p.x,f.p.y,4,0,7);x.fill()}
+    // plunger
+    const py=592+OY+charge*14;x.fillStyle='#8A8FB8';x.fillRect(326,py,14,H-py);x.fillStyle=charging?'#FF5D73':'#C9CEFF';x.fillRect(323,py,20,6);
+    if(state==='launch'){x.fillStyle='rgba(255,255,255,.7)';x.font=`9px ${DISPLAY}`;x.fillText('PULL',333,H-8)}
+    // ball
+    if(state!=='over'){const bg=x.createRadialGradient(ball.x-3,ball.y-3,1,ball.x,ball.y,R);bg.addColorStop(0,'#FFFFFF');bg.addColorStop(.5,'#C9CEFF');bg.addColorStop(1,'#6E7391');x.fillStyle=bg;x.beginPath();x.arc(ball.x,ball.y,R,0,7);x.fill()}
+    if(saveT>0&&state==='play'){x.fillStyle='#2EC4B6';x.globalAlpha=.5+.5*Math.sin(t*10);x.font=`11px ${DISPLAY}`;x.fillText('BALL SAVE',167,600+OY);x.globalAlpha=1}
+    fx.draw(x,dt);
+    // HUD
+    x.fillStyle='#14164A';x.fillRect(0,0,W,OY);x.fillStyle='#FFC53D';x.font=`22px ${DISPLAY}`;x.textAlign='center';x.fillText(score.toLocaleString(),W/2,28);
+    x.font=`12px ${DISPLAY}`;x.textAlign='left';x.fillStyle='#C9CEFF';x.fillText(`BALL ${'●'.repeat(Math.max(0,balls))}`,10,26);
+    x.textAlign='right';x.fillText(`×${mult}`,W-10,26);
+    if(state==='over'){x.fillStyle='rgba(0,0,0,.5)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font=`32px ${DISPLAY}`;x.fillText('Game over',W/2,H/2-16);x.font=`18px ${DISPLAY}`;x.fillText(score.toLocaleString(),W/2,H/2+14);x.font=`13px ${DISPLAY}`;x.fillText('Tap to play again',W/2,H/2+42)}
+  });
+}
+
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "runner": "rail-runner.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "runner": "rail-runner.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html"};
 const BASE_TITLE=document.title;
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
@@ -2075,11 +2206,12 @@ const GAMES=[
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. Grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
+  {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump and light the lanes on a classic arcade table.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',runner:'subway surfers subway surf runner endless train',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',runner:'subway surfers subway surf runner endless train',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two'};
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
