@@ -2151,7 +2151,7 @@ function fuse(root,S){
     // one bonus ball at a time, never in the first 12s of a level, at least 8s apart
     if(pball||bball||lball||levelT<12||gapT>0||!sched.length||collected<sched[0].at)return;
     const it=sched.shift(),mk=()=>({x:rand(W-80)+40,y:60,vx:80*(rand(2)?1:-1),vy:60,life:10});
-    if(it.k==='P')pball=mk();else if(it.k==='B'){if(mult<5)bball=mk()}else if(lives<5)lball=mk();
+    if(it.k==='P')pball=mk();else if(it.k==='B'){if(mult<5)bball=mk()}else if(lives<3)lball=mk();
   }
   function hurt(){
     if(me.inv>0)return;lives--;S.shake();beep(150,350,'sawtooth');fx.add(me.x,me.y+PH/2,K.c1,28,240);
@@ -2199,7 +2199,7 @@ function fuse(root,S){
       trySpecial();
       for(const ob of[pball,bball,lball]){if(!ob)continue;ob.x+=ob.vx*dt;ob.y+=ob.vy*dt;if(ob.x<12||ob.x>W-12)ob.vx*=-1;if(ob.y<40||ob.y>GY-12)ob.vy*=-1}
       if(pball&&Math.hypot(pball.x-me.x,pball.y-(me.y+PH/2))<22){pball=null;gapT=8;power=6;eaten=0;S.fx.toast('POWER!','Enemies turn to coins');beep(880,120);setTimeout(()=>beep(1320,160),120)}
-      if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;gapT=8;lives=Math.min(5,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
+      if(lball&&Math.hypot(lball.x-me.x,lball.y-(me.y+PH/2))<22){lball=null;gapT=8;lives=Math.min(3,lives+1);fx.add(me.x,me.y,'#FF5D73',24,200);S.fx.toast('❤️ Extra life!');beep(990,120);setTimeout(()=>beep(1320,200),120)}
       if(bball&&Math.hypot(bball.x-me.x,bball.y-(me.y+PH/2))<22){bball=null;gapT=8;mult=Math.min(5,mult+1);S.fx.toast(`Bonus ×${mult}`);beep(1100,160)}
     }else if(state==='clear'){clearT+=dt;if(clearT>2.2){lvl++;startLevel();S.fx.toast(`Level ${lvl}`,'More enemies');st(`Level ${lvl}. Jump to start.`)}}
     else if(state==='over')deadT+=dt;
@@ -2292,7 +2292,7 @@ const GAMES=[
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. Grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
-  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life.',mount:fuse,run:true,unit:'points',isNew:true},
+  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
