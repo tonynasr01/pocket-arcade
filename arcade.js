@@ -2023,6 +2023,17 @@ $('#fs').addEventListener('click',()=>{fsOff=isFS();fsOff?exitFS():enterFS()});
 /* phones: go full screen on the first touch in a game if we are not already */
 stage.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&!fsOff&&!isFS())enterFS()});
 
+/* ---------- no zoom, selection or long-press menus while playing ---------- */
+(function(){
+  const playing=()=>document.body.classList.contains('playing');
+  const inInput=e=>e.target&&e.target.closest&&e.target.closest('input,textarea');
+  ['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+  document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+  document.addEventListener('dblclick',e=>{if(playing())e.preventDefault()});
+  document.addEventListener('selectstart',e=>{if(playing()&&!inInput(e))e.preventDefault()});
+  document.addEventListener('contextmenu',e=>{if(playing()&&!inInput(e))e.preventDefault()});
+})();
+
 /* ---------- shelf & router ---------- */
 (function logo(){
   const h=$('#logo');if(!h)return;const txt=h.textContent;h.setAttribute('aria-label',txt);let n=0;

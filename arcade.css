@@ -297,6 +297,12 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
   .bar{gap:5px;flex-wrap:nowrap}.bar .ibtn{width:38px;height:38px;font-size:1.05rem}.bar .lvl{height:38px;padding:0 2px}.bar .lvl span{padding:0 2px;font-size:.85rem}.bar .lvl button{width:22px}
 }
 
+/* No zooming or text selection while playing */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+#stage,#stage *,.info,.info *,.popmsg,.toast,.banner{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#stage{touch-action:manipulation}
+#stage input{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+
 /* In-game level-up pill */
 .toast{position:fixed;left:50%;z-index:70;pointer-events:none;display:flex;align-items:baseline;gap:10px;background:var(--c2);color:#1E1F5C;border:3px solid var(--edge);border-radius:999px;padding:6px 18px;box-shadow:0 4px 0 var(--edge);white-space:nowrap;transform:translate(-50%,-50%);animation:toast 1.6s both}
 .toast b{font:400 1.15rem/1.2 var(--display)}
