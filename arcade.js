@@ -2217,8 +2217,12 @@ addEventListener('hashchange',route);
 
 /* ---------- ads ---------- */
 (function(){
-  const ins=[...document.querySelectorAll('ins.adsbygoogle')];
-  if(ins.some(i=>/8892414071435713/.test(i.dataset.adClient))){ins.forEach(i=>i.closest('.ad').classList.add('off'));return}
-  ins.forEach(()=>{try{(window.adsbygoogle=window.adsbygoogle||[]).push({})}catch(e){}});
+  // An ad box still holding a placeholder publisher ID (all zeros) or slot ID (one digit repeated,
+  // like 1111111111) is hidden and never requested. Paste real slot IDs from AdSense to switch it on.
+  const fake=v=>!v||/^(?:ca-pub-)?(\d)\1+$/.test(v);
+  for(const i of document.querySelectorAll('ins.adsbygoogle')){
+    if(fake(i.dataset.adClient)||fake(i.dataset.adSlot)){i.closest('.ad').classList.add('off');continue}
+    try{(window.adsbygoogle=window.adsbygoogle||[]).push({})}catch(e){}
+  }
 })();
 route();

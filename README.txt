@@ -21,7 +21,9 @@ POCKET ARCADE - SETUP BEFORE UPLOADING
    - Create ad units and replace the placeholder slot numbers:
        1111111111 and 2222222222  -> index.html
        3333333333                 -> every game page
-     (Or delete the <div class="ad"> blocks and turn on Auto ads instead.)
+     Ad boxes that still hold a placeholder slot number are hidden
+     automatically, so nothing broken shows while you set this up.
+     (Or leave the placeholders and turn on Auto ads instead.)
    - Turn on Privacy & messaging > European regulations message
      (Google's free consent popup, required for EU/UK visitors).
 
