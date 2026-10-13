@@ -19,9 +19,22 @@ function best(id,score,lower){
 }
 function el(tag,cls,parent,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;if(parent)parent.append(e);return e}
 function restartAnim(e,cls){e.classList.remove(cls);void e.offsetWidth;e.classList.add(cls)}
+/* compact layout on phones: status and help text are hidden, important messages pop up briefly */
+const COMPACT=matchMedia('(max-width:600px),(max-height:500px)');
+let infoGoal='',mountT=0;
 function status(root,text){
-  const p=el('p','status',root);p.setAttribute('aria-live','polite');p.textContent=text||'';
-  return t=>{if(p.textContent===t)return;p.textContent=t;restartAnim(p,'bump')};
+  const p=el('p','status',root);p.setAttribute('aria-live','polite');p.textContent=text||'';if(text&&!infoGoal)infoGoal=text;
+  return t=>{
+    if(p.textContent===t)return;p.textContent=t;restartAnim(p,'bump');
+    if(performance.now()-mountT<500){if(t&&!infoGoal)infoGoal=t;return}
+    if(COMPACT.matches&&t&&!/^(Score|Moves|Pair found|Go!|Keep going|Your turn|Your move|Computer is thinking|Rock|\d+ (miss|mistake))/.test(t))popMsg(t);
+  };
+}
+function popMsg(t){
+  document.querySelectorAll('.popmsg').forEach(m=>m.remove());
+  const m=el('div','popmsg',document.body);m.textContent=t;
+  const g=document.querySelector('#game'),r=g&&g.getBoundingClientRect();m.style.top=((r?r.top:70)+8)+'px';
+  setTimeout(()=>m.remove(),2800);
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
 function rr(x,X,Y,w,h,r){x.beginPath();if(x.roundRect)x.roundRect(X,Y,w,h,r);else x.rect(X,Y,w,h)}
@@ -2048,6 +2061,17 @@ if(qIn){qIn.addEventListener('input',renderShelf);addEventListener('keydown',e=>
 document.querySelectorAll('.tile[data-id]').forEach(t=>{const g=GAMES.find(x=>x.id===t.dataset.id);if(g&&!t.closest('#shelf'))t.insertAdjacentHTML('beforeend',favBtn(g))});
 document.addEventListener('click',e=>{const f=e.target.closest('.fav');if(!f)return;e.preventDefault();e.stopPropagation();toggleFav(f.dataset.fav)},true);
 const stFav=el('button','btn ghost ibtn fav-stage',null,'♥');$('#back').after(stFav);
+const infoBtn=el('button','btn ghost ibtn info-btn',null,'<span aria-hidden="true">i</span>');infoBtn.setAttribute('aria-label','How to play');stFav.after(infoBtn);
+const info=el('div','info',document.body,'<div class="info-card" role="dialog" aria-modal="true" aria-labelledby="infoT"><button class="btn ghost ibtn info-x" aria-label="Close">✕</button><div class="info-h"><span class="info-ico" aria-hidden="true"></span><h2 id="infoT"></h2></div><h3>How to play</h3><p class="info-goal"></p><h3>Controls</h3><p class="info-help"></p><button class="btn info-go">Got it, let\'s play</button></div>');info.hidden=true;
+function openInfo(){
+  if(!curGame)return;$('.info-ico',info).textContent=curGame.icon;$('#infoT',info).textContent=curGame.name;
+  $('.info-goal',info).textContent=infoGoal||curGame.blurb;$('.info-help',info).textContent=curGame.help;
+  info.hidden=false;restartAnim($('.info-card',info),'in');$('.info-go',info).focus();
+}
+function closeInfo(){if(info.hidden)return;info.hidden=true;infoBtn.focus()}
+infoBtn.addEventListener('click',openInfo);
+info.addEventListener('click',e=>{if(e.target===info||e.target.closest('.info-x,.info-go'))closeInfo()});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!info.hidden){e.stopPropagation();closeInfo()}},true);
 function paintFav(){const on=isFav(curGame.id);stFav.setAttribute('aria-pressed',on);stFav.setAttribute('aria-label',on?'Remove from favorites':'Add to favorites')}
 stFav.addEventListener('click',()=>{if(curGame)toggleFav(curGame.id)});
 if(shelf)shelf.addEventListener('click',e=>{const t=e.target.closest('.tile');if(t&&t.dataset.id){e.preventDefault();location.hash=t.dataset.id;enterFS()}});
@@ -2067,7 +2091,9 @@ function route(){
   lvName.textContent='';chip(g,curLv);paintFav();
   scope=makeScope();
   Object.assign(scope,{level:curLv,fx:FX,shake,restart:()=>setTimeout(route),next:()=>levelUp(g,curLv),show:n=>chip(g,n)});
+  infoGoal='';mountT=performance.now();info.hidden=true;document.querySelectorAll('.popmsg').forEach(m=>m.remove());
   g.mount(gameEl,scope);
+  if(COMPACT.matches&&!store.get('info:'+g.id)){store.set('info:'+g.id,1);setTimeout(()=>{if(curGame===g&&location.hash.slice(1)===g.id)openInfo()},350)}
   requestAnimationFrame(fit);
 }
 lvPrev.addEventListener('click',()=>{if(!curGame)return;store.set('cur:'+curGame.id,curLv-1);route()});
