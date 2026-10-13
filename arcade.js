@@ -1470,8 +1470,9 @@ function bubbles(root,S){
   function levelDef(n){
     if(n<=BUBLV.length)return BUBLV[n-1];
     const m=n-BUBLV.length,cnt=Math.min(4,2+Math.floor(m/3)),b=[];
-    for(let i=0;i<cnt;i++)b.push([Math.min(5,4+(rand(3)===0?1:0)),(i+.5)/cnt,i%2?-1:1]);
-    return{b,w:cnt>=3&&rand(2)?[.5]:[],sp:1+Math.min(.5,m*.04)};
+    const w=cnt>=3&&rand(2)?[.5]:[],cuts=[0,...w,1];
+    for(let i=0;i<cnt;i++){const r=i%(cuts.length-1),lo=cuts[r],hi=cuts[r+1],n=Math.ceil((cnt-r)/(cuts.length-1)),k=Math.floor(i/(cuts.length-1));b.push([Math.min(5,4+(rand(3)===0?1:0)),lo+(hi-lo)*(k+.5)/n,i%2?-1:1])}
+    return{b,w,sp:1+Math.min(.5,m*.04)};
   }
   const pops=s=>2**s-1;
   function startLevel(){
@@ -1480,8 +1481,11 @@ function bubbles(root,S){
     walls=(d.w||[]).map(f=>({x:W*f,open:0}));drops=[];
     pw={double:0,sticky:0,freeze:0};dropsLeft=lvl<4?1:2;
     timeMax=timeLeft=Math.round(18+d.b.reduce((n,[s])=>n+pops(s),0)*1.7);
-    players.forEach((p,i)=>{p.x=two?W*(i?0.72:0.28):W/2;p.shots=[];p.inv=0;p.shield=false;p.walk=0});
-    if(walls.length&&two)players.forEach((p,i)=>{p.x=i?W*.85:W*.15});
+    const cuts=[0,...walls.map(w=>w.x).sort((p,q)=>p-q),W],secs=[];
+    for(let i=0;i+1<cuts.length;i++){const lo=cuts[i],hi=cuts[i+1],bs=balls.filter(q=>q.x>lo&&q.x<hi);if(bs.length)secs.push({lo,hi,bs})}
+    const spot=(sec,avoid)=>{let best2=sec.lo+(sec.hi-sec.lo)/2,bd=-1;for(let j=0;j<=24;j++){const xx=sec.lo+22+(sec.hi-sec.lo-44)*j/24;let d=Math.min(...sec.bs.map(q=>Math.abs(q.x-xx)));if(avoid!=null)d=Math.min(d,Math.abs(avoid-xx)*.8);if(d>bd){bd=d;best2=xx}}return best2};
+    players.forEach((p,i)=>{p.shots=[];p.inv=0;p.shield=false;p.walk=0});
+    players[0].x=spot(secs[0]);if(two)players[1].x=spot(secs[secs.length-1],secs.length===1?players[0].x:null);
     state='ready';S.show(lvl);
   }
   function newGame(){players=[mkP(0)];if(two)players.push(mkP(1));lvl=1;startLevel();st(two?'Player 1: A D to move, W to shoot. Player 2: ← → to move, ↑ to shoot.':'Move with ← →, the wheel, or the arrows. Shoot with Space or 🔱.')}
@@ -1527,7 +1531,7 @@ function bubbles(root,S){
   function collect(d,p){
     const P=BUBPW[d.type];beep(1040,90);setTimeout(()=>beep(1320,90),90);fx.add(d.x,d.y,K.c2,18,180);S.fx.toast(`${P.ico} ${P.name}`);
     if(d.type==='life')p.lives=Math.min(6,p.lives+1);else if(d.type==='shield')p.shield=true;else if(d.type==='fruit')award(p,500);
-    else if(d.type==='dyn'){const big=balls.filter(b=>b.s>1);for(const b of big){let q=[b];balls.splice(balls.indexOf(b),1);while(q.some(z=>z.s>1)){const z=q.find(z=>z.s>1);q.splice(q.indexOf(z),1);for(const dd of[-1,1])q.push({s:z.s-1,x:z.x+dd*(z.s*6),y:z.y,vx:dd*SPD[z.s-1],vy:-200})}balls.push(...q);fx.add(b.x,b.y,ballCol,30,260)}beep(140,300,'square')}
+    else if(d.type==='dyn'){const big=balls.filter(b=>b.s>1);for(const b of big){let q=[b];balls.splice(balls.indexOf(b),1);while(q.some(z=>z.s>1)){const z=q.find(z=>z.s>1);q.splice(q.indexOf(z),1);for(const dd of[-1,1])q.push({s:z.s-1,x:z.x+dd*(z.s*6),y:z.y,vx:dd*SPD[z.s-1],vy:-200})}const[lo,hi]=region(b.x);q.forEach(z=>{z.x=clamp(z.x,lo+RAD[z.s]+5,hi-RAD[z.s]-5)});balls.push(...q);fx.add(b.x,b.y,ballCol,30,260)}beep(140,300,'square')}
     else pw[d.type]=P.dur;
   }
   function hurt(p){
@@ -1587,7 +1591,9 @@ function bubbles(root,S){
     if(state==='play'){
       timeLeft-=dt;
       pw.double=Math.max(0,pw.double-dt);pw.sticky=Math.max(0,pw.sticky-dt);pw.freeze=Math.max(0,pw.freeze-dt);
-      for(const w of walls)if(!w.open&&(!balls.some(b=>b.x<w.x)||!balls.some(b=>b.x>w.x))){w.open=.001;beep(600,120);S.fx.toast('Wall opened')}
+      const shut=walls.filter(w=>!w.open).sort((p,q)=>p.x-q.x);
+      shut.forEach((w,i)=>{const lo=i?shut[i-1].x:0,hi=i<shut.length-1?shut[i+1].x:W;
+        if(!balls.some(b=>b.x>lo&&b.x<w.x)||!balls.some(b=>b.x>w.x&&b.x<hi)){w.open=.001;beep(600,120);S.fx.toast('Wall opened')}});
       for(const w of walls)if(w.open)w.open=Math.min(1,w.open+dt*2);
       players.forEach((p,i)=>{
         p.inv=Math.max(0,p.inv-dt);if(p.out)return;
