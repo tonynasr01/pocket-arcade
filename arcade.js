@@ -1804,8 +1804,8 @@ function blast(root,S){
   const st=status(root,'Touch or drag and the cannon follows your finger. It fires on its own. Break the rocks and don\'t let one touch you. It gets harder the longer you last.');
   const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const FL=H-46,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
-  let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,up,upT,upN,dragX=null,hitT=0,t=0;
-  function reset(){cx=W/2;balls=[];bullets=[];drops=[];spawnT=.6;fireT=0;score=0;el=0;pw={rapid:0,triple:0,power:0,freeze:0};shield=false;lastDrop=-20;up={guns:1,rate:0,dmg:0};upT=12;upN=0;state='ready'}
+  let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,up,upT,upN,dragX=null,tx=null,hitT=0,t=0;
+  function reset(){cx=W/2;balls=[];bullets=[];drops=[];spawnT=.6;fireT=0;score=0;el=0;pw={rapid:0,triple:0,power:0,freeze:0};shield=false;lastDrop=-20;tx=null;up={guns:1,rate:0,dmg:0};upT=12;upN=0;state='ready'}
   reset();
   const rate=()=>(7.5+Math.min(7,el/25))*(1+.15*up.rate)*(pw.rapid>0?2:1),dmg=()=>Math.max(1,Math.round((1+Math.floor(el/40))*(1+.25*up.dmg)))*(pw.power>0?2:1);
   const upLeft=()=>Object.keys(BLASTUP).filter(q=>up[q]<BLASTUP[q].max),GUNX=[[0],[-6,6],[-9,0,9]];
@@ -1819,8 +1819,8 @@ function blast(root,S){
     state='dead';hitT=0;bullets=[];S.shake();beep(130,400,'sawtooth');fx.add(cx,CY-20,K.c1,36,260);
     const nb=best('blast',score);st(`Crushed after ${Math.floor(el)} seconds with ${score} point${score===1?'':'s'}.${nb?' New best!':''} Tap to play again.`);
   }
-  S.on(root,'pointerdown',e=>{if(e.target.closest('button,a,input'))return;dragX=c.pos(e).x;try{e.target.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset();if(state==='play')cx=clamp(dragX,22,W-22)});
-  S.on(root,'pointermove',e=>{if(dragX==null)return;dragX=c.pos(e).x;if(state==='play')cx=clamp(dragX,22,W-22)});
+  S.on(root,'pointerdown',e=>{if(e.target.closest('button,a,input'))return;dragX=c.pos(e).x;try{e.target.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset();if(state==='play')tx=clamp(dragX,22,W-22)});
+  S.on(root,'pointermove',e=>{if(dragX==null)return;dragX=c.pos(e).x;if(state==='play')tx=clamp(dragX,22,W-22)});
   ['pointerup','pointercancel'].forEach(ev=>S.on(root,ev,()=>{dragX=null}));
   S.on(window,'keydown',e=>{if(e.key===' '||e.key==='Enter'||e.key.startsWith('Arrow')){if(e.key===' '||e.key==='Enter')e.preventDefault();if(state==='ready')start();else if(state==='dead'&&hitT>.7&&(e.key===' '||e.key==='Enter'))reset()}});
   function split(b){
@@ -1840,7 +1840,8 @@ function blast(root,S){
   function col(b){const f=b.max;return f>=80?K.c5:f>=40?K.c1:f>=18?K.c6:f>=8?K.c2:K.c3}
   S.loop(dt=>{
     t+=dt;hitT+=dt;
-    if(k.ArrowLeft||k.a)cx=clamp(cx-300*dt,22,W-22);if(k.ArrowRight||k.d)cx=clamp(cx+300*dt,22,W-22);
+    if(k.ArrowLeft||k.a||k.ArrowRight||k.d)tx=null;if(k.ArrowLeft||k.a)cx=clamp(cx-300*dt,22,W-22);if(k.ArrowRight||k.d)cx=clamp(cx+300*dt,22,W-22);
+    if(tx!=null&&state==='play'){const d=tx-cx,m=Math.min(Math.abs(d),Math.max(Math.abs(d)*10,120)*dt,800*dt);cx+=Math.sign(d)*m;if(Math.abs(tx-cx)<.5){cx=tx;if(dragX==null)tx=null}}
     if(state==='play'){
       el+=dt;upT-=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
       const cap=3+Math.floor(el/35),bigCount=balls.filter(b=>b.s>=2).length;
