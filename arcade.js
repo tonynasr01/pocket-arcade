@@ -1801,7 +1801,7 @@ function chess(root,S){
 const BLASTUP={guns:{ico:'➕',name:'Extra barrel',max:3,base:1},rate:{ico:'⏩',name:'Faster fire',max:6,base:0},dmg:{ico:'💪',name:'Stronger shots',max:8,base:0}};
 const BLASTPW={rapid:{ico:'⚡',name:'Rapid fire',dur:8},triple:{ico:'🔱',name:'Triple shot',dur:8},power:{ico:'💥',name:'Double power',dur:8},freeze:{ico:'❄️',name:'Freeze',dur:4},shield:{ico:'🛡️',name:'Shield',dur:0}};
 function blast(root,S){
-  const st=status(root,'Drag to move the cannon. It fires on its own. Break the rocks and don\'t let one touch you. It gets harder the longer you last.');
+  const st=status(root,'Touch or drag and the cannon follows your finger. It fires on its own. Break the rocks and don\'t let one touch you. It gets harder the longer you last.');
   const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const FL=H-46,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
   let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,up,upT,upN,dragX=null,hitT=0,t=0;
@@ -1819,8 +1819,8 @@ function blast(root,S){
     state='dead';hitT=0;bullets=[];S.shake();beep(130,400,'sawtooth');fx.add(cx,CY-20,K.c1,36,260);
     const nb=best('blast',score);st(`Crushed after ${Math.floor(el)} seconds with ${score} point${score===1?'':'s'}.${nb?' New best!':''} Tap to play again.`);
   }
-  S.on(c,'pointerdown',e=>{dragX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset()});
-  S.on(c,'pointermove',e=>{if(dragX==null)return;const nx=c.pos(e).x;cx=clamp(cx+(nx-dragX)*1.25,22,W-22);dragX=nx});
+  S.on(c,'pointerdown',e=>{dragX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset();if(state==='play')cx=clamp(dragX,22,W-22)});
+  S.on(c,'pointermove',e=>{if(dragX==null)return;dragX=c.pos(e).x;if(state==='play')cx=clamp(dragX,22,W-22)});
   ['pointerup','pointercancel'].forEach(ev=>S.on(c,ev,()=>{dragX=null}));
   S.on(window,'keydown',e=>{if(e.key===' '||e.key==='Enter'||e.key.startsWith('Arrow')){if(e.key===' '||e.key==='Enter')e.preventDefault();if(state==='ready')start();else if(state==='dead'&&hitT>.7&&(e.key===' '||e.key==='Enter'))reset()}});
   function split(b){
@@ -1902,7 +1902,7 @@ function blast(root,S){
     if(act.length){x.font=`13px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText(act.join('   '),W/2,90)}
     x.textAlign='left';x.font=`12px ${DISPLAY}`;x.fillStyle=K.muted;x.fillText(`⏱ ${Math.floor(el)}s`,12,22);
     x.font=`13px ${DISPLAY}`;x.fillStyle=K.ink;x.textAlign='center';x.fillText(Object.keys(BLASTUP).map(q=>{const U=BLASTUP[q];return `${U.ico} ${up[q]-U.base}/${U.max-U.base}`}).join('    '),W/2,H-15);
-    if(state==='ready'){x.fillStyle='rgba(0,0,0,.3)';x.fillRect(0,H/2-50,W,96);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText('Tap to start',W/2,H/2-12);x.font=`14px ${DISPLAY}`;x.fillText('Drag to move · it fires by itself',W/2,H/2+18)}
+    if(state==='ready'){x.fillStyle='rgba(0,0,0,.3)';x.fillRect(0,H/2-50,W,96);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText('Tap to start',W/2,H/2-12);x.font=`14px ${DISPLAY}`;x.fillText('It follows your finger · fires by itself',W/2,H/2+18)}
     if(state==='dead'){x.fillStyle='rgba(0,0,0,.4)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font=`30px ${DISPLAY}`;x.fillText('Crushed!',W/2,H/2-14);x.font=`18px ${DISPLAY}`;x.fillText(`${score} point${score===1?'':'s'}`,W/2,H/2+14);x.font=`13px ${DISPLAY}`;x.fillText('Tap to play again',W/2,H/2+40)}
   });
 }
@@ -2313,7 +2313,7 @@ const GAMES=[
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
-  {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. About every 20 seconds a broken rock drops a gold UPGRADE that keeps your cannon stronger for the whole run: ➕ extra barrel, ⏩ faster fire or 💪 stronger shots. Also grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
+  {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Touch or drag anywhere and the cannon follows your finger, or use ← →. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. About every 20 seconds a broken rock drops a gold UPGRADE that keeps your cannon stronger for the whole run: ➕ extra barrel, ⏩ faster fire or 💪 stronger shots. Also grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
   {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, tap it again mid-jump to stop rising, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
