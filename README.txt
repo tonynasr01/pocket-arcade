@@ -30,6 +30,8 @@ POCKET ARCADE - SETUP BEFORE UPLOADING
 FILES
    index.html, *.html game pages   the site
    arcade.css, arcade.js           shared design and game code (cached once)
+   (pages load them as arcade.js?v=NUMBER; bump the number on every update
+    so phones fetch the new version instead of a cached copy)
    og-image.png                    picture shown when the link is shared
    favicon.svg, icon-*.png         browser and home-screen icons
    site.webmanifest                lets phones "Add to Home Screen"

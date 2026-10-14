@@ -1819,9 +1819,9 @@ function blast(root,S){
     state='dead';hitT=0;bullets=[];S.shake();beep(130,400,'sawtooth');fx.add(cx,CY-20,K.c1,36,260);
     const nb=best('blast',score);st(`Crushed after ${Math.floor(el)} seconds with ${score} point${score===1?'':'s'}.${nb?' New best!':''} Tap to play again.`);
   }
-  S.on(c,'pointerdown',e=>{dragX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset();if(state==='play')cx=clamp(dragX,22,W-22)});
-  S.on(c,'pointermove',e=>{if(dragX==null)return;dragX=c.pos(e).x;if(state==='play')cx=clamp(dragX,22,W-22)});
-  ['pointerup','pointercancel'].forEach(ev=>S.on(c,ev,()=>{dragX=null}));
+  S.on(root,'pointerdown',e=>{if(e.target.closest('button,a,input'))return;dragX=c.pos(e).x;try{e.target.setPointerCapture(e.pointerId)}catch(_){}if(state==='ready')start();else if(state==='dead'&&hitT>.7)reset();if(state==='play')cx=clamp(dragX,22,W-22)});
+  S.on(root,'pointermove',e=>{if(dragX==null)return;dragX=c.pos(e).x;if(state==='play')cx=clamp(dragX,22,W-22)});
+  ['pointerup','pointercancel'].forEach(ev=>S.on(root,ev,()=>{dragX=null}));
   S.on(window,'keydown',e=>{if(e.key===' '||e.key==='Enter'||e.key.startsWith('Arrow')){if(e.key===' '||e.key==='Enter')e.preventDefault();if(state==='ready')start();else if(state==='dead'&&hitT>.7&&(e.key===' '||e.key==='Enter'))reset()}});
   function split(b){
     score+=10*b.s;fx.add(b.x,b.y,col(b),16+b.s*3,220);beep(240+b.s*30,90,'square');
