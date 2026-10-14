@@ -2160,6 +2160,18 @@ function fuse(root,S){
     if(lives<=0){state='over';deadT=0;const nb=best('fuse',score);st(`Game over on level ${lvl}. Score ${score.toLocaleString()}.${nb?' New best!':''} Jump to play again.`)}
     else{respawn();st(`Ouch! ${lives} ${lives===1?'life':'lives'} left.`)}
   }
+  // flying enemies: box is x±10, y+2..y+18; platforms are 10px tall slabs, the floor is solid
+  const flyHit=(fx2,fy2)=>fy2+18>GY||plats.some(p=>fx2+10>p.x&&fx2-10<p.x+p.w&&fy2+18>p.y&&fy2+2<p.y+10);
+  function flyMove(e,dt){
+    if(flyHit(e.x,e.y)){e.y-=60*dt;return}
+    const nx=clamp(e.x+e.vx*dt,10,W-10);
+    if(flyHit(nx,e.y))e.vx*=-.3;else e.x=nx;
+    const ny=clamp(e.y+e.vy*dt,36,GY-18);
+    if(flyHit(e.x,ny)){
+      const p=plats.find(q=>e.x+10>q.x&&e.x-10<q.x+q.w&&ny+18>q.y&&ny+2<q.y+10);
+      e.vy*=-.2;if(p){const toL=e.x-(p.x-14),toR=(p.x+p.w+14)-e.x;e.vx+=(toL<toR?-1:1)*160*dt*4}
+    }else e.y=ny;
+  }
   const onPlat=(px,py,pw)=>{if(py>=GY-1)return GY;for(const p of plats)if(px+pw/2>p.x&&px-pw/2<p.x+p.w&&Math.abs(py-p.y)<2)return p.y;return null};
   function moveBody(o,w,h,dt){
     const py0=o.y;o.x+=o.vx*dt;o.y+=o.vy*dt;o.ground=false;
@@ -2188,7 +2200,7 @@ function fuse(root,S){
       for(const e of en){
         e.age+=dt;e.safe=Math.max(0,(e.safe||0)-dt);
         if(e.kind==='walker'){e.vy=e.safe>0&&!e.ground?Math.min(e.vy+900*dt,55):e.vy+900*dt;if(e.safe>0&&!e.ground)e.vx*=.98;e.bounce=true;moveBody(e,18,20,dt);if(e.ground&&!onPlat(e.x+Math.sign(e.vx)*12,e.y+20,4))e.vx*=-1;if(e.age>6+rand(4)){e.kind='bird';e.vy=-60}}
-        else{const sp=60+lvl*8+Math.min(40,e.age*2),ax=me.x-e.x,ay=me.y-e.y,d=Math.hypot(ax,ay)||1;e.vx+=(ax/d*sp-e.vx)*dt*1.2;e.vy+=(ay/d*sp-e.vy)*dt*1.2+Math.sin(t*3+e.age)*8*dt;e.x=clamp(e.x+e.vx*dt,10,W-10);e.y=clamp(e.y+e.vy*dt,36,GY-12)}
+        else{const sp=60+lvl*8+Math.min(40,e.age*2),ax=me.x-e.x,ay=me.y-e.y,d=Math.hypot(ax,ay)||1;e.vx+=(ax/d*sp-e.vx)*dt*1.2;e.vy+=(ay/d*sp-e.vy)*dt*1.2+Math.sin(t*3+e.age)*8*dt;flyMove(e,dt)}
         if(!e.safe&&Math.abs(e.x-me.x)<16&&Math.abs(e.y+10-(me.y+PH/2))<20){
           if(power>0){e.dead=true;eaten++;const v=[100,200,500,1000,2000][Math.min(4,eaten-1)]*mult;score+=v;fx.add(e.x,e.y,K.c2,18,200);beep(1200,80);S.fx.toast(`+${v}`)}
           else hurt();
