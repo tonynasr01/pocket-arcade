@@ -2112,7 +2112,7 @@ function fuse(root,S){
   }
   function startLevel(){
     lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:py,w}));
-    lball=null;levelT=0;gapT=0;sched=[{k:'P',at:5+rand(8)},{k:'B',at:6+rand(13)}];if(Math.random()<.5)sched.push({k:'P',at:15+rand(7)});if(Math.random()<.2)sched.push({k:'L',at:8+rand(12)});sched.sort((p,q)=>p.at-q.at);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
+    lball=null;levelT=0;gapT=0;sched=[{k:'P',at:5+rand(8)},{k:'B',at:6+rand(13)}];if(Math.random()<.5)sched.push({k:'P',at:15+rand(7)});if(Math.random()<.5)sched.push({k:'L',at:8+rand(12)});sched.sort((p,q)=>p.at-q.at);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
     me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2,walk:0};state='ready';S.show(lvl);
   }
   function respawn(){me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2.5,walk:0};en.forEach(e=>{e.y=-30;e.x=rand(W);e.kind='walker';e.age=0;e.vx=(rand(2)?1:-1)*45})}
