@@ -1798,15 +1798,17 @@ function chess(root,S){
 }
 
 /* Cannon Blast: endless. Drag the cannon, it auto-fires; rocks split, get tougher over time; rare power-ups */
+const BLASTUP={guns:{ico:'➕',name:'Extra barrel',max:3,base:1},rate:{ico:'⏩',name:'Faster fire',max:6,base:0},dmg:{ico:'💪',name:'Stronger shots',max:8,base:0}};
 const BLASTPW={rapid:{ico:'⚡',name:'Rapid fire',dur:8},triple:{ico:'🔱',name:'Triple shot',dur:8},power:{ico:'💥',name:'Double power',dur:8},freeze:{ico:'❄️',name:'Freeze',dur:4},shield:{ico:'🛡️',name:'Shield',dur:0}};
 function blast(root,S){
   const st=status(root,'Drag to move the cannon. It fires on its own. Break the rocks and don\'t let one touch you. It gets harder the longer you last.');
   const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const FL=H-46,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
-  let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,dragX=null,hitT=0,t=0;
-  function reset(){cx=W/2;balls=[];bullets=[];drops=[];spawnT=.6;fireT=0;score=0;el=0;pw={rapid:0,triple:0,power:0,freeze:0};shield=false;lastDrop=-20;state='ready'}
+  let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,up,upT,upN,dragX=null,hitT=0,t=0;
+  function reset(){cx=W/2;balls=[];bullets=[];drops=[];spawnT=.6;fireT=0;score=0;el=0;pw={rapid:0,triple:0,power:0,freeze:0};shield=false;lastDrop=-20;up={guns:1,rate:0,dmg:0};upT=12;upN=0;state='ready'}
   reset();
-  const rate=()=>(7.5+Math.min(7,el/25))*(pw.rapid>0?2:1),dmg=()=>(1+Math.floor(el/40))*(pw.power>0?2:1);
+  const rate=()=>(7.5+Math.min(7,el/25))*(1+.15*up.rate)*(pw.rapid>0?2:1),dmg=()=>Math.max(1,Math.round((1+Math.floor(el/40))*(1+.25*up.dmg)))*(pw.power>0?2:1);
+  const upLeft=()=>Object.keys(BLASTUP).filter(q=>up[q]<BLASTUP[q].max),GUNX=[[0],[-6,6],[-9,0,9]];
   const hpFor=s=>Math.max(2,Math.round((3+el*.42)*[0,.35,.65,1,1.55][s]*(.7+Math.random()*.6)));
   function start(){if(state==='ready'){state='play';beep(660,80);st('Keep moving! Rocks get tougher every few seconds.')}}
   function spawn(){
@@ -1824,12 +1826,14 @@ function blast(root,S){
   function split(b){
     score+=10*b.s;fx.add(b.x,b.y,col(b),16+b.s*3,220);beep(240+b.s*30,90,'square');
     if(b.s>1){const hp=Math.max(1,Math.ceil(b.max/2));for(const d of[-1,1])balls.push({s:b.s-1,hp,max:hp,x:b.x+d*6,y:b.y,vx:d*70,vy:-260,enter:false,hit:0})}
+    if(upT<=0&&!drops.some(d=>d.up)){const ks=upLeft();if(ks.length){upT=1e9;drops.push({up:ks[rand(ks.length)],x:b.x,y:b.y,vy:-160,life:8});return}}
     if(!drops.length&&el-lastDrop>14&&Math.random()<.09){
       lastDrop=el;const ks=Object.keys(BLASTPW),type=shield&&Math.random()<.5?ks[rand(4)]:ks[rand(ks.length)];
       drops.push({type,x:b.x,y:b.y,vy:-140,life:6.5});
     }
   }
   function collect(d){
+    if(d.up){const U=BLASTUP[d.up];up[d.up]++;upN++;upT=20+2*upN;beep(880,90);setTimeout(()=>beep(1175,90),90);setTimeout(()=>beep(1568,140),180);fx.add(d.x,d.y,'#FFC53D',26,220);S.fx.toast(`${U.ico} ${U.name} ${up[d.up]-U.base}/${U.max-U.base}`);return}
     const P=BLASTPW[d.type];beep(1040,90);setTimeout(()=>beep(1320,90),90);fx.add(d.x,d.y,K.c2,18,180);S.fx.toast(`${P.ico} ${P.name}`);
     if(d.type==='shield')shield=true;else pw[d.type]=P.dur;
   }
@@ -1838,11 +1842,11 @@ function blast(root,S){
     t+=dt;hitT+=dt;
     if(k.ArrowLeft||k.a)cx=clamp(cx-300*dt,22,W-22);if(k.ArrowRight||k.d)cx=clamp(cx+300*dt,22,W-22);
     if(state==='play'){
-      el+=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
+      el+=dt;upT-=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
       const cap=3+Math.floor(el/35),bigCount=balls.filter(b=>b.s>=2).length;
       spawnT-=dt;if(spawnT<=0&&bigCount<cap){spawn();spawnT=Math.max(1.1,3.6-el/45)*(.75+Math.random()*.5)}
       fireT-=dt;while(fireT<=0){
-        const tri=pw.triple>0;bullets.push({x:cx,y:CY-44,vx:0});if(tri){bullets.push({x:cx,y:CY-44,vx:-150});bullets.push({x:cx,y:CY-44,vx:150})}
+        const tri=pw.triple>0;for(const gx of GUNX[up.guns-1])bullets.push({x:cx+gx,y:CY-44,vx:0});if(tri){bullets.push({x:cx,y:CY-44,vx:-150});bullets.push({x:cx,y:CY-44,vx:150})}
         fireT+=1/rate();
       }
       for(const u of bullets){u.y-=720*dt;u.x+=u.vx*dt}
@@ -1861,6 +1865,7 @@ function blast(root,S){
       }
       bullets=bullets.filter(u=>!u.dead&&u.y>-10&&u.x>-10&&u.x<W+10);balls=balls.filter(b=>!b.dead);
       for(const d of drops){d.vy+=500*dt;d.y=Math.min(FL-13,d.y+d.vy*dt);d.life-=dt;if(Math.abs(d.x-cx)<34&&d.y>CY-60){d.got=true;collect(d)}}
+      for(const d of drops)if(d.up&&!d.got&&d.life<=0)upT=8;
       drops=drops.filter(d=>!d.got&&d.life>0);
     }else if(state==='dead'){for(const b of balls){b.vy+=420*dt;b.y=Math.min(FL-RAD[b.s],b.y+b.vy*dt*.4)}}
     // scene
@@ -1877,12 +1882,14 @@ function blast(root,S){
       x.textAlign='center';x.textBaseline='middle';x.font=`${Math.max(11,r*.75)}px ${DISPLAY}`;x.lineWidth=4;x.strokeStyle='rgba(30,31,92,.75)';x.strokeText(b.hp,b.x,b.y+1);x.fillStyle='#fff';x.fillText(b.hp,b.x,b.y+1);x.textBaseline='alphabetic';
     }
     x.textAlign='center';x.textBaseline='middle';
-    for(const d of drops){if(d.life<2&&Math.floor(t*8)%2)continue;const bob=d.y>=FL-13?Math.sin(t*5)*2:0;x.fillStyle='#fff';x.beginPath();x.arc(d.x,d.y+bob,13,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.c2;x.stroke();x.font='15px sans-serif';x.fillStyle='#000';x.fillText(BLASTPW[d.type].ico,d.x,d.y+bob+1)}
+    for(const d of drops){if(d.life<2&&Math.floor(t*8)%2)continue;const bob=d.y>=FL-13?Math.sin(t*5)*2:0;
+      if(d.up){x.save();x.shadowColor='#FFC53D';x.shadowBlur=14+6*Math.sin(t*8);x.fillStyle='#FFC53D';x.beginPath();x.arc(d.x,d.y+bob,16,0,7);x.fill();x.restore();x.lineWidth=2.5;x.strokeStyle=K.edge;x.beginPath();x.arc(d.x,d.y+bob,16,0,7);x.stroke();x.font='16px sans-serif';x.fillStyle='#000';x.fillText(BLASTUP[d.up].ico,d.x,d.y+bob+1);x.font=`10px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText('UPGRADE',d.x,d.y+bob-24);continue}
+      x.fillStyle='#fff';x.beginPath();x.arc(d.x,d.y+bob,13,0,7);x.fill();x.lineWidth=2.5;x.strokeStyle=K.c2;x.stroke();x.font='15px sans-serif';x.fillStyle='#000';x.fillText(BLASTPW[d.type].ico,d.x,d.y+bob+1)}
     x.textBaseline='alphabetic';
     if(state!=='dead'||Math.floor(t*10)%2){
       x.save();x.translate(cx,CY);x.lineWidth=2.5;x.strokeStyle=K.edge;
       if(shield){x.strokeStyle=K.c3;x.globalAlpha=.6+.25*Math.sin(t*6);x.lineWidth=3;x.beginPath();x.ellipse(0,-22,32,34,0,0,7);x.stroke();x.globalAlpha=1;x.strokeStyle=K.edge;x.lineWidth=2.5}
-      x.fillStyle='#5A5F96';rr(x,-7,-46,14,30,4);x.fill();x.stroke();x.fillStyle=pw.triple>0?K.c5:K.c2;rr(x,-9,-50,18,8,3);x.fill();x.stroke();
+      for(const gx of GUNX[up.guns-1]){const bw=up.guns>1?10:14;x.fillStyle='#5A5F96';rr(x,gx-bw/2,-46,bw,30,4);x.fill();x.stroke();x.fillStyle=pw.triple>0?K.c5:up.dmg>4?K.c1:K.c2;rr(x,gx-bw/2-2,-50,bw+4,8,3);x.fill();x.stroke()}
       x.fillStyle=K.c4;rr(x,-22,-24,44,20,9);x.fill();x.stroke();
       for(const wx of[-14,14]){x.fillStyle='#2B2E5E';x.beginPath();x.arc(wx,-3,9,0,7);x.fill();x.stroke();x.fillStyle=K.muted;x.beginPath();x.arc(wx,-3,3,0,7);x.fill()}
       x.restore();
@@ -1894,6 +1901,7 @@ function blast(root,S){
     const act=[pw.rapid>0&&`⚡${Math.ceil(pw.rapid)}`,pw.triple>0&&`🔱${Math.ceil(pw.triple)}`,pw.power>0&&`💥${Math.ceil(pw.power)}`,pw.freeze>0&&`❄️${Math.ceil(pw.freeze)}`,shield&&'🛡️'].filter(Boolean);
     if(act.length){x.font=`13px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText(act.join('   '),W/2,90)}
     x.textAlign='left';x.font=`12px ${DISPLAY}`;x.fillStyle=K.muted;x.fillText(`⏱ ${Math.floor(el)}s`,12,22);
+    x.font=`13px ${DISPLAY}`;x.fillStyle=K.ink;x.textAlign='center';x.fillText(Object.keys(BLASTUP).map(q=>{const U=BLASTUP[q];return `${U.ico} ${up[q]-U.base}/${U.max-U.base}`}).join('    '),W/2,H-15);
     if(state==='ready'){x.fillStyle='rgba(0,0,0,.3)';x.fillRect(0,H/2-50,W,96);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText('Tap to start',W/2,H/2-12);x.font=`14px ${DISPLAY}`;x.fillText('Drag to move · it fires by itself',W/2,H/2+18)}
     if(state==='dead'){x.fillStyle='rgba(0,0,0,.4)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font=`30px ${DISPLAY}`;x.fillText('Crushed!',W/2,H/2-14);x.font=`18px ${DISPLAY}`;x.fillText(`${score} point${score===1?'':'s'}`,W/2,H/2+14);x.font=`13px ${DISPLAY}`;x.fillText('Tap to play again',W/2,H/2+40)}
   });
@@ -2305,7 +2313,7 @@ const GAMES=[
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
   {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
-  {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. Grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
+  {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Drag left and right, or use ← →, to move. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. About every 20 seconds a broken rock drops a gold UPGRADE that keeps your cannon stronger for the whole run: ➕ extra barrel, ⏩ faster fire or 💪 stronger shots. Also grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
   {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, tap it again mid-jump to stop rising, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
