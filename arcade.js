@@ -1841,7 +1841,7 @@ function blast(root,S){
   S.loop(dt=>{
     t+=dt;hitT+=dt;
     if(k.ArrowLeft||k.a||k.ArrowRight||k.d)tx=null;if(k.ArrowLeft||k.a)cx=clamp(cx-300*dt,22,W-22);if(k.ArrowRight||k.d)cx=clamp(cx+300*dt,22,W-22);
-    if(tx!=null&&state==='play'){const d=tx-cx,m=Math.min(Math.abs(d),Math.max(Math.abs(d)*10,120)*dt,800*dt);cx+=Math.sign(d)*m;if(Math.abs(tx-cx)<.5){cx=tx;if(dragX==null)tx=null}}
+    if(tx!=null&&state==='play'){const d=tx-cx,m=Math.min(Math.abs(d),Math.max(Math.abs(d)*35,300)*dt,3200*dt);cx+=Math.sign(d)*m;if(Math.abs(tx-cx)<.5){cx=tx;if(dragX==null)tx=null}}
     if(state==='play'){
       el+=dt;upT-=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
       const cap=3+Math.floor(el/35),bigCount=balls.filter(b=>b.s>=2).length;
