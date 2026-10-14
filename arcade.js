@@ -1844,8 +1844,8 @@ function blast(root,S){
     if(tx!=null&&state==='play'){const d=tx-cx,m=Math.min(Math.abs(d),Math.max(Math.abs(d)*35,300)*dt,3200*dt);cx+=Math.sign(d)*m;if(Math.abs(tx-cx)<.5){cx=tx;if(dragX==null)tx=null}}
     if(state==='play'){
       el+=dt;upT-=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
-      const cap=3+Math.floor(el/35),bigCount=balls.filter(b=>b.s>=2).length;
-      spawnT-=dt;if(spawnT<=0&&bigCount<cap){spawn();spawnT=Math.max(1.1,3.6-el/45)*(.75+Math.random()*.5)}
+      const cap=Math.min(8,2+Math.floor(el/50)),bigCount=balls.filter(b=>b.s>=2).length;
+      spawnT-=dt;if(spawnT<=0&&bigCount<cap){spawn();spawnT=Math.max(2,4.8-el/70)*(.8+Math.random()*.4)}
       fireT-=dt;while(fireT<=0){
         const tri=pw.triple>0;for(const gx of GUNX[up.guns-1])bullets.push({x:cx+gx,y:CY-44,vx:0});if(tri){bullets.push({x:cx,y:CY-44,vx:-150});bullets.push({x:cx,y:CY-44,vx:150})}
         fireT+=1/rate();
