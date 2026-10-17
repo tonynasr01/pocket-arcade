@@ -2381,6 +2381,10 @@ stage.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&!fsOff&&!isFS
   ['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
   document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
   document.addEventListener('dblclick',e=>{if(playing())e.preventDefault()});
+  // iOS shows its text magnifier on a double tap or long press even with user-select off;
+  // cancelling the touch on the play surface (canvas and empty game area) stops it. Pointer events still fire.
+  const surface=t=>t&&t.closest&&t.closest('#stage')&&!t.closest('button,a,input,select,textarea,label,dialog,.info');
+  ['touchstart','touchend'].forEach(t=>document.addEventListener(t,e=>{if(playing()&&e.cancelable&&surface(e.target)&&gameEl.querySelector('canvas'))e.preventDefault()},{passive:false}));
   document.addEventListener('selectstart',e=>{if(playing()&&!inInput(e))e.preventDefault()});
   document.addEventListener('selectionchange',()=>{if(!playing())return;const a2=document.activeElement;if(a2&&a2.closest&&a2.closest('input,textarea'))return;const s2=getSelection();if(s2&&s2.rangeCount&&!s2.isCollapsed)s2.removeAllRanges()});
   document.addEventListener('pointerdown',e=>{if(playing()&&!inInput(e)){const s2=getSelection();if(s2&&!s2.isCollapsed)s2.removeAllRanges()}},true);
