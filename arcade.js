@@ -2381,10 +2381,24 @@ stage.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&!fsOff&&!isFS
   ['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
   document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
   document.addEventListener('dblclick',e=>{if(playing())e.preventDefault()});
-  // iOS shows its text magnifier on a double tap or long press even with user-select off;
-  // cancelling the touch on the play surface (canvas and empty game area) stops it. Pointer events still fire.
-  const surface=t=>t&&t.closest&&t.closest('#stage')&&!t.closest('button,a,input,select,textarea,label,dialog,.info');
-  ['touchstart','touchend'].forEach(t=>document.addEventListener(t,e=>{if(playing()&&e.cancelable&&surface(e.target)&&gameEl.querySelector('canvas'))e.preventDefault()},{passive:false}));
+  // iOS shows its text magnifier on a double tap or long press even with user-select off.
+  // While playing, every touch in the game screen is cancelled (except form fields and links),
+  // which stops the magnifier and double-tap zoom in every game. Cancelling the touch also stops
+  // the browser's own click, so a quick tap is turned back into a click here. Pointer events
+  // (drags, wheels, long presses) are not affected.
+  const native=t=>t.closest('input,textarea,select,label,a[href]');
+  const surface=t=>t&&t.closest&&t.closest('#stage')&&!native(t);
+  let tap=null;
+  document.addEventListener('touchstart',e=>{if(playing()&&e.cancelable&&surface(e.target))e.preventDefault()},{passive:false,capture:true});
+  document.addEventListener('touchend',e=>{if(playing()&&e.cancelable&&surface(e.target))e.preventDefault()},{passive:false,capture:true});
+  document.addEventListener('pointerdown',e=>{tap=e.pointerType==='touch'&&e.isPrimary&&playing()&&surface(e.target)?{t:e.target,x:e.clientX,y:e.clientY,at:e.timeStamp}:null},true);
+  document.addEventListener('pointercancel',()=>{tap=null},true);
+  document.addEventListener('pointerup',e=>{
+    const d=tap;tap=null;if(!d||e.pointerType!=='touch'||!e.isPrimary)return;
+    if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>12||e.timeStamp-d.at>1200||!d.t.isConnected)return;
+    const b=d.t.closest('button,[disabled]');if(b&&b.disabled)return;
+    setTimeout(()=>d.t.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,clientX:e.clientX,clientY:e.clientY,screenX:e.screenX,screenY:e.screenY,button:0,detail:1})),0);
+  },true);
   document.addEventListener('selectstart',e=>{if(playing()&&!inInput(e))e.preventDefault()});
   document.addEventListener('selectionchange',()=>{if(!playing())return;const a2=document.activeElement;if(a2&&a2.closest&&a2.closest('input,textarea'))return;const s2=getSelection();if(s2&&s2.rangeCount&&!s2.isCollapsed)s2.removeAllRanges()});
   document.addEventListener('pointerdown',e=>{if(playing()&&!inInput(e)){const s2=getSelection();if(s2&&!s2.isCollapsed)s2.removeAllRanges()}},true);
