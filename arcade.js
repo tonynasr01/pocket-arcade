@@ -3913,10 +3913,16 @@ function pool(root,S){
     if(r.hit){
       const nx=r.hit.x-gx,ny=r.hit.y-gy,nl=Math.hypot(nx,ny)||1,ux=nx/nl,uy=ny/nl;
       const g=G[turn],cl=P.isCleared(B,g),n=r.hit.n,ok=g?(cl?n===8:n!==8&&P.typ(n)===g):n!==8||isBreak;
-      x.strokeStyle=ok?'rgba(255,255,255,.95)':K.c1;x.lineWidth=2;x.beginPath();x.moveTo(r.hit.x+ux*R,r.hit.y+uy*R);x.lineTo(r.hit.x+ux*(R+55),r.hit.y+uy*(R+55));x.stroke();
-      if(!ok){x.beginPath();x.moveTo(gx-4,gy-4);x.lineTo(gx+4,gy+4);x.moveTo(gx+4,gy-4);x.lineTo(gx-4,gy+4);x.stroke()}
+      if(ok){x.strokeStyle='rgba(255,255,255,.95)';x.lineWidth=2;x.beginPath();x.moveTo(r.hit.x+ux*R,r.hit.y+uy*R);x.lineTo(r.hit.x+ux*(R+55),r.hit.y+uy*(R+55));x.stroke()}
+      else{
+        // aiming at a ball you may not hit first: red ring on the target and a "not allowed" sign
+        x.strokeStyle='#E5263B';x.lineWidth=2.5;x.beginPath();x.arc(r.hit.x,r.hit.y,R+3,0,7);x.stroke();
+        const ir=R+5,iy=gy;x.fillStyle='rgba(255,255,255,.92)';x.beginPath();x.arc(gx,iy,ir,0,7);x.fill();
+        x.lineWidth=3;x.beginPath();x.arc(gx,iy,ir-1.5,0,7);x.stroke();
+        const d=(ir-1.5)*Math.SQRT1_2;x.beginPath();x.moveTo(gx-d,iy-d);x.lineTo(gx+d,iy+d);x.stroke();
+      }
       const cs=dx*ux+dy*uy;let tx=dx-cs*ux,ty=dy-cs*uy;const tl=Math.hypot(tx,ty);
-      if(tl>.05){tx/=tl;ty/=tl;x.strokeStyle='rgba(255,255,255,.4)';x.lineWidth=1.5;x.setLineDash([2,3]);x.beginPath();x.moveTo(gx,gy);x.lineTo(gx+tx*30*tl,gy+ty*30*tl);x.stroke();x.setLineDash([])}
+      if(ok&&tl>.05){tx/=tl;ty/=tl;x.strokeStyle='rgba(255,255,255,.4)';x.lineWidth=1.5;x.setLineDash([2,3]);x.beginPath();x.moveTo(gx,gy);x.lineTo(gx+tx*30*tl,gy+ty*30*tl);x.stroke();x.setLineDash([])}
     }
     x.restore();
   }
