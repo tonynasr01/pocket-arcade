@@ -2290,8 +2290,2304 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html"};
 const BASE_TITLE=document.title;
+/* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
+   numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
+   Point i for one side is point 25-i for the other. */
+const BG_SHOTS=[0,11,12,14,15,15,17,6,6,5,3,2,3,0,0,1,1,0,1,0,1,0,0,0,1];
+const BG_PV=[0,1,2,2.5,4,5,5,4,2,1,1,1,1,1,1,1,1,1,1,2,2.5,2.5,2,1.5,1.5];
+const BG_E=(()=>{
+  const start=()=>{const a=Array(26).fill(0);a[24]=2;a[13]=5;a[8]=3;a[6]=5;return[a,a.slice()]};
+  const cl=s=>[s[0].slice(),s[1].slice()];
+  const key=s=>s[0].join(',')+'|'+s[1].join(',');
+  const uniq=a=>[...new Set(a)];
+  const rm=(ds,d)=>{const r=ds.slice();r.splice(r.indexOf(d),1);return r};
+  const pip=me=>{let p=0;for(let i=1;i<26;i++)p+=i*me[i];return p};
+  /* destination of moving a checker from f with die d, or -1 if illegal (0 = bear off) */
+  function can(s,side,f,d){
+    const me=s[side],op=s[1-side];if(!me[f])return-1;if(me[25]&&f!==25)return-1;
+    const t=f-d;if(t>=1)return op[25-t]>=2?-1:t;
+    for(let i=7;i<26;i++)if(me[i])return-1;
+    if(t===0)return 0;for(let i=f+1;i<=6;i++)if(me[i])return-1;return 0;
+  }
+  function app(s,side,f,t){
+    const me=s[side],op=s[1-side];me[f]--;let hit=false;
+    if(t>=1){if(op[25-t]===1){op[25-t]=0;op[25]++;hit=true}me[t]++}else me[0]++;
+    return hit;
+  }
+  /* most dice that can be played from here */
+  function maxPlay(s,side,ds){
+    if(!ds.length)return 0;let best=0;
+    for(const d of uniq(ds)){const rest=rm(ds,d);
+      for(let f=25;f>=1;f--){const t=can(s,side,f,d);if(t<0)continue;
+        const n=cl(s);app(n,side,f,t);const r=1+maxPlay(n,side,rest);
+        if(r>best){best=r;if(best===ds.length)return best}}}
+    return best;
+  }
+  /* legal single moves when R more dice still have to be played (enforces "use both" and "use the larger") */
+  function singles(s,side,ds,R){
+    if(R<=0)return[];let out=[];
+    for(const d of uniq(ds).sort((a,b)=>a-b)){const rest=rm(ds,d);
+      for(let f=25;f>=1;f--){const t=can(s,side,f,d);if(t<0)continue;
+        const n=cl(s);app(n,side,f,t);if(1+maxPlay(n,side,rest)===R)out.push({f,t,d})}}
+    if(R===1&&ds.length===2&&ds[0]!==ds[1]){const hi=Math.max(...ds);if(out.some(m=>m.d===hi))out=out.filter(m=>m.d===hi)}
+    return out;
+  }
+  /* every legal full turn, deduplicated by the resulting position */
+  function turns(s,side,ds){
+    const M=maxPlay(s,side,ds);if(!M)return{M,list:[{seq:[],s:cl(s)}]};
+    let first=uniq(ds);
+    if(M===1&&ds.length===2&&ds[0]!==ds[1]){const hi=Math.max(...ds);for(let f=25;f>=1;f--)if(can(s,side,f,hi)>=0){first=[hi];break}}
+    const res=new Map(),seen=new Set();
+    (function rec(st,rem,seq){
+      if(seq.length===M){const k=key(st);if(!res.has(k))res.set(k,{seq,s:st});return}
+      const vk=key(st)+'#'+rem.slice().sort().join('');if(seen.has(vk))return;seen.add(vk);
+      for(const d of seq.length?uniq(rem):first){const rest=rm(rem,d);
+        for(let f=25;f>=1;f--){const t=can(st,side,f,d);if(t<0)continue;
+          const n=cl(st);app(n,side,f,t);rec(n,rest,seq.concat([{f,t,d}]))}}
+    })(cl(s),ds.slice(),[]);
+    return{M,list:[...res.values()]};
+  }
+  function evalPos(s,side){
+    const me=s[side],op=s[1-side];
+    if(me[0]===15)return 1e5;if(op[0]===15)return-1e5;
+    const mp=pip(me),opp=pip(op);let myMax=0,opMax=0;
+    for(let i=25;i>=1;i--)if(me[i]){myMax=i;break}
+    for(let i=25;i>=1;i--)if(op[i]){opMax=i;break}
+    if(myMax+opMax<=25){let gap=0;for(let i=1;i<=6;i++)if(me[i]>3)gap+=me[i]-3;return(opp-mp)*4+me[0]*1.2-gap*.3}
+    let sc=opp-mp,run=0,bestRun=0,hm=0;
+    const opAt=q=>q===0?op[25]:op[25-q];
+    for(let p=1;p<=24;p++){
+      const c=me[p];
+      if(c>=2){sc+=BG_PV[p];run++;if(run>bestRun)bestRun=run;if(p<=6)hm++}else run=0;
+      if(c>3)sc-=(c-3)*.6;
+      if(c===1&&p>25-opMax){
+        let shots=0;for(let q=0;q<p;q++)if(opAt(q)>0&&p-q<=24)shots+=BG_SHOTS[p-q];
+        sc-=Math.min(36,shots)/36*((25-p)*.9+6);
+      }
+    }
+    if(bestRun>=3)sc+=(bestRun-2)*(bestRun-2)*2.5;
+    sc-=me[25]*4;sc+=op[25]*(3+hm*1.2);
+    return sc;
+  }
+  /* 0 = no win, 1 = single, 2 = gammon, 3 = backgammon (for the side that has borne off 15) */
+  function winKind(s,side){
+    if(s[side][0]!==15)return 0;const op=s[1-side];if(op[0])return 1;
+    let back=op[25];for(let i=19;i<=24;i++)back+=op[i];return back?3:2;
+  }
+  function choose(s,side,ds,easy){
+    const{list}=turns(s,side,ds);
+    if(easy&&Math.random()<.3)return list[Math.floor(Math.random()*list.length)].seq;
+    let best=null,bs=-Infinity;
+    for(const o of list){const v=evalPos(o.s,side)+(easy?Math.random()*18:0);if(v>bs){bs=v;best=o}}
+    return best.seq;
+  }
+  return{start,cl,key,can,app,maxPlay,singles,turns,pip,evalPos,winKind,choose};
+})();
+
+function backgammon(root,S){
+  const L=S.level,TWO=L===3,EASY=L===1,E=BG_E;
+  const NAME=TWO?['White','Red']:['You','Computer'];
+  const st=status(root,TWO?'Two players: White moves first if their opening die is higher. Bear off all 15 checkers to win.':'You are White. Race your checkers home to the bottom right and bear them all off.');
+  const W=440,H=372,{c,x}=canvas(root,W,H);c.classList.add('bg-cv');c.dataset.max=760;
+  const bar=el('div','row bg-row',root);
+  const undoB=el('button','btn ghost bg-undo',bar,'↶ Undo'),rollB=el('button','btn bg-roll',bar,'🎲 Roll');
+  /* geometry */
+  const M=10,TW=40,BW=28,BX1=W-M-TW-6,HW=(BX1-M-BW)/2,PW=HW/6,R=13.5,TOP=M,BOT=H-M,TH=145,CY=H/2;
+  const LX=M,RX=M+HW+BW,BARX=M+HW,TX=W-M-TW;
+  let s=E.start(),turn=0,phase='open',rolled=[],used=[],dice=[],need=0,hist=[],sel=-1,dests=new Map(),moves=[];
+  let openD=null,tumble=0,anims=[],dirty=true,over=false,busy=false;
+  const ai=()=>!TWO&&turn===1;
+  /* side-relative index -> board location in white numbering */
+  const locOf=(side,i)=>i===25?'bar':i===0?'off':side===0?i:25-i;
+  function ptX(n){return n<=6?RX+(6-n+.5)*PW:n<=12?LX+(12-n+.5)*PW:n<=18?LX+(n-13+.5)*PW:RX+(n-19+.5)*PW}
+  function slot(side,loc,k){
+    if(loc==='bar'){const kk=Math.min(k,3);return{x:BARX+BW/2,y:side===0?CY-R-6-kk*2*R:CY+R+6+kk*2*R}}
+    if(loc==='off')return{x:TX+TW/2,y:side===0?BOT-6-k*8:TOP+6+k*8,slab:true};
+    const kk=Math.min(k,4),top=loc>12;return{x:ptX(loc),y:top?TOP+R+1+kk*2*R:BOT-R-1-kk*2*R};
+  }
+  function count(side,loc){const a=s[side];return loc==='bar'?a[25]:loc==='off'?a[0]:a[side===0?loc:25-loc]}
+  /* ---------- drawing ---------- */
+  function tri(n,fill){const X=ptX(n),top=n>12,b=top?TOP:BOT,tip=top?TOP+TH:BOT-TH;x.beginPath();x.moveTo(X-PW/2+.5,b);x.lineTo(X+PW/2-.5,b);x.lineTo(X,tip);x.closePath();x.fillStyle=fill;x.fill()}
+  function checker(X,Y,side,P,ring){
+    x.beginPath();x.arc(X,Y,R-.5,0,7);x.fillStyle=side===0?'#FFFDF5':P.c1;x.fill();x.lineWidth=2;x.strokeStyle=P.edge;x.stroke();
+    x.beginPath();x.arc(X,Y,R-5,0,7);x.lineWidth=1.5;x.strokeStyle=side===0?'rgba(30,31,92,.18)':'rgba(255,255,255,.35)';x.stroke();
+    if(ring){x.beginPath();x.arc(X,Y,R+1.5,0,7);x.lineWidth=3;x.strokeStyle=ring;x.stroke()}
+  }
+  function slab(X,Y,side,P){rr(x,X-TW/2+5,Y-3.5,TW-10,7,2);x.fillStyle=side===0?'#FFFDF5':P.c1;x.fill();x.lineWidth=1.5;x.strokeStyle=P.edge;x.stroke()}
+  const PIPS={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]]};
+  function die(X,Y,sz,v,side,P,faded){
+    x.globalAlpha=faded?.32:1;rr(x,X-sz/2,Y-sz/2,sz,sz,sz*.22);x.fillStyle=side===0?'#FFFDF5':P.c1;x.fill();x.lineWidth=2.5;x.strokeStyle=P.edge;x.stroke();
+    x.fillStyle=side===0?'#1E1F5C':'#FFFFFF';for(const[a,b]of PIPS[v]){x.beginPath();x.arc(X+a*sz*.26,Y+b*sz*.26,sz*.09,0,7);x.fill()}x.globalAlpha=1;
+  }
+  function diceSpots(n,side){
+    const cx=side===0?RX+HW/2:LX+HW/2,sz=n>2?27:34,gap=sz+8;
+    return[...Array(n)].map((_,i)=>({x:cx+(i-(n-1)/2)*gap,y:CY,sz}));
+  }
+  function draw(){
+    const P=pal();x.clearRect(0,0,W,H);
+    rr(x,0,0,W,H,10);x.fillStyle=P.edge;x.fill();
+    for(const X0 of[LX,RX]){rr(x,X0,TOP,HW,BOT-TOP,8);x.fillStyle=P.board;x.fill()}
+    for(let n=1;n<=24;n++)tri(n,n%2?P.c4:P.c2);
+    /* trays */
+    for(const y0 of[TOP,BOT-128]){rr(x,TX,y0,TW,128,7);x.fillStyle=P.line;x.fill()}
+    const legalAll=legalNow();
+    /* destination highlights */
+    const inFlight=(side,loc)=>anims.filter(a=>a.side===side&&a.loc===loc).length;
+    if(sel>=0)for(const t of dests.keys()){
+      const loc=locOf(turn,t);
+      if(loc==='off'){x.save();rr(x,TX,turn===0?BOT-128:TOP,TW,128,7);x.lineWidth=4;x.strokeStyle=P.c3;x.stroke();x.restore();continue}
+      x.globalAlpha=.85;tri(loc,P.c3);x.globalAlpha=1;
+    }
+    /* checkers */
+    for(let side=0;side<2;side++){
+      for(let n=1;n<=24;n++){
+        const cnt=count(side,n)-inFlight(side,n);if(cnt<=0)continue;
+        for(let k=0;k<Math.min(cnt,5);k++){
+          const p=slot(side,n,k),idx=side===0?n:25-n,isTop=k===Math.min(cnt,5)-1;
+          let ring=null;if(isTop&&side===turn){if(sel===idx)ring=P.c3;else if(sel<0&&legalAll.some(m=>m.f===idx))ring='rgba(46,196,182,.55)'}
+          checker(p.x,p.y,side,P,ring);
+        }
+        if(cnt>5){const p=slot(side,n,4);x.font='13px '+DISPLAY;x.textAlign='center';x.textBaseline='middle';x.fillStyle=side===0?'#1E1F5C':'#FFFFFF';x.fillText(cnt,p.x,p.y+1)}
+      }
+      const bc=count(side,'bar')-inFlight(side,'bar');
+      for(let k=0;k<Math.min(bc,4);k++){const p=slot(side,'bar',k);checker(p.x,p.y,side,P,k===Math.min(bc,4)-1&&side===turn&&sel===25?P.c3:null)}
+      if(bc>4){const p=slot(side,'bar',3);x.font='13px '+DISPLAY;x.textAlign='center';x.textBaseline='middle';x.fillStyle=side===0?'#1E1F5C':'#FFFFFF';x.fillText(bc,p.x,p.y+1)}
+      const oc=count(side,'off')-inFlight(side,'off');for(let k=0;k<oc;k++){const p=slot(side,'off',k);slab(p.x,p.y,side,P)}
+    }
+    /* ghost markers on destinations */
+    if(sel>=0)for(const t of dests.keys()){const loc=locOf(turn,t);if(loc==='off')continue;
+      const p=slot(turn,loc,Math.min(count(turn,loc),4));x.beginPath();x.arc(p.x,p.y,R-2,0,7);x.setLineDash([4,3]);x.lineWidth=2.5;x.strokeStyle=P.edge;x.stroke();x.setLineDash([]);
+      x.beginPath();x.arc(p.x,p.y,4,0,7);x.fillStyle=P.edge;x.fill()}
+    /* moving checkers */
+    for(const a of anims){const k=clamp(a.t/a.dur,0,1),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2,X=a.x0+(a.x1-a.x0)*e,Y=a.y0+(a.y1-a.y0)*e-Math.sin(k*Math.PI)*18;
+      if(a.loc==='off'&&k>.85)slab(a.x1,a.y1,a.side,P);else checker(X,Y,a.side,P,null)}
+    /* pip counts */
+    x.textAlign='center';x.textBaseline='middle';
+    for(let side=0;side<2;side++){
+      const y=side===0?CY+16:CY-16,on=!over&&side===turn&&phase!=='open';
+      if(on){rr(x,TX+1,y-11,TW-2,22,6);x.fillStyle=side===0?'#FFFDF5':P.c1;x.fill()}
+      x.font='12px '+DISPLAY;x.fillStyle=on?(side===0?'#1E1F5C':'#FFFFFF'):'#FFFFFF';x.fillText(E.pip(s[side]),TX+TW/2,y+1);
+    }
+    x.font='800 8px sans-serif';x.fillStyle='rgba(255,255,255,.7)';x.fillText('PIPS',TX+TW/2,CY);
+    /* dice */
+    if(phase==='open'&&openD){die(RX+HW/2,CY,34,tumble?1+rand(6):openD[0],0,P);die(LX+HW/2,CY,34,tumble?1+rand(6):openD[1],1,P)}
+    else if(rolled.length){diceSpots(rolled.length,turn).forEach((p,i)=>die(p.x,p.y,p.sz,tumble?1+rand(6):rolled[i],turn,P,!tumble&&used[i]))}
+    else if(!over&&(phase==='roll'||phase==='open')){x.font='12px '+DISPLAY;x.fillStyle=P.muted;const cx=turn===0||phase==='open'?RX+HW/2:LX+HW/2;x.fillText(phase==='open'?'TAP ROLL':'ROLL',cx,CY+1)}
+  }
+  S.loop(dt=>{
+    if(tumble>0){tumble=Math.max(0,tumble-dt);dirty=true}
+    if(anims.length){for(const a of anims)a.t+=dt;anims=anims.filter(a=>a.t<a.dur);dirty=true}
+    if(dirty){dirty=false;draw()}
+  });
+  S.on(window,'resize',()=>dirty=true);
+  S.every(400,()=>dirty=true);
+  let lcK='',lcV=[];
+  function legalNow(){if(phase!=='move'||ai()||busy)return[];const k=E.key(s)+dice.join('')+need;if(k!==lcK){lcK=k;lcV=E.singles(s,turn,dice,need)}return lcV}
+  /* ---------- turn logic ---------- */
+  function buttons(){
+    const myTurn=!over&&!ai()&&!busy;
+    undoB.disabled=!(myTurn&&hist.length&&(phase==='move'||phase==='confirm'));
+    rollB.textContent=phase==='confirm'||phase==='move'?'✓ Done':'🎲 Roll';
+    rollB.disabled=!(myTurn&&(phase==='roll'||phase==='open'||phase==='confirm'));
+    rollB.classList.toggle('bg-go',!rollB.disabled);dirty=true;
+  }
+  const dstr=()=>rolled[0]===rolled[1]&&rolled.length>2?`double ${rolled[0]}s`:rolled.join('-');
+  function moveMsg(){
+    if(phase==='confirm'){st(TWO?`Your move, ${NAME[turn]}: tap Done or Undo.`:'Your move is complete. Tap Done or Undo.');return}
+    const barMsg=s[turn][25]?' Enter from the bar.':'';
+    st(TWO?`Your move, ${NAME[turn]}: ${dstr()}.${barMsg}`:`Your move: ${dstr()}.${barMsg}`);
+  }
+  function animate(side,fromLoc,fromK,toLoc,toK,delay){
+    const a=slot(side,fromLoc,fromK),b=slot(side,toLoc,toK);
+    anims.push({side,loc:toLoc,x0:a.x,y0:a.y,x1:b.x,y1:b.y,t:-(delay||0),dur:REDUCED?.01:.28});
+  }
+  function play1(m){
+    const fl=locOf(turn,m.f),tl=locOf(turn,m.t),fk=count(turn,fl)-1,tk=count(turn,tl),opLoc=tl,ok=m.t>=1?count(1-turn,opLoc):0;
+    const bk=count(1-turn,'bar');
+    const hit=E.app(s,turn,m.f,m.t);
+    animate(turn,fl,fk,tl,tk);
+    if(hit){animate(1-turn,opLoc,ok-1,'bar',bk,.12);beep(240,140,'square');S.after(150,()=>beep(180,120,'square'))}
+    else beep(m.t===0?760:440+rand(60),60);
+    const i=used.findIndex((u,j)=>!u&&rolled[j]===m.d);used[i]=true;
+    dice=dice.slice();dice.splice(dice.indexOf(m.d),1);need--;
+    dirty=true;return hit;
+  }
+  function selectAt(i){
+    sel=i;dests=new Map();
+    /* BFS over chains of the same checker so combined moves (both dice) are offered too */
+    let frontier=[{s,ds:dice,R:need,at:i,chain:[]}];
+    while(frontier.length){
+      const nx=[];
+      for(const n of frontier){
+        for(const m of E.singles(n.s,turn,n.ds,n.R).filter(m=>m.f===n.at)){
+          const ns=E.cl(n.s),hit=E.app(ns,turn,m.f,m.t),chain=n.chain.concat([m]);
+          const prev=dests.get(m.t);
+          if(!prev)dests.set(m.t,{chain,hits:chain.length>1&&hit?1:0});
+          if(m.t>0&&!hit)nx.push({s:ns,ds:n.ds.slice(0,n.ds.indexOf(m.d)).concat(n.ds.slice(n.ds.indexOf(m.d)+1)),R:n.R-1,at:m.t,chain});
+        }
+      }
+      frontier=nx;
+    }
+    dirty=true;
+  }
+  function deselect(){sel=-1;dests=new Map();dirty=true}
+  function afterMove(){
+    const wk=E.winKind(s,turn);if(wk){finish(turn,wk);return}
+    if(need===0){phase='confirm';deselect()}
+    else if(s[turn][25])selectAt(25);
+    else{const ls=E.singles(s,turn,dice,need),f=new Set(ls.map(m=>m.f));if(f.size===1)selectAt([...f][0]);else deselect()}
+    moveMsg();buttons();
+  }
+  function humanPlay(chain){
+    hist.push({s:E.cl(s),dice:dice.slice(),used:used.slice(),need});
+    busy=true;deselect();buttons();let k=0;
+    const step=()=>{play1(chain[k++]);if(k<chain.length)S.after(REDUCED?20:300,step);else S.after(REDUCED?20:290,()=>{busy=false;afterMove()})};
+    step();
+  }
+  function undo(){
+    if(undoB.disabled)return;const h=hist.pop();s=h.s;dice=h.dice;used=h.used;need=h.need;anims=[];phase='move';
+    beep(300,50);afterMove();
+  }
+  function roll(){
+    if(over||busy||ai())return;
+    if(phase==='open')return openRoll();
+    if(phase==='confirm')return endTurn();
+    if(phase==='roll')doRoll();
+  }
+  function openRoll(){
+    busy=true;const a=1+rand(6),b=1+rand(6);
+    openD=[a,b];tumble=REDUCED?0:.5;buttons();beep(520,40);
+    S.after(REDUCED?50:550,()=>{
+      beep(620,60);
+      if(a===b){busy=false;st(`Both rolled ${a}. Roll again!`);buttons();return}
+      turn=a>b?0:1;
+      st(TWO?`${NAME[turn]} rolled higher and goes first.`:turn===0?`You rolled higher (${a} vs ${b}). You go first!`:`The computer rolled higher (${b} vs ${a}) and goes first.`);
+      S.after(1200,()=>{openD=null;startTurn(turn===0?[a,b]:[b,a])});
+    });
+  }
+  function doRoll(){
+    busy=true;const a=1+rand(6),b=1+rand(6);tumble=REDUCED?0:.45;rolled=a===b?[a,a,a,a]:[a,b];used=rolled.map(()=>false);buttons();beep(520,40);
+    S.after(REDUCED?50:480,()=>{beep(620,60);startTurn(rolled.slice())});
+  }
+  function startTurn(ds){
+    rolled=ds.length===2&&ds[0]===ds[1]?[ds[0],ds[0],ds[0],ds[0]]:ds.slice();used=rolled.map(()=>false);
+    dice=rolled.slice();need=E.maxPlay(s,turn,dice);hist=[];busy=false;phase='move';sel=-1;dests=new Map();
+    if(!need){
+      phase='pass';busy=true;buttons();
+      st(ai()?'The computer has no legal move.':TWO?`${NAME[turn]} has no legal move. Passing.`:'No legal move. Passing.');
+      S.after(1500,()=>{busy=false;endTurn()});return;
+    }
+    if(ai()){phase='ai';buttons();aiPlay();return}
+    afterMove();
+  }
+  function aiPlay(){
+    st('Computer is thinking…');busy=true;buttons();
+    S.after(450,()=>{
+      const seq=E.choose(s,1,dice,EASY);let k=0;
+      const step=()=>{
+        if(k>=seq.length){const wk=E.winKind(s,1);if(wk){finish(1,wk);return}S.after(450,()=>{busy=false;endTurn()});return}
+        play1(seq[k++]);S.after(REDUCED?60:520,step);
+      };
+      step();
+    });
+  }
+  function endTurn(){
+    if(over)return;
+    turn=1-turn;rolled=[];used=[];dice=[];hist=[];deselect();
+    if(ai()){busy=true;phase='ai';buttons();st('Computer is thinking…');S.after(500,()=>{tumble=REDUCED?0:.45;rolled=[1+rand(6),1+rand(6)];if(rolled[0]===rolled[1])rolled=[rolled[0],rolled[0],rolled[0],rolled[0]];used=rolled.map(()=>false);beep(520,40);dirty=true;S.after(REDUCED?50:480,()=>startTurn(rolled.slice()))});return}
+    phase='roll';buttons();st(TWO?`Your turn, ${NAME[turn]}. Tap Roll.`:'Your turn. Tap Roll.');
+  }
+  function finish(side,wk){
+    over=true;phase='over';busy=false;deselect();buttons();
+    const kind=wk===3?' with a backgammon!':wk===2?' with a gammon!':'!';
+    if(TWO){st(`${NAME[side]} wins${kind} Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(`${NAME[side]} wins!`,wk>1?(wk===3?'Backgammon!':'Gammon!'):'');beep(880,160)}
+    else if(side===0){st(`You win${kind} Press ↻ to play again.`);S.after(300,S.next)}
+    else{st(`The computer wins${kind} Press ↻ to try again.`);S.shake();beep(200,300,'sawtooth')}
+  }
+  /* ---------- input ---------- */
+  function hitTest(px,py){
+    if(px>=TX-3)return{type:'off',top:py<CY};
+    if(px>=BARX&&px<BARX+BW)return{type:'bar'};
+    const inL=px>=LX&&px<LX+HW,inR=px>=RX&&px<RX+HW;if(!inL&&!inR)return null;
+    const col=Math.floor((px-(inL?LX:RX))/PW),top=py<CY;
+    if(Math.abs(py-CY)<CY-TOP-TH-2&&!dests.size)return{type:'mid'};
+    let n;if(top)n=inL?13+col:19+col;else n=inL?12-col:6-col;return{type:'pt',n};
+  }
+  S.on(c,'pointerdown',e=>{
+    if(over)return;const p=c.pos(e),h=hitTest(p.x,p.y);if(!h)return;
+    if(h.type==='mid'&&phase!=='move'){roll();return}
+    if(phase!=='move'||busy||ai())return;
+    let idx=null;
+    if(h.type==='pt')idx=turn===0?h.n:25-h.n;else if(h.type==='bar')idx=25;else if(h.type==='off')idx=0;
+    if(idx==null){deselect();return}
+    if(sel>=0&&dests.has(idx)){humanPlay(dests.get(idx).chain);return}
+    if(idx===0)return;
+    if(s[turn][25]){selectAt(25);return}
+    if(s[turn][idx]&&E.singles(s,turn,dice,need).some(m=>m.f===idx)){selectAt(idx);beep(480,30)}
+    else if(s[turn][idx]){deselect();st(TWO?`Your move, ${NAME[turn]}: that checker can't move.`:"Your move: that checker can't move.")}
+    else deselect();
+  });
+  S.on(rollB,'click',roll);S.on(undoB,'click',undo);
+  S.on(window,'keydown',e=>{
+    if(e.key===' '||e.key==='Enter'){e.preventDefault();roll()}
+    else if(e.key==='u'||e.key==='U'||e.key==='Backspace'||(e.key==='z'&&(e.ctrlKey||e.metaKey))){e.preventDefault();undo()}
+  });
+  c.bgState=()=>({s,turn,phase,dice,need,over});
+  buttons();
+}
+
+const BFIL_LV=[[5,2,3],[6,3,4],[7,4,6],[8,5,8]];
+/* random Hamiltonian path over the open cells (backbite moves), walls are carved from the path's tail */
+function BFIL_gen(L){
+  const [n,w0,w1]=BFIL_LV[L-1],N=n*n,open=new Uint8Array(N).fill(1),p=[],R=m=>Math.floor(Math.random()*m);
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++)p.push(r*n+(r%2?n-1-c:c));
+  const pos=new Int16Array(N);p.forEach((v,i)=>pos[v]=i);
+  const nb=v=>{const r=v/n|0,c=v%n,o=[];if(r&&open[v-n])o.push(v-n);if(r<n-1&&open[v+n])o.push(v+n);if(c&&open[v-1])o.push(v-1);if(c<n-1&&open[v+1])o.push(v+1);return o};
+  const rev=(a,b)=>{for(;a<b;a++,b--){const t=p[a];p[a]=p[b];p[b]=t;pos[p[a]]=a;pos[p[b]]=b}};
+  const mix=m=>{for(let k=0;k<m;k++){const M=p.length;
+    if(Math.random()<.5){const o=nb(p[0]),i=pos[o[R(o.length)]];if(i>1)rev(0,i-1)}
+    else{const o=nb(p[M-1]),i=pos[o[R(o.length)]];if(i<M-2)rev(i+1,M-1)}}};
+  mix(N*20);
+  const walls=w0+R(w1-w0+1);
+  for(let k=0;k<walls;k++){mix(N*4);const t=p.pop();open[t]=0;pos[t]=-1}
+  mix(N*10);if(Math.random()<.5)p.reverse();
+  return{n,open,start:p[0],sol:p.slice()};
+}
+function blockfill(root,S){
+  const L=S.level,W=480;
+  const st=status(root,'Start on the glowing tile and draw one path through every open tile.');
+  const bar=el('div','row mbar bfl-bar',root,'<span>Tiles <b class="bfl-t">0/0</b></span><span class="bfl-solved"></span>');
+  const {c,x}=canvas(root,W,W);c.classList.add('bfl-cv');c.dataset.max=620;
+  const foot=el('div','row bfl-foot',root);
+  const clrB=el('button','btn ghost',foot,'↺ Clear');const nextB=el('button','btn ghost bfl-next',foot,'New puzzle');
+  const tEl=$('.bfl-t',bar),sEl=$('.bfl-solved',bar);
+  let K=pal();S.every(1000,()=>{K=pal()});
+  const fx=sparks(),skey='blockfill:solved:'+L;
+  let pz,n,N,cs,path,inP,born,tot,drag=null,won,T=0,hx,hy,dir=[1,0],wonT=0;
+  const showSolved=()=>{sEl.textContent=`Solved ${store.get(skey)||0}`};
+  const center=v=>[(v%n+.5)*cs,((v/n|0)+.5)*cs];
+  function setup(){
+    pz=BFIL_gen(L);n=pz.n;N=n*n;cs=W/n;c._pz=pz;
+    tot=pz.sol.length;path=[pz.start];inP=new Int16Array(N).fill(-1);inP[pz.start]=0;born=[T];
+    [hx,hy]=center(pz.start);won=false;drag=null;
+    nextB.textContent='New puzzle';nextB.classList.add('ghost');showSolved();upd();
+  }
+  function upd(){tEl.textContent=path.length+'/'+tot}
+  const adj=(a,b)=>Math.abs(a-b)===n||(Math.abs(a-b)===1&&(a/n|0)===(b/n|0));
+  function cut(j){while(path.length>j+1){inP[path.pop()]=-1;born.pop()}}
+  function step(t){
+    if(t<0||t>=N||won)return false;
+    const h=path[path.length-1];if(t===h)return false;
+    const j=inP[t];
+    if(j>=0){cut(j);beep(260,35);upd();return true}
+    if(!pz.open[t]||!adj(t,h))return false;
+    dir=[t%n-h%n,(t/n|0)-(h/n|0)];
+    inP[t]=path.length;path.push(t);born.push(T);
+    beep(330+path.length*600/tot,45);upd();
+    if(path.length===tot)win();
+    return true;
+  }
+  function moveTo(t){
+    let guard=0;
+    while(guard++<40&&!won){
+      const h=path[path.length-1];if(h===t)break;
+      const dr=(t/n|0)-(h/n|0),dc=t%n-h%n;
+      const a=Math.abs(dr)>=Math.abs(dc)?[h+Math.sign(dr)*n,dc?h+Math.sign(dc):null]:[h+Math.sign(dc),dr?h+Math.sign(dr)*n:null];
+      let moved=false;
+      for(const q of a){if(q==null)continue;
+        if(inP[q]>=0&&inP[q]!==path.length-2)continue; /* only retract one step at a time while dragging */
+        if(step(q)){moved=true;break}}
+      if(!moved)break;
+    }
+  }
+  function cellAt(e,cl){
+    const q=c.pos(e);let cc=Math.floor(q.x/cs),r=Math.floor(q.y/cs);
+    if(!cl&&(cc<0||r<0||cc>=n||r>=n))return -1;
+    return clamp(r,0,n-1)*n+clamp(cc,0,n-1);
+  }
+  S.on(c,'pointerdown',e=>{
+    if(won||drag)return;const q=cellAt(e);if(q<0)return;e.preventDefault();
+    const h=path[path.length-1];
+    if(inP[q]>=0){if(q!==h){cut(inP[q]);beep(260,35);upd()}}
+    else if(pz.open[q]&&adj(q,h))step(q);
+    else{if(pz.open[q])beep(150,60,'square');return}
+    try{c.setPointerCapture(e.pointerId)}catch(_){}
+    drag={id:e.pointerId};
+  });
+  S.on(c,'pointermove',e=>{if(drag&&e.pointerId===drag.id)moveTo(cellAt(e,true))});
+  const end=e=>{if(drag&&e.pointerId===drag.id)drag=null};
+  S.on(c,'pointerup',end);S.on(c,'pointercancel',end);
+  S.on(window,'keydown',e=>{
+    const d=KEYDIR[e.key];if(!d||won)return;e.preventDefault();
+    const h=path[path.length-1],r=h/n|0,cc=h%n;
+    const t=d==='up'?(r?h-n:-1):d==='down'?(r<n-1?h+n:-1):d==='left'?(cc?h-1:-1):(cc<n-1?h+1:-1);
+    if(t<0)return;if(inP[t]>=0&&inP[t]!==path.length-2)return;if(!step(t))beep(150,60,'square');
+  });
+  S.on(clrB,'click',()=>{if(won)return;cut(0);upd();beep(220,80)});
+  function win(){
+    won=true;wonT=T;drag=null;
+    const t=(store.get(skey)||0)+1;store.set(skey,t);let all=0;for(let i=1;i<=4;i++)all+=store.get('blockfill:solved:'+i)||0;best('blockfill',all);
+    showSolved();st('All tiles filled!');
+    const [a,b]=center(path[path.length-1]);fx.add(a,b,'#FFD23F',24,220);
+    nextB.textContent='Next puzzle ▶';nextB.classList.remove('ghost');restartAnim(nextB,'bfl-pop');
+    S.next();
+  }
+  S.on(nextB,'click',()=>{setup();st('New puzzle. Fill every open tile in one stroke.')});
+  const hue=i=>200+150*i/Math.max(1,tot-1);
+  function draw(dt){
+    dt=Math.max(0,dt);T+=dt;x.clearRect(0,0,W,W);
+    const g=cs*.07,r=cs*.2;
+    for(let v=0;v<N;v++){
+      const [a,b]=center(v);
+      if(!pz.open[v]){
+        x.fillStyle=K.edge;x.globalAlpha=.8;rr(x,a-cs/2+g,b-cs/2+g,cs-2*g,cs-2*g,r);x.fill();
+        x.save();x.clip();x.globalAlpha=.18;x.strokeStyle=K.board;x.lineWidth=cs*.07;x.beginPath();
+        for(let k=-3;k<=3;k++){const o=k*cs*.22;x.moveTo(a-cs*.5+o,b+cs*.5);x.lineTo(a+cs*.5+o,b-cs*.5)}
+        x.stroke();x.restore();x.globalAlpha=1;continue;
+      }
+      x.fillStyle=K.edge;x.globalAlpha=.18;rr(x,a-cs/2+g,b-cs/2+g+3,cs-2*g,cs-2*g,r);x.fill();
+      x.globalAlpha=1;x.fillStyle=K.line;rr(x,a-cs/2+g,b-cs/2+g,cs-2*g,cs-2*g,r);x.fill();
+    }
+    /* bridges between consecutive tiles */
+    for(let i=1;i<path.length;i++){
+      const [a1,b1]=center(path[i-1]),[a2,b2]=center(path[i]);const w=cs*.46;
+      x.fillStyle=`hsl(${hue(i-.5)},85%,58%)`;
+      x.fillRect(Math.min(a1,a2)-(a1===a2?w/2:0),Math.min(b1,b2)-(b1===b2?w/2:0),a1===a2?w:Math.abs(a2-a1),b1===b2?w:Math.abs(b2-b1));
+    }
+    for(let i=0;i<path.length;i++){
+      const [a,b]=center(path[i]);const age=T-born[i];
+      let s=1;if(age<.3){const u=age/.3-1;s=.5+.5*(1+2.70158*u*u*u+1.70158*u*u)}
+      if(won){const wv=T-wonT-i*.025;if(wv>0&&wv<.4)s=1+.12*Math.sin(wv/.4*Math.PI)}
+      const h=cs*(.5-.07)*s;
+      x.fillStyle=`hsl(${hue(i)},85%,58%)`;rr(x,a-h,b-h,2*h,2*h,r*s);x.fill();
+      x.fillStyle='rgba(255,255,255,.22)';rr(x,a-h+3,b-h+3,2*h-6,h*.55,r*.7);x.fill();
+    }
+    /* start marker */
+    if(path.length===1&&!won){
+      const [a,b]=center(pz.start),p=(T*1.4)%1;
+      x.strokeStyle=`hsl(${hue(0)},90%,60%)`;x.globalAlpha=1-p;x.lineWidth=4;rr(x,a-cs*(.45+p*.15),b-cs*(.45+p*.15),cs*(.9+p*.3),cs*(.9+p*.3),r*1.4);x.stroke();x.globalAlpha=1;
+    }
+    /* head: glides to the newest tile */
+    const [tx,ty]=center(path[path.length-1]);const kk=1-Math.exp(-dt*22);hx+=(tx-hx)*kk;hy+=(ty-hy)*kk;
+    const hr=cs*.3*(won?1+.08*Math.sin(T*8):1);
+    x.beginPath();x.arc(hx,hy,hr,0,7);x.fillStyle='#fff';x.fill();x.lineWidth=Math.max(2.5,cs*.05);x.strokeStyle=K.edge;x.stroke();
+    const ex=dir[0],ey=dir[1],px=-ey,py=ex;
+    for(const sgn of[-1,1]){
+      const ox=hx+ex*hr*.28+px*hr*.36*sgn,oy=hy+ey*hr*.28+py*hr*.36*sgn;
+      x.beginPath();x.arc(ox,oy,hr*.17,0,7);x.fillStyle='#1E1F5C';x.fill();
+    }
+    fx.draw(x,dt);
+  }
+  setup();S.loop(draw);
+}
+
+/* Checkers (American / English draughts). Board: 64 squares, sq=r*8+c, play on dark squares ((r+c)&1).
+   1 = bottom man (Red, moves up), 2 = bottom king, -1 = top man (Black / computer), -2 = top king. */
+const CKR={
+  start(){const b=Array(64).fill(0);for(let r=0;r<8;r++)for(let c=0;c<8;c++)if((r+c)&1){if(r<3)b[r*8+c]=-1;else if(r>4)b[r*8+c]=1}return b},
+  DK:[[-1,-1],[-1,1],[1,-1],[1,1]],DU:[[-1,-1],[-1,1]],DD:[[1,-1],[1,1]],
+  dirs(p){return p===2||p===-2?CKR.DK:p>0?CKR.DU:CKR.DD},
+  endRow(p){return p>0?0:7},
+  /* all legal moves for side (1 or -1). A move: {path:[from,land1,...], caps:[sq,...], promo}. Captures are mandatory and must be completed. */
+  moves(b,side){
+    const caps=[],steps=[];
+    for(let s=0;s<64;s++){
+      const p=b[s];if(!p||(p>0?1:-1)!==side)continue;
+      CKR.jumps(b,s,p,[s],[],caps);
+      if(caps.length)continue;
+      const r=s>>3,c=s&7;
+      for(const[dr,dc]of CKR.dirs(p)){
+        const r1=r+dr,c1=c+dc;if(r1<0||r1>7||c1<0||c1>7)continue;const t=r1*8+c1;
+        if(!b[t])steps.push({path:[s,t],caps:[],promo:(p===1||p===-1)&&r1===CKR.endRow(p)});
+      }
+    }
+    return caps.length?caps:steps;
+  },
+  jumps(b,s,p,path,cp,out){
+    const r=s>>3,c=s&7;let any=false;
+    for(const[dr,dc]of CKR.dirs(p)){
+      const r2=r+2*dr,c2=c+2*dc;if(r2<0||r2>7||c2<0||c2>7)continue;
+      const mid=(r+dr)*8+c+dc,land=r2*8+c2,q=b[mid];
+      if(!q||q===9||(q>0)===(p>0)||b[land]!==0)continue;
+      any=true;const promo=(p===1||p===-1)&&r2===CKR.endRow(p);
+      b[s]=0;b[land]=p;b[mid]=9;
+      if(promo)out.push({path:[...path,land],caps:[...cp,mid],promo:true});
+      else CKR.jumps(b,land,p,[...path,land],[...cp,mid],out);
+      b[land]=0;b[mid]=q;b[s]=p;
+    }
+    if(!any&&path.length>1)out.push({path:path,caps:cp,promo:false});
+  },
+  apply(b,m){
+    const n=b.slice(),f=m.path[0],t=m.path[m.path.length-1],p=n[f];n[f]=0;for(const c of m.caps)n[c]=0;n[t]=m.promo?p*2:p;return n;
+  },
+  /* static evaluation from side's point of view */
+  evalB(b,side){
+    let s=0,mat1=0,mat2=0,n=0;
+    for(let i=0;i<64;i++){
+      const p=b[i];if(!p)continue;n++;const r=i>>3,c=i&7,sg=p>0?1:-1;let v;
+      if(p===1||p===-1){
+        const adv=p>0?7-r:r;v=100+adv*3+(adv>=5?4:0);
+        if(adv===0)v+=8;                         /* guarding the back row */
+        if(c===0||c===7)v-=2;
+      }else{v=170;if(r>1&&r<6&&c>1&&c<6)v+=6;else if(r===0||r===7||c===0||c===7)v-=4}
+      if(r>=2&&r<=5&&c>=2&&c<=5)v+=3;
+      s+=sg*v;if(sg>0)mat1+=p===2?170:100;else mat2+=p===-2?170:100;
+    }
+    const diff=mat1-mat2;if(diff)s+=Math.sign(diff)*Math.min(60,Math.abs(diff)*(24-n)/24); /* trade down when ahead */
+    return side*s;
+  },
+  WIN:100000,
+  order(ms,pv){
+    ms.sort((a,b)=>(b.caps.length-a.caps.length)||((b.promo?1:0)-(a.promo?1:0)));
+    if(pv){const i=ms.findIndex(m=>CKR.same(m,pv));if(i>0)ms.unshift(ms.splice(i,1)[0])}
+    return ms;
+  },
+  same(a,b){return a.path.length===b.path.length&&a.path.every((v,i)=>v===b.path[i])},
+  search(b,side,depth,alpha,beta,ply,ctx){
+    if((++ctx.nodes&1023)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+    if(ctx.stop)return 0;
+    const ms=CKR.moves(b,side);
+    if(!ms.length)return -CKR.WIN+ply;
+    if(depth<=0&&(!ms[0].caps.length||ply>ctx.maxPly))return CKR.evalB(b,side);
+    CKR.order(ms,null);
+    let bestV=-Infinity;
+    for(const m of ms){
+      const v=-CKR.search(CKR.apply(b,m),-side,ms.length===1&&ply<ctx.maxPly?depth:depth-1,-beta,-alpha,ply+1,ctx);
+      if(ctx.stop)return 0;
+      if(v>bestV)bestV=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+    }
+    return bestV;
+  },
+  /* level 1..3: returns a legal move */
+  best(b,side,level,timeMs){
+    const ms=CKR.moves(b,side);if(ms.length<=1)return ms[0];
+    if(level===1&&Math.random()<.35)return ms[Math.floor(Math.random()*ms.length)];
+    const maxD=[2,4,12][level-1]||4,ctx={nodes:0,stop:false,deadline:performance.now()+(timeMs||[150,250,320][level-1]),maxPly:0};
+    let bestM=ms[Math.floor(Math.random()*ms.length)],pv=null;
+    for(let d=1;d<=maxD;d++){
+      ctx.maxPly=d+10;CKR.order(ms,pv);
+      let a=-Infinity,cur=null,scored=[];
+      for(const m of ms){
+        const v=-CKR.search(CKR.apply(b,m),-side,d-1,-Infinity,-a,1,ctx);
+        if(ctx.stop)break;
+        scored.push([v,m]);if(v>a){a=v;cur=m}
+      }
+      if(ctx.stop)break;
+      /* break ties randomly among equally good moves */
+      const top=scored.filter(x=>x[0]===a);cur=top[Math.floor(Math.random()*top.length)][1];
+      bestM=cur;pv=cur;
+      if(Math.abs(a)>CKR.WIN-1000)break;
+    }
+    return bestM;
+  }
+};
+
+function checkers(root,S){
+  const L=S.level,TWO=L===4;
+  const NM={1:TWO?'Red':'You','-1':TWO?'Black':'Computer'};
+  const st=status(root,TWO?'Red moves first. Take turns on this device. Captures are a must.':'You are Red. Tap a piece, then a glowing square. If you can jump, you must.');
+  const bar=el('div','ck-bar',root);
+  const side=[1,-1].map(s=>{const e=el('div','ck-who '+(s>0?'red':'blk'),bar,`<i></i><b></b><small></small>`);e.querySelector('b').textContent=NM[s];return e});
+  const g=el('div','ck-board',root);g.dataset.ar=1;g.dataset.max=560;
+  const sqs=[...Array(64)].map((_,i)=>{const e=el('button','ck-sq'+(((i>>3)+(i&7))&1?' dk':''),g);e.style.animationDelay=Math.min(((i>>3)+(i&7))*25,380)+'ms';e.setAttribute('aria-label','Square '+'abcdefgh'[i&7]+(8-(i>>3)));S.on(e,'click',()=>tap(i));return e});
+  const layer=el('div','ck-layer',g);
+  let b=CKR.start(),turn=1,legal=[],sel=-1,step=0,cand=[],busy=false,over=false,quiet=0,last=null,cur=-1;
+  const pcs={};
+  function place(e,i){e.style.left=(i&7)*12.5+'%';e.style.top=(i>>3)*12.5+'%'}
+  function mkPiece(i){const p=b[i];const e=el('div','ck-p '+(p>0?'red':'blk')+(Math.abs(p)===2?' king':''),layer,'<span>♛</span>');e.style.animationDelay=(i>>3)*40+200+'ms';place(e,i);pcs[i]=e}
+  for(let i=0;i<64;i++)if(b[i])mkPiece(i);
+  function counts(){let a=0,c=0;for(const p of b){if(p>0)a++;else if(p<0)c++}return{1:a,'-1':c}}
+  function draw(){
+    const mustCap=legal.length&&legal[0].caps.length,human=!over&&!busy&&(TWO||turn===1);
+    const tg=new Set();if(sel>=0)for(const m of cand)tg.add(m.path[step+1]);
+    const movable=new Set(human&&step===0?legal.map(m=>m.path[0]):[]);
+    sqs.forEach((e,i)=>{
+      e.classList.toggle('sel',i===sel);e.classList.toggle('tgt',human&&tg.has(i));
+      e.classList.toggle('must',human&&sel<0&&!!mustCap&&movable.has(i));
+      e.classList.toggle('last',!!last&&last.includes(i));e.classList.toggle('cur',i===cur);
+    });
+    const n=counts();
+    side.forEach((e,k)=>{const s=k?-1:1;e.classList.toggle('on',!over&&turn===s);e.querySelector('small').textContent=n[s]});
+  }
+  function hopAnim(f,t,cap){
+    const e=pcs[f];delete pcs[f];pcs[t]=e;place(e,t);e.classList.remove('lift');restartAnim(e,'hop');
+    if(cap!=null&&pcs[cap]){const c=pcs[cap];delete pcs[cap];c.classList.add('gone');S.after(320,()=>c.remove());beep(260+step*60,110,'square')}
+    else beep(520,50);
+  }
+  function setLegal(){legal=CKR.moves(b,turn)}
+  function tap(i){
+    cur=-1;
+    if(over||busy||(!TWO&&turn!==1))return;
+    if(sel>=0&&cand.some(m=>m.path[step+1]===i)){hop(i);return}
+    if(step>0){restartAnim(sqs[i],'nope');return}   /* must finish the jump */
+    const p=b[i];
+    if(p&&(p>0?1:-1)===turn){
+      const mine=legal.filter(m=>m.path[0]===i);
+      if(mine.length){if(sel>=0&&pcs[sel])pcs[sel].classList.remove('lift');sel=i;cand=mine;pcs[i].classList.add('lift');beep(480,30)}
+      else{restartAnim(pcs[i],'nope');beep(150,90,'sawtooth');if(legal.length&&legal[0].caps.length)st('You must jump! Pick a glowing piece.')
+        if(sel>=0&&pcs[sel])pcs[sel].classList.remove('lift');sel=-1;cand=[]}
+    }else{if(sel>=0&&pcs[sel])pcs[sel].classList.remove('lift');sel=-1;cand=[]}
+    draw();
+  }
+  function hop(i){
+    cand=cand.filter(m=>m.path[step+1]===i);const m=cand[0];
+    hopAnim(m.path[step],i,m.caps.length?m.caps[step]:null);step++;sel=i;
+    if(step===m.path.length-1){commit(m);return}
+    /* more jumps: auto-continue when there is only one way on */
+    const nx=new Set(cand.map(c=>c.path[step+1]));draw();
+    if(nx.size===1){busy=true;S.after(300,()=>{busy=false;hop([...nx][0])})}
+    else st('Keep jumping! Tap the next square.');
+  }
+  function commit(m){
+    const was=b[m.path[0]];b=CKR.apply(b,m);last=[m.path[0],m.path[m.path.length-1]];
+    const t=m.path[m.path.length-1];
+    if(m.promo){const e=pcs[t];e.classList.add('king');S.after(10,()=>restartAnim(e,'crown'));beep(880,160);S.after(140,()=>beep(1180,160))}
+    quiet=m.caps.length||m.promo||(was===1||was===-1)?0:quiet+1;
+    sel=-1;step=0;cand=[];turn=-turn;setLegal();
+    if(end()){draw();return}
+    draw();
+    if(!TWO&&turn===-1)aiTurn();
+    else{
+      const must=legal[0].caps.length;
+      st(TWO?`${NM[turn]} to move.${must?' Jump is a must!':''}`:must?'Your move. You must jump!':'Your move.');
+    }
+  }
+  function end(){
+    if(!legal.length){
+      over=true;const w=-turn,why=counts()[turn]?'is blocked':'has no pieces left';
+      if(TWO){st(`${NM[turn]} ${why}. ${NM[w]} wins! Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(`${NM[w]} wins!`);beep(990,300)}
+      else if(w===1){st('You win! The computer '+(why==='is blocked'?'cannot move.':'has no pieces left.'));beep(990,300);S.after(500,S.next)}
+      else{st('The computer wins. Press ↻ to play again.');S.shake();beep(150,400,'sawtooth')}
+      return true;
+    }
+    if(quiet>=80){over=true;st('Draw: 40 moves each with no jump or new king. Press ↻ to play again.');beep(440,200);return true}
+    return false;
+  }
+  function aiTurn(){
+    busy=true;st('Computer is thinking…');draw();
+    S.after(360,()=>{
+      const m=CKR.best(b,-1,L);
+      const hops=m.path.length-1;
+      for(let k=0;k<hops;k++)S.after(k*330,()=>{step=k;hopAnim(m.path[k],m.path[k+1],m.caps.length?m.caps[k]:null)});
+      S.after(hops*330-100,()=>{busy=false;step=0;commit(m)});
+    });
+  }
+  /* keyboard: arrows move a cursor, Enter/Space taps */
+  S.on(window,'keydown',e=>{
+    const k=e.key;const d={ArrowUp:-8,ArrowDown:8,ArrowLeft:-1,ArrowRight:1}[k];
+    if(d!=null){e.preventDefault();if(cur<0)cur=sel>=0?sel:legal.length?legal[0].path[0]:36;else{const r=(cur>>3)+(Math.abs(d)===8?Math.sign(d):0),c=(cur&7)+(Math.abs(d)===1?d:0);if(r>=0&&r<8&&c>=0&&c<8)cur=r*8+c}draw()}
+    else if((k==='Enter'||k===' ')&&cur>=0){e.preventDefault();const c=cur;tap(c);cur=c;draw()}
+  });
+  setLegal();draw();
+}
+
+const CCON_COL=['#FF3B4E','#FFD23F','#1EC8B0','#3D6BFF','#FF8A1F','#A855F7','#2DBE4F','#FF5FC8','#3FC7F5','#A3E635','#B7794A'];
+/* random Hamiltonian path on an n×n grid: serpentine start + many backbite moves */
+function CCON_ham(n,it){
+  const N=n*n,p=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++)p.push(r*n+(r%2?n-1-c:c));
+  const pos=new Int16Array(N);p.forEach((v,i)=>pos[v]=i);
+  const nb=v=>{const r=v/n|0,c=v%n,o=[];if(r)o.push(v-n);if(r<n-1)o.push(v+n);if(c)o.push(v-1);if(c<n-1)o.push(v+1);return o};
+  const rev=(a,b)=>{for(;a<b;a++,b--){const t=p[a];p[a]=p[b];p[b]=t;pos[p[a]]=a;pos[p[b]]=b}};
+  for(let k=0;k<it;k++){
+    if(Math.random()<.5){const o=nb(p[0]),i=pos[o[Math.floor(Math.random()*o.length)]];if(i>1)rev(0,i-1)}
+    else{const o=nb(p[N-1]),i=pos[o[Math.floor(Math.random()*o.length)]];if(i<N-2)rev(i+1,N-1)}
+  }
+  return p;
+}
+/* puzzle: cut the path into k segments (length >= 3); segment ends become the dots */
+function CCON_gen(n){
+  const N=n*n,adj=(a,b)=>Math.abs(a-b)===n||(Math.abs(a-b)===1&&(a/n|0)===(b/n|0));
+  for(let tries=0;;tries++){
+    const p=CCON_ham(n,N*25),k=Math.min(n+Math.floor(Math.random()*3),CCON_COL.length);
+    for(let t=0;t<40;t++){
+      const w=[...Array(k)].map(()=>.25+Math.random()**2),sw=w.reduce((a,b)=>a+b),extra=N-3*k;
+      const len=w.map(v=>3+Math.floor(extra*v/sw));let left=N-len.reduce((a,b)=>a+b);
+      while(left-->0)len[Math.floor(Math.random()*k)]++;
+      const sol=[];let i=0;for(const L of len){sol.push(p.slice(i,i+L));i+=L}
+      const ok=sol.every(s=>{
+        const a=s[0],b=s[s.length-1];if(adj(a,b))return false;
+        const row=s.every(v=>(v/n|0)===(a/n|0)),col=s.every(v=>v%n===a%n);
+        return !(row||col)||s.length>=n-1&&Math.random()<.3;
+      });
+      if(ok)return{n,sol:shuffle(sol),dots:null};
+    }
+  }
+}
+function colorconnect(root,S){
+  const SZ=[5,6,7,8,9],n=SZ[S.level-1],N=n*n,W=480,cs=W/n;
+  const st=status(root,'Drag from a dot to its twin. Connect every pair and fill the whole board.');
+  const bar=el('div','row mbar ccn-bar',root,'<span>Flows <b class="ccn-f">0/0</b></span><span>Filled <b class="ccn-p">0%</b></span><span>Moves <b class="ccn-m">0</b></span>');
+  const {c,x}=canvas(root,W,W);c.classList.add('ccn-cv');c.dataset.max=620;
+  const foot=el('div','row ccn-foot',root);
+  const nextB=el('button','btn ghost ccn-next',foot,'New puzzle');const solvedEl=el('span','ccn-solved',foot);
+  const fF=$('.ccn-f',bar),fP=$('.ccn-p',bar),fM=$('.ccn-m',bar);
+  let K=pal();S.every(1000,()=>{K=pal()});
+  const fx=sparks();
+  let pz,k,dotAt,paths,owner,drag=null,moves,lastCol,won,T=0,done,pulse,hover=null;
+  const skey='connect:solved:'+n;
+  const showSolved=()=>{solvedEl.textContent=`Solved ${store.get(skey)||0} at ${n}×${n}`};
+  function setup(){
+    pz=CCON_gen(n);k=pz.sol.length;dotAt=new Int8Array(N).fill(-1);
+    pz.sol.forEach((s,i)=>{dotAt[s[0]]=i;dotAt[s[s.length-1]]=i});
+    paths=[...Array(k)].map(()=>[]);owner=new Int8Array(N).fill(-1);
+    moves=0;lastCol=-1;won=false;done=Array(k).fill(false);pulse=Array(k).fill(-9);drag=null;
+    nextB.textContent='New puzzle';nextB.classList.add('ghost');showSolved();refresh();
+    c._pz=pz;c._paths=()=>paths;
+  }
+  const complete=i=>{const p=paths[i];return p.length>1&&dotAt[p[p.length-1]]===i};
+  function refresh(){
+    owner.fill(-1);paths.forEach((p,i)=>p.forEach(v=>owner[v]=i));
+    let f=0,cov=0;for(let i=0;i<k;i++){const d=complete(i);if(d){f++;if(!done[i])pulse[i]=T}done[i]=d}
+    for(let v=0;v<N;v++)if(owner[v]>=0)cov++;
+    fF.textContent=f+'/'+k;fP.textContent=Math.floor(cov*100/N)+'%';fM.textContent=moves;
+    return{f,cov};
+  }
+  const center=v=>[(v%n+.5)*cs,((v/n|0)+.5)*cs];
+  function cellAt(e,clampIt){
+    const q=c.pos(e);let cc=Math.floor(q.x/cs),r=Math.floor(q.y/cs);
+    if(!clampIt&&(cc<0||r<0||cc>=n||r>=n))return -1;
+    return clamp(r,0,n-1)*n+clamp(cc,0,n-1);
+  }
+  function rebuildOthers(){
+    const mine=new Set(paths[drag.c]);
+    for(let o=0;o<k;o++){if(o===drag.c)continue;const s=drag.snap[o];const j=s.findIndex(v=>mine.has(v));paths[o]=j<0?s.slice():s.slice(0,j)}
+  }
+  function step(t){
+    const i=drag.c,p=paths[i],j=p.indexOf(t);
+    if(j>=0){if(j===p.length-1)return false;p.length=j+1;return true}
+    if(complete(i))return false;
+    const h=p[p.length-1];if(!(Math.abs(t-h)===n||(Math.abs(t-h)===1&&(t/n|0)===(h/n|0))))return false;
+    const d=dotAt[t];if(d>=0&&d!==i)return false;
+    const cut=owner[t]>=0&&owner[t]!==i;p.push(t);
+    if(d===i){beep(660,90);S.after(80,()=>beep(990,120))}else if(cut)beep(180,70,'square');else beep(300+p.length*22,40);
+    return true;
+  }
+  function moveTo(t){
+    let guard=0;
+    while(guard++<40){
+      const p=paths[drag.c],h=p[p.length-1];if(h===t)break;
+      const dr=(t/n|0)-(h/n|0),dc=t%n-h%n;
+      const a=Math.abs(dr)>=Math.abs(dc)?[h+Math.sign(dr)*n,dc?h+Math.sign(dc):null]:[h+Math.sign(dc),dr?h+Math.sign(dr)*n:null];
+      let moved=false;for(const q of a){if(q!=null&&step(q)){moved=true;break}}
+      if(!moved)break;rebuildOthers();
+    }
+    refresh();
+  }
+  S.on(c,'pointerdown',e=>{
+    if(won||drag)return;const q=cellAt(e);if(q<0)return;e.preventDefault();
+    const start=JSON.stringify(paths);let i=dotAt[q];
+    if(i<0){i=owner[q];if(i<0)return;const p=paths[i];p.length=p.indexOf(q)+1}
+    else paths[i]=[q];
+    try{c.setPointerCapture(e.pointerId)}catch(_){}
+    drag={c:i,id:e.pointerId,start,snap:paths.map(p=>p.slice())};
+    hover=c.pos(e);beep(420,40);refresh();
+  });
+  S.on(c,'pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;hover=c.pos(e);moveTo(cellAt(e,true))});
+  const end=e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    if(paths[drag.c].length<2)paths[drag.c]=[];
+    if(JSON.stringify(paths)!==drag.start&&drag.c!==lastCol){moves++;lastCol=drag.c}
+    drag=null;hover=null;const r=refresh();
+    if(r.f===k&&r.cov===N)win();
+    else if(r.f===k)st('All pairs joined. Fill the empty squares!');
+  };
+  S.on(c,'pointerup',end);S.on(c,'pointercancel',end);
+  function win(){
+    won=true;const tot=(store.get(skey)||0)+1;store.set(skey,tot);
+    let all=0;for(const s of SZ)all+=store.get('connect:solved:'+s)||0;best('connect',all);
+    showSolved();st(`Solved in ${moves} moves!`);
+    pz.sol.forEach((s,i)=>{const [a,b]=center(s[0]);fx.add(a,b,CCON_COL[i],8)});
+    nextB.textContent='Next puzzle ▶';nextB.classList.remove('ghost');restartAnim(nextB,'ccn-pop');
+    S.next();
+  }
+  S.on(nextB,'click',()=>{setup();st('New puzzle. Connect every pair and fill the board.')});
+  function draw(dt){
+    dt=Math.max(0,dt);T+=dt;x.clearRect(0,0,W,W);
+    const g=cs*.06;
+    for(let v=0;v<N;v++){
+      const [cx,cy]=center(v);const o=owner[v];
+      x.fillStyle=K.line;x.globalAlpha=.55;rr(x,cx-cs/2+g,cy-cs/2+g,cs-2*g,cs-2*g,cs*.18);x.fill();
+      if(o>=0){x.fillStyle=CCON_COL[o];x.globalAlpha=won?.32+.12*Math.sin(T*5-(v%n+(v/n|0))*.6):.24;x.fill()}
+    }
+    x.globalAlpha=1;x.lineCap='round';x.lineJoin='round';
+    paths.forEach((p,i)=>{
+      if(p.length<2)return;x.beginPath();p.forEach((v,j)=>{const [a,b]=center(v);j?x.lineTo(a,b):x.moveTo(a,b)});
+      x.strokeStyle=K.edge;x.lineWidth=cs*.36+4;x.globalAlpha=.25;x.stroke();x.globalAlpha=1;
+      x.strokeStyle=CCON_COL[i];x.lineWidth=cs*.36;x.stroke();
+    });
+    for(let v=0;v<N;v++){
+      const i=dotAt[v];if(i<0)continue;const [a,b]=center(v);
+      const age=T-pulse[i],s=age<.45?1+.25*Math.sin(age/.45*Math.PI):1;
+      if(age<.6){x.strokeStyle=CCON_COL[i];x.globalAlpha=1-age/.6;x.lineWidth=3;x.beginPath();x.arc(a,b,cs*(.34+age*.5),0,7);x.stroke();x.globalAlpha=1}
+      x.beginPath();x.arc(a,b,cs*.33*s,0,7);x.fillStyle=CCON_COL[i];x.fill();x.lineWidth=Math.max(2,cs*.05);x.strokeStyle=K.edge;x.stroke();
+      x.beginPath();x.arc(a-cs*.1*s,b-cs*.1*s,cs*.08*s,0,7);x.fillStyle='rgba(255,255,255,.55)';x.fill();
+      if(done[i]){x.beginPath();x.arc(a,b,cs*.13,0,7);x.fillStyle='rgba(255,255,255,.85)';x.fill()}
+    }
+    if(drag&&hover){x.beginPath();x.arc(hover.x,hover.y,cs*.55,0,7);x.fillStyle=CCON_COL[drag.c];x.globalAlpha=.22;x.fill();x.globalAlpha=1}
+    fx.draw(x,dt);
+  }
+  setup();S.loop(draw);
+}
+
+/* Dots and Boxes: edges are numbered horizontals first (r*N+c, r=0..N), then verticals (HN+r*(N+1)+c) */
+const DOTS={
+  make(N){
+    const HN=(N+1)*N,E=HN+N*(N+1),be=[],eb=[...Array(E)].map(()=>[]);
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){const b=r*N+c,es=[r*N+c,(r+1)*N+c,HN+r*(N+1)+c,HN+r*(N+1)+c+1];be.push(es);es.forEach(e=>eb[e].push(b))}
+    return{N,E,HN,be,eb,L:new Uint8Array(E),own:new Uint8Array(N*N),sides:new Uint8Array(N*N),sc:[0,0],turn:0};
+  },
+  clone(s){return{...s,L:s.L.slice(),own:s.own.slice(),sides:s.sides.slice(),sc:s.sc.slice()}},
+  /* draw edge e for the player to move; returns boxes completed (0 passes the turn) */
+  play(s,e){
+    if(s.L[e])throw new Error('edge taken');
+    s.L[e]=s.turn+1;let got=0;
+    for(const b of s.eb[e]){if(++s.sides[b]===4){s.own[b]=s.turn+1;s.sc[s.turn]++;got++}}
+    if(!got)s.turn^=1;return got;
+  },
+  free(s){const f=[];for(let e=0;e<s.E;e++)if(!s.L[e])f.push(e);return f},
+  gain(s,e){let n=0;for(const b of s.eb[e])if(s.sides[b]===3)n++;return n},
+  safe(s,e){return s.eb[e].every(b=>s.sides[b]<2)},
+  done(s){return s.sc[0]+s.sc[1]===s.N*s.N},
+  /* take every box that can be taken; returns how many */
+  greedy(s){
+    let n=0,again=true;
+    while(again){again=false;for(let e=0;e<s.E;e++)if(!s.L[e]&&DOTS.gain(s,e)){n+=DOTS.play(s,e);again=true}}
+    return n;
+  },
+  give(s,e){const c=DOTS.clone(s);DOTS.play(c,e);return DOTS.greedy(c)},
+  other(s,b,e){const x=s.eb[e];return x.length<2?-1:x[0]===b?x[1]:x[0]},
+  openEdge(s,b,not){return s.be[b].find(e=>!s.L[e]&&e!==not)},
+  /* split the unclaimed boxes into chains and loops (anything with a junction counts as a chain) */
+  comps(s){
+    const N2=s.N*s.N,seen=new Uint8Array(N2),out=[];
+    for(let b0=0;b0<N2;b0++){
+      if(s.own[b0]||seen[b0])continue;
+      const st=[b0],bs=[];seen[b0]=1;let loop=true;
+      while(st.length){
+        const b=st.pop();bs.push(b);if(s.sides[b]!==2)loop=false;
+        for(const e of s.be[b]){if(s.L[e])continue;const o=DOTS.other(s,b,e);if(o<0){loop=false;continue}if(!seen[o]){seen[o]=1;st.push(o)}}
+      }
+      out.push({t:loop&&bs.length>=4?'l':'c',n:bs.length,bs});
+    }
+    return out;
+  },
+  /* net boxes (mover minus opponent) when the mover must open one of these components */
+  val(S,memo=new Map()){
+    if(!S.length)return 0;const key=S.map(c=>c.t+c.n).sort().join();if(memo.has(key))return memo.get(key);
+    let bestV=-1e9;const tried=new Set();
+    S.forEach((c,i)=>{
+      const k=c.t+c.n;if(tried.has(k))return;tried.add(k);
+      const rest=S.filter((_,j)=>j!==i),v=DOTS.val(rest,memo);
+      let opt=c.n+v;if(c.t==='l')opt=Math.max(opt,c.n-8-v);else if(c.n>=3)opt=Math.max(opt,c.n-4-v);
+      bestV=Math.max(bestV,-opt);
+    });
+    memo.set(key,bestV);return bestV;
+  },
+  /* a decline (double-cross) chance: the only takeable boxes are the last 2 of a chain or the last 4 of a loop */
+  dcross(s){
+    const cap=[];for(let b=0;b<s.N*s.N;b++)if(!s.own[b]&&s.sides[b]===3)cap.push(b);
+    if(cap.length===1){
+      const A=cap[0],eAB=DOTS.openEdge(s,A),B=DOTS.other(s,A,eAB);if(B<0||s.sides[B]!==2)return null;
+      const eF=DOTS.openEdge(s,B,eAB),C=DOTS.other(s,B,eF);if(C>=0&&s.sides[C]>=2)return null;
+      return{e:eF,kind:'c'};
+    }
+    if(cap.length===2){
+      const[A,D]=cap,eA=DOTS.openEdge(s,A),eD=DOTS.openEdge(s,D),B=DOTS.other(s,A,eA),C=DOTS.other(s,D,eD);
+      if(B<0||C<0||B===C||B===D||s.sides[B]!==2||s.sides[C]!==2)return null;
+      const eBC=DOTS.openEdge(s,B,eA);if(!s.eb[eBC].includes(C))return null;
+      return{e:eBC,kind:'l'};
+    }
+    return null;
+  },
+  pickAny:a=>a[Math.floor(Math.random()*a.length)],
+  minGive(s,F){let bv=1e9,bs=[];for(const e of F){const g=DOTS.give(s,e);if(g<bv){bv=g;bs=[e]}else if(g===bv)bs.push(e)}return{v:bv,bs}},
+  easy(s){
+    const F=DOTS.free(s),caps=F.filter(e=>DOTS.gain(s,e));if(caps.length)return DOTS.pickAny(caps);
+    const safe=F.filter(e=>DOTS.safe(s,e));return DOTS.pickAny(safe.length&&Math.random()<.7?safe:F);
+  },
+  medium(s){
+    const F=DOTS.free(s),caps=F.filter(e=>DOTS.gain(s,e));if(caps.length)return DOTS.pickAny(caps);
+    const safe=F.filter(e=>DOTS.safe(s,e));if(safe.length)return DOTS.pickAny(safe);
+    return DOTS.pickAny(DOTS.minGive(s,F).bs);
+  },
+  hard(s){
+    const F=DOTS.free(s),caps=F.filter(e=>DOTS.gain(s,e));
+    if(caps.length){
+      const c=DOTS.clone(s),k=DOTS.greedy(c);
+      const end=!DOTS.done(c)&&!DOTS.free(c).some(e=>DOTS.safe(c,e));
+      if(end){
+        const dc=DOTS.dcross(s);
+        if(dc){const v=DOTS.val(DOTS.comps(c)),take=k+v,dec=(dc.kind==='l'?k-8:k-4)-v;if(dec>take)return dc.e}
+      }
+      /* take boxes that do not lead on first, keep a decline chance alive when possible */
+      let bs=-1e9,be=caps[0];
+      for(const e of caps){
+        const t=DOTS.clone(s);DOTS.play(t,e);let sc=DOTS.gain(s,e)*3;
+        if(end&&DOTS.dcross(t))sc+=5;
+        sc+=Math.random()*.1;if(sc>bs){bs=sc;be=e}
+      }
+      return be;
+    }
+    const safe=F.filter(e=>DOTS.safe(s,e));
+    if(safe.length)return DOTS.hardSafe(s,safe);
+    /* every move gives something away: open the component that costs least, using the chain/loop value */
+    const S=DOTS.comps(s),memo=new Map();let bestV=-1e9,pick=null;
+    S.forEach((cp,i)=>{
+      const rest=S.filter((_,j)=>j!==i),v=DOTS.val(rest,memo);
+      let opt=cp.n+v;if(cp.t==='l')opt=Math.max(opt,cp.n-8-v);else if(cp.n>=3)opt=Math.max(opt,cp.n-4-v);
+      const sc=-opt-cp.n*.01;if(sc>bestV){bestV=sc;pick=cp}
+    });
+    const inC=new Set(pick.bs),cand=F.filter(e=>s.eb[e].some(b=>inC.has(b)));
+    const mg=DOTS.minGive(s,cand.length?cand:F);
+    /* a 2-chain is opened in the middle so it cannot be declined */
+    const mid=mg.bs.find(e=>s.eb[e].length===2&&s.eb[e].every(b=>inC.has(b)));
+    return pick.n===2&&mid!=null?mid:DOTS.pickAny(mg.bs);
+  },
+  /* safe moves: when few are left, look ahead so the opponent is the one forced to open the first chain */
+  hardSafe(s,safe){
+    if(safe.length>12)return DOTS.pickAny(safe);
+    const t0=Date.now(),memo=new Map();let budget=true;
+    const win=st=>{ // true if the player to move can make the opponent run out of safe moves first
+      if(!budget||Date.now()-t0>150){budget=false;return false}
+      const key=st.L.join('');if(memo.has(key))return memo.get(key);
+      const sf=DOTS.free(st).filter(e=>DOTS.safe(st,e));let r=false;
+      for(const e of sf){const c=DOTS.clone(st);DOTS.play(c,e);if(!win(c)){r=true;break}}
+      memo.set(key,r);return r;
+    };
+    const good=[];
+    for(const e of safe){const c=DOTS.clone(s);DOTS.play(c,e);if(!win(c))good.push(e);if(!budget)break}
+    if(!budget||!good.length)return DOTS.pickAny(safe);
+    return DOTS.pickAny(good);
+  }
+};
+function dotsboxes(root,S){
+  const L=S.level,TWO=L===4,N=L===3?6:5,M=40,U=100,W=N*U+M*2;
+  const names=TWO?['Blue','Red']:['You','CPU'],ini=TWO?['B','R']:['Y','C'];
+  const st=status(root,TWO?'Take turns drawing lines. Close a box to claim it and go again.':'Draw a line between two dots. Close a box to claim it and go again.');
+  const say=t=>{if(!COMPACT.matches||/^(Your turn|Computer is thinking)/.test(t))st(t)};
+  const bar=el('div','row dbBar',root,names.map((n,i)=>`<div class="dbP p${i}"><span>${n}</span><b>0</b></div>`).join(''));
+  const pills=[...bar.children];
+  const wrap=el('div','dbWrap',root);wrap.dataset.ar=1;wrap.dataset.max=560;
+  const ns='http://www.w3.org/2000/svg',mk=(t,a,p)=>{const e=document.createElementNS(ns,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.append(e);return e};
+  const svg=mk('svg',{viewBox:`0 0 ${W} ${W}`,class:'dbSvg',role:'img','aria-label':'Dots and boxes board'},wrap);
+  const gB=mk('g',{},svg),gE=mk('g',{},svg),gD=mk('g',{},svg);
+  const s=DOTS.make(N);let busy=false,over=false,hov=-1,last=-1;
+  const boxes=[...Array(N*N)].map((_,b)=>{const r=b/N|0,c=b%N,x=M+c*U,y=M+r*U;
+    const g=mk('g',{class:'dbBox'},gB);mk('rect',{x:x+7,y:y+7,width:U-14,height:U-14,rx:12},g);
+    const t=mk('text',{x:x+U/2,y:y+U/2+2,'text-anchor':'middle','dominant-baseline':'central'},g);return{g,t}});
+  const ends=e=>{if(e<s.HN){const r=e/N|0,c=e%N;return[M+c*U,M+r*U,M+(c+1)*U,M+r*U]}const k=e-s.HN,r=k/(N+1)|0,c=k%(N+1);return[M+c*U,M+r*U,M+c*U,M+(r+1)*U]};
+  const lines=[...Array(s.E)].map((_,e)=>{const[x1,y1,x2,y2]=ends(e);return mk('line',{x1,y1,x2,y2,class:'dbE',pathLength:100},gE)});
+  for(let r=0;r<=N;r++)for(let c=0;c<=N;c++)mk('circle',{cx:M+c*U,cy:M+r*U,r:9,class:'dbD'},gD);
+  function paint(){
+    pills.forEach((p,i)=>{p.classList.toggle('on',!over&&s.turn===i);const v=p.querySelector('b');if(+v.textContent!==s.sc[i]){v.textContent=s.sc[i];restartAnim(p,'bump')}});
+  }
+  function draw(e){
+    const who=s.turn,got=DOTS.play(s,e);
+    if(last>=0)lines[last].classList.remove('last');last=e;
+    const ln=lines[e];ln.setAttribute('class',`dbE on p${who} last`);hovSet(-1);
+    beep(got?660:420+who*60,got?120:50);
+    if(got){
+      for(const b of s.eb[e])if(s.own[b]===who+1&&!boxes[b].g.classList.contains('own')){
+        boxes[b].g.setAttribute('class',`dbBox own p${who}`);boxes[b].t.textContent=ini[who];
+      }
+      if(got===2)S.after(90,()=>beep(880,120));
+    }
+    paint();
+    if(DOTS.done(s)){finish();return}
+  }
+  function finish(){
+    over=true;paint();const[a,b]=s.sc;
+    if(TWO){
+      if(a===b){st(`It's a tie, ${a} to ${b}! Press ↻ for a rematch.`);S.fx.banner("It's a tie!")}
+      else{const w=a>b?0:1;st(`${names[w]} wins ${Math.max(a,b)} to ${Math.min(a,b)}! Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(`${names[w]} wins!`,`${Math.max(a,b)} – ${Math.min(a,b)}`);beep(990,300)}
+    }else if(a>b){st(`You win ${a} to ${b}!`);S.fx.confetti();S.after(500,S.next)}
+    else if(a<b){st(`The computer wins ${b} to ${a}. Press ↻ to try again.`);S.shake();beep(150,400,'sawtooth')}
+    else st(`It's a tie, ${a} to ${b}. Press ↻ to play again.`);
+  }
+  const AI=[DOTS.easy,DOTS.medium,DOTS.hard][L-1];
+  function aiTurn(first){
+    busy=true;st('Computer is thinking…');
+    S.after(first?520:360,()=>{
+      if(over)return;const e=AI(s);draw(e);
+      if(over)return;if(s.turn===1)aiTurn(false);else{busy=false;st('Your turn. Draw a line.')}
+    });
+  }
+  function edgeAt(ev){
+    const r0=svg.getBoundingClientRect(),x=(ev.clientX-r0.left)*W/r0.width,y=(ev.clientY-r0.top)*W/r0.height;
+    const gx=(x-M)/U,gy=(y-M)/U;if(gx<-.6||gy<-.6||gx>N+.6||gy>N+.6)return -1;
+    const c=clamp(Math.floor(gx),0,N-1),r=clamp(Math.floor(gy),0,N-1),fx=gx-c,fy=gy-r;
+    const es=s.be[r*N+c],d=[Math.abs(fy),Math.abs(1-fy),Math.abs(fx),Math.abs(1-fx)];
+    let bi=-1;for(let i=0;i<4;i++)if(!s.L[es[i]]&&(bi<0||d[i]<d[bi]))bi=i;
+    return bi<0?-1:es[bi];
+  }
+  function hovSet(e){
+    if(hov===e)return;if(hov>=0&&!s.L[hov])lines[hov].setAttribute('class','dbE');hov=e;
+    if(e>=0&&!s.L[e])lines[e].setAttribute('class',`dbE hov p${s.turn}`);
+  }
+  S.on(svg,'pointermove',ev=>{if(ev.pointerType==='mouse'&&!busy&&!over)hovSet(edgeAt(ev))});
+  S.on(svg,'pointerleave',()=>hovSet(-1));
+  S.on(svg,'click',ev=>{
+    if(busy||over)return;const e=edgeAt(ev);if(e<0||s.L[e])return;
+    const who=s.turn;draw(e);if(over)return;
+    if(TWO){say(`${names[s.turn]}'s turn.${s.turn===who?' Go again!':''}`);return}
+    if(s.turn===1)aiTurn(true);else st('Your turn. Go again!');
+  });
+  paint();
+}
+
+/* Four in a Row: 7 columns x 6 rows. Cell index c*6+r (r=0 is the bottom). 1 = first player (red), -1 = second (yellow). */
+const FOURR=(()=>{
+  const C=7,R=6,LINES=[],OF=[...Array(42)].map(()=>[]);
+  for(let c=0;c<C;c++)for(let r=0;r<R;r++)for(const[dc,dr]of[[1,0],[0,1],[1,1],[1,-1]]){
+    const ec=c+3*dc,er=r+3*dr;if(ec<0||ec>=C||er<0||er>=R)continue;
+    const l=[0,1,2,3].map(k=>(c+k*dc)*R+r+k*dr);LINES.push(l);for(const i of l)OF[i].push(l);
+  }
+  const ORDER=[3,2,4,1,5,0,6],WIN=1e6;
+  const F={C,R,LINES,ORDER,WIN,
+    make(){return{b:new Int8Array(42),h:new Int8Array(7),n:0}},
+    can(s,c){return c>=0&&c<C&&s.h[c]<R},
+    drop(s,c,p){const i=c*R+s.h[c];s.b[i]=p;s.h[c]++;s.n++;return i},
+    undo(s,c){s.h[c]--;s.b[c*R+s.h[c]]=0;s.n--},
+    winLine(s,i){const p=s.b[i];if(!p)return null;for(const l of OF[i])if(s.b[l[0]]===p&&s.b[l[1]]===p&&s.b[l[2]]===p&&s.b[l[3]]===p)return l;return null},
+    full(s){return s.n>=42},
+    /* column where side wins at once, or -1 */
+    winning(s,p){for(const c of ORDER)if(F.can(s,c)){const i=F.drop(s,c,p),w=F.winLine(s,i);F.undo(s,c);if(w)return c}return -1},
+    evalS(s,p){
+      let v=0;const b=s.b;
+      for(let r=0;r<R;r++){const q=b[3*R+r];if(q)v+=q*3}
+      for(const l of LINES){
+        let a=0,o=0;for(const i of l){const q=b[i];if(q===1)a++;else if(q===-1)o++}
+        if(a&&o)continue;
+        if(a===3)v+=6;else if(a===2)v+=2;else if(o===3)v-=6;else if(o===2)v-=2;
+      }
+      return v*p;
+    },
+    nega(s,p,depth,alpha,beta,ply,ctx){
+      if((++ctx.nodes&2047)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+      if(ctx.stop)return 0;
+      if(depth===0)return F.evalS(s,p);
+      let best=-Infinity,any=false;
+      /* immediate win first */
+      for(const c of ORDER)if(F.can(s,c)){const i=F.drop(s,c,p),w=F.winLine(s,i);F.undo(s,c);if(w)return WIN-ply}
+      for(const c of ORDER){
+        if(!F.can(s,c))continue;any=true;
+        F.drop(s,c,p);
+        const v=F.full(s)?0:-F.nega(s,-p,depth-1,-beta,-alpha,ply+1,ctx);
+        F.undo(s,c);
+        if(ctx.stop)return 0;
+        if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+      }
+      return any?best:0;
+    },
+    /* pick a column for side p. level 1..3 */
+    best(s,p,level,timeMs){
+      const free=ORDER.filter(c=>F.can(s,c));if(free.length===1)return free[0];
+      const win=F.winning(s,p),block=F.winning(s,-p);
+      if(level===1){
+        if(win>=0&&Math.random()<.7)return win;
+        if(block>=0&&Math.random()<.4)return block;
+        const w=free.map(c=>4-Math.abs(3-c));let t=Math.random()*w.reduce((a,b)=>a+b,0);
+        for(let k=0;k<free.length;k++){t-=w[k];if(t<=0)return free[k]}return free[0];
+      }
+      if(win>=0)return win;
+      if(block>=0)return block;
+      const maxD=level===2?4:12,ctx={nodes:0,stop:false,deadline:performance.now()+(timeMs||(level===2?200:320))};
+      let bestC=free[0],order=free.slice();
+      for(let d=1;d<=maxD&&d<=42-s.n;d++){
+        let a=-Infinity,sc=[];
+        for(const c of order){
+          F.drop(s,c,p);const v=F.full(s)?0:-F.nega(s,-p,d-1,-Infinity,-a+1,1,ctx);F.undo(s,c);
+          if(ctx.stop)break;sc.push([v,c]);if(v>a)a=v;
+        }
+        if(ctx.stop)break;
+        const top=sc.filter(x=>x[0]===a).map(x=>x[1]);
+        bestC=level===2?top[Math.floor(Math.random()*top.length)]:top[0];
+        order=[bestC,...order.filter(c=>c!==bestC)];
+        if(Math.abs(a)>WIN-100)break;
+      }
+      return bestC;
+    }
+  };
+  return F;
+})();
+
+function fourrow(root,S){
+  const L=S.level,TWO=L===4,F=FOURR;
+  const NM={1:TWO?'Red':'You','-1':TWO?'Yellow':'Computer'};
+  const st=status(root,TWO?'Red goes first. Take turns dropping discs. Get four in a row to win.':'You are Red. Drop discs to get four in a row: across, up, or diagonal.');
+  const bar=el('div','fr-bar',root);
+  const side=[1,-1].map(p=>{const e=el('div','fr-who '+(p>0?'red':'yel'),bar,'<i></i><b></b>');e.querySelector('b').textContent=NM[p];return e});
+  const w=el('div','fr-wrap',root);w.dataset.ar=7/7.45;w.dataset.max=560;
+  const top=el('div','fr-top',w),ghost=el('div','fr-ghost',top);
+  const g=el('div','fr-board',w);
+  const cells=[];
+  for(let r=5;r>=0;r--)for(let c=0;c<7;c++){const e=el('div','fr-cell',g);e.style.animationDelay=(c+(5-r))*30+'ms';cells[c*6+r]=e}
+  const hits=[...Array(7)].map((_,c)=>{const e=el('button','fr-col',w);e.style.left=c*100/7+'%';e.setAttribute('aria-label','Column '+(c+1));
+    S.on(e,'click',()=>{col=c;play(c)});S.on(e,'pointerenter',()=>{col=c;paint()});return e});
+  const s=F.make();let turn=1,col=3,busy=false,over=false;
+  function paint(){
+    ghost.className='fr-ghost '+(turn>0?'red':'yel')+((over||busy||(!TWO&&turn!==1))?' off':'');
+    ghost.style.left=col*100/7+'%';
+    hits.forEach((e,c)=>e.classList.toggle('hov',c===col&&!over));
+    side.forEach((e,k)=>e.classList.toggle('on',!over&&turn===(k?-1:1)));
+  }
+  function put(c,p){
+    const r=s.h[c],i=F.drop(s,c,p);
+    const d=el('div','fr-disc '+(p>0?'red':'yel'),cells[i]);d.style.setProperty('--n',6-r);
+    S.after(Math.min(380,140+(6-r)*45),()=>beep(p>0?330:440,70));
+    return i;
+  }
+  function play(c){
+    if(over||busy||(!TWO&&turn!==1))return;
+    if(!F.can(s,c)){restartAnim(hits[c],'nope');beep(140,90,'sawtooth');return}
+    const i=put(c,turn);
+    if(finish(i))return;
+    turn=-turn;
+    if(!TWO){busy=true;st('Computer is thinking…');paint();
+      S.after(480,()=>{const m=F.best(s,-1,L);const j=put(m,-1);busy=false;if(finish(j))return;turn=1;st('Your turn.');paint()})}
+    else{st(`${NM[turn]}'s turn.`);paint()}
+  }
+  function finish(i){
+    const l=F.winLine(s,i);
+    if(l){
+      over=true;const p=s.b[i];
+      S.after(820,()=>{g.classList.add('done');l.forEach((j,k)=>{const d=cells[j].firstChild;d.classList.add('win');d.style.animationDelay=k*90+'ms'})});
+      if(TWO){st(`${NM[p]} wins! Press ↻ for a rematch.`);S.after(900,()=>{S.fx.confetti();S.fx.banner(`${NM[p]} wins!`);beep(990,300)})}
+      else if(p===1){st('Four in a row! You win!');S.after(1000,S.next)}
+      else{st('The computer got four in a row. Press ↻ to try again.');S.after(850,()=>{S.shake();beep(150,400,'sawtooth')})}
+      paint();return true;
+    }
+    if(F.full(s)){over=true;st("Board full. It's a draw! Press ↻ to play again.");paint();return true}
+    return false;
+  }
+  S.on(window,'keydown',e=>{
+    const k=e.key;
+    if(k==='ArrowLeft'||k==='ArrowRight'){e.preventDefault();col=clamp(col+(k==='ArrowLeft'?-1:1),0,6);beep(600,20);paint()}
+    else if(k==='Enter'||k===' '||k==='ArrowDown'){e.preventDefault();play(col)}
+    else if(/^[1-7]$/.test(k)){col=+k-1;play(col)}
+  });
+  paint();
+}
+
+/* Tower of Hanoi: move the whole tower to the right peg, never a bigger disc on a smaller one */
+const HANOI_COL=['#FF5D73','#FF8A3D','#FFC53D','#7BD957','#2EC4B6','#5CC8FF','#5B6CFF','#B06CFF'];
+/* optimal moves from any legal position: pos[k] = peg of disc k (1 = smallest) */
+function hanoiPlan(pos,n,target){
+  const p=pos.slice(),out=[];
+  (function go(k,t){if(!k)return;if(p[k]===t){go(k-1,t);return}const o=3-p[k]-t;go(k-1,o);out.push([p[k],t]);p[k]=t;go(k-1,t)})(n,target);
+  return out;
+}
+function hanoi(root,S){
+  const n=S.level+2,MIN=2**n-1,BK='hanoi'+n;
+  const st=status(root,`Move all ${n} discs to the right peg. Never put a bigger disc on a smaller one.`);
+  const bar=el('div','row mbar hn-bar',root,`<span class="hn-mv">Moves 0 <small>/ ${MIN}</small></span><span class="hn-t">⏱️ 0:00</span><span class="hn-best"></span>`);
+  const mvEl=$('.hn-mv',bar),tEl=$('.hn-t',bar),bEl=$('.hn-best',bar);
+  const dh=Math.min(10.5,60/n),H=10+dh*(n+2.9)+2,baseTop=H-10,pegTop=baseTop-dh*(n+1.3),liftY=pegTop-dh*1.6,PX=[100/6,50,500/6];
+  const g=el('div','hn',root);g.dataset.ar=100/H;g.style.aspectRatio=100/H;g.dataset.max=640;g.style.setProperty('--dh',dh+'cqw');
+  el('div','hn-goal',g).style.cssText=`left:${PX[2]-15}cqw;top:${pegTop-dh*.6}cqw;height:${baseTop-pegTop+dh*.6}cqw`;
+  const pegs=PX.map((x,i)=>{const p=el('div','hn-peg',g);p.style.cssText=`left:${x}cqw;top:${pegTop}cqw;height:${baseTop-pegTop+1}cqw`;return p});
+  const base=el('div','hn-base',g);base.style.top=baseTop+'cqw';
+  PX.forEach((x,i)=>{const l=el('span','hn-lab'+(i===2?' goal':''),base,i===2?'3 🏁':String(i+1));l.style.left=x+'cqw'});
+  const ctl=el('div','row hn-ctl',root);const demoB=el('button','btn ghost',ctl,'▶ Show me');
+  const W=k=>10+(n>1?(31-10)*(k-1)/(n-1):0);
+  const stacks=[[],[],[]],pos=[0],discs=[0];
+  for(let k=n;k>=1;k--){stacks[0].push(k);pos[k]=0}
+  for(let k=1;k<=n;k++){const d=el('div','hn-disc',g,`<span>${k}</span>`);d.style.width=W(k)+'cqw';d.style.background=HANOI_COL[(k-1)%8];d.style.animationDelay=(n-k)*60+'ms';discs[k]=d}
+  let held=0,from=-1,moves=0,t0=0,over=false,demo=false,helped=false,demoT=0,drag=null,secs=-1;
+  const restY=(peg,idx)=>baseTop-(idx+1)*dh;
+  function place(k,x,y,ms){const d=discs[k];d.style.transitionDuration=(ms==null?180:ms)+'ms';d.style.translate=`${x-W(k)/2}cqw ${y}cqw`}
+  function settle(peg,ms){stacks[peg].forEach((k,i)=>place(k,PX[peg],restY(peg,i),ms))}
+  const fmt=s=>`${s/60|0}:${String(s%60).padStart(2,'0')}`;
+  function showBest(){const b=store.get('best:'+BK);bEl.textContent=b?`🏆 ${b}`:'';bEl.hidden=!b}
+  function hint(){pegs.forEach((p,i)=>p.classList.toggle('ok',!!held&&i!==from&&legal(i)))}
+  const legal=t=>!stacks[t].length||stacks[t][stacks[t].length-1]>held;
+  function lift(peg){
+    if(!stacks[peg].length){restartAnim(pegs[peg],'nope');beep(200,70,'square');return false}
+    from=peg;held=stacks[peg][stacks[peg].length-1];place(held,PX[peg],liftY,160);discs[held].classList.add('held');beep(440+held*30,50);hint();return true;
+  }
+  function drop(t,dragged){
+    const k=held;
+    if(t===from){stacks[from].pop();stacks[from].push(k);settle(from,dragged?120:160);discs[k].classList.remove('held');held=0;from=-1;hint();beep(360,40);return}
+    if(!legal(t)){
+      restartAnim(discs[k],'nope');beep(150,180,'sawtooth');
+      st(`Disc ${k} is bigger than disc ${stacks[t][stacks[t].length-1]}. It can't go there.`);
+      if(dragged){place(k,PX[from],liftY,150)}return;
+    }
+    stacks[from].pop();stacks[t].push(k);pos[k]=t;
+    const idx=stacks[t].length-1;
+    if(dragged)place(k,PX[t],restY(t,idx),130);
+    else{place(k,PX[t],liftY,130);S.after(130,()=>place(k,PX[t],restY(t,idx),140))}
+    discs[k].classList.remove('held');held=0;from=-1;hint();
+    if(!t0)t0=performance.now();moves++;mvEl.innerHTML=`Moves ${moves} <small>/ ${MIN}</small>`;restartAnim(mvEl,'bump');
+    S.after(dragged?120:260,()=>beep(300+k*40,70));
+    check();
+  }
+  function check(){
+    if(stacks[2].length!==n){if(!demo)st(`Moves ${moves}. Minimum is ${MIN}.`);return}
+    over=true;const s=Math.max(1,Math.round((performance.now()-t0)/1000));tEl.textContent='⏱️ '+fmt(s);
+    S.after(300,()=>{discs.forEach((d,k)=>{if(k){d.style.animationDelay=(n-k)*50+'ms';restartAnim(d,'win')}})});
+    if(demo){st(`That is how it's done: ${MIN} moves. Press ↻ to try it yourself.`);demoB.disabled=true;S.fx.toast('Solved!',`${MIN} moves`);return}
+    const rec=!helped&&best(BK,moves,true);showBest();demoB.disabled=true;
+    st(moves===MIN&&!helped?`Perfect! ${moves} moves, the minimum, in ${fmt(s)}.`:`Solved in ${moves} moves and ${fmt(s)}. The minimum is ${MIN}.`+(rec?' New best!':helped?' (With help, so no best score.)':''));
+    S.after(500,S.next);
+  }
+  function tapPeg(p){
+    if(over||demo)return;
+    if(!held)lift(p);else drop(p,false);
+  }
+  const pegAt=e=>{const r=g.getBoundingClientRect();return clamp(Math.floor((e.clientX-r.left)/r.width*3),0,2)};
+  const ptAt=e=>{const r=g.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*100,y:(e.clientY-r.top)/r.width*100}};
+  S.on(g,'pointerdown',e=>{
+    if(over||demo||(e.pointerType==='mouse'&&e.button!==0))return;
+    const p=pegAt(e);let picked=false;
+    if(!held){if(!lift(p))return;picked=true}
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,picked,moved:false};
+    try{g.setPointerCapture(e.pointerId)}catch(_){}
+  });
+  S.on(g,'pointermove',e=>{
+    if(!drag||e.pointerId!==drag.id||!held)return;
+    if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<10)return;
+    drag.moved=true;const q=ptAt(e);place(held,clamp(q.x,0,100),clamp(q.y-dh/2,0,H-dh),0);
+  });
+  const end=e=>{
+    if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;if(!held)return;
+    if(d.moved)drop(pegAt(e),true);
+    else if(!d.picked)drop(pegAt(e),false);
+  };
+  S.on(g,'pointerup',end);
+  S.on(g,'pointercancel',e=>{if(drag&&e.pointerId===drag.id){drag=null;if(held)place(held,PX[from],liftY,150)}});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(/^[1-3]$/.test(e.key)){e.preventDefault();tapPeg(+e.key-1)}
+    else if(e.key==='Escape'&&held)drop(from,false);
+  });
+  S.on(demoB,'click',()=>{
+    if(over)return;
+    if(demo){demo=false;demoB.textContent='▶ Show me';st('Your turn again.');return}
+    if(held)drop(from,false);
+    demo=true;helped=true;demoB.textContent='⏸ Stop';st('Watch the shortest solution from here…');
+    const step=Math.max(170,720-n*70);
+    const run=()=>{
+      if(!demo||over)return;const plan=hanoiPlan(pos,n,2);if(!plan.length)return;
+      const [a,b]=plan[0];lift(a);S.after(step*.35,()=>{if(demo)drop(b,false);else drop(from,false)});
+      demoT=S.after(step,run);
+    };
+    run();
+  });
+  S.every(250,()=>{if(over||!t0)return;const s=Math.floor((performance.now()-t0)/1000);if(s!==secs){secs=s;tEl.textContent='⏱️ '+fmt(s)}});
+  showBest();settle(0,0);
+}
+
+const POOL_C=['#f7f4ea','#f3c300','#1f4fd6','#d7262b','#6a2ea6','#f0791a','#10834a','#8d1d1d','#151515'];
+/* pure table physics, rules and AI (no DOM), shared by the game and the tests */
+const POOL=(()=>{
+  const R=7.5,PW=272,PH=544,VMAX=1500,A=110,KD=.6,EB=.95,EC=.74,HSTEP=1/480,CM=2.6*R,SM=2*R;
+  const SEGS=[[CM,0,PW-CM,0],[CM,PH,PW-CM,PH],[0,CM,0,PH/2-SM],[0,PH/2+SM,0,PH-CM],[PW,CM,PW,PH/2-SM],[PW,PH/2+SM,PW,PH-CM]];
+  const POCK=[[-.5*R,-.5*R],[PW+.5*R,-.5*R],[-1.1*R,PH/2],[PW+1.1*R,PH/2],[-.5*R,PH+.5*R],[PW+.5*R,PH+.5*R]];
+  const AIMP=[[.3*R,.3*R],[PW-.3*R,.3*R],[-.6*R,PH/2],[PW+.6*R,PH/2],[.3*R,PH-.3*R],[PW-.3*R,PH-.3*R]];
+  const DIAG=[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]];
+  const HEAD={x:PW/2,y:PH*.75},FOOT={x:PW/2,y:PH*.25};
+  const typ=n=>n<8?'S':'T';
+  function rack(rng=Math.random){
+    const sh=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+    const pos=[];for(let i=0;i<5;i++)for(let j=0;j<=i;j++)pos.push([FOOT.x+(j-i/2)*2.01*R,FOOT.y-i*1.75*R]);
+    const s=sh([1,2,3,4,5,6,7]),t=sh([9,10,11,12,13,14,15]),slot=Array(15);
+    slot[4]=8;if(rng()<.5){slot[10]=s.pop();slot[14]=t.pop()}else{slot[10]=t.pop();slot[14]=s.pop()}
+    const rest=sh([...s,...t]);for(let i=0;i<15;i++)if(slot[i]==null)slot[i]=rest.pop();
+    const B=[];B[0]={n:0,x:HEAD.x,y:HEAD.y,vx:0,vy:0,on:true,ph:0,ang:0};
+    slot.forEach((n,i)=>{B[n]={n,x:pos[i][0],y:pos[i][1],vx:0,vy:0,on:true,ph:0,ang:-Math.PI/2}});
+    return B;
+  }
+  function step(B,h,ev){
+    for(const b of B){if(!b.on)continue;const s=Math.hypot(b.vx,b.vy);if(s>0){const ns=s-(A+KD*s)*h;if(ns<2.5){b.vx=b.vy=0}else{const k=ns/s;b.vx*=k;b.vy*=k;b.x+=b.vx*h;b.y+=b.vy*h;b.ph+=ns*h/R;b.ang=Math.atan2(b.vy,b.vx)}}}
+    for(let i=0;i<B.length;i++){const a=B[i];if(!a.on)continue;
+      for(let j=i+1;j<B.length;j++){const b=B[j];if(!b.on)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2>=4*R*R||d2===0)continue;
+        const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,o=(2*R-d)/2;a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o;
+        const rel=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(rel>0){const im=(1+EB)/2*rel;a.vx-=im*nx;a.vy-=im*ny;b.vx+=im*nx;b.vy+=im*ny;if(ev&&ev.hit)ev.hit(a,b,rel)}}}
+    for(const b of B){if(!b.on)continue;
+      for(const s of SEGS){const x1=s[0],y1=s[1],ex=s[2]-x1,ey=s[3]-y1;let t=((b.x-x1)*ex+(b.y-y1)*ey)/(ex*ex+ey*ey);t=t<0?0:t>1?1:t;
+        const qx=x1+ex*t,qy=y1+ey*t,dx=b.x-qx,dy=b.y-qy,d2=dx*dx+dy*dy;if(d2>=R*R||d2===0)continue;
+        const d=Math.sqrt(d2),nx=dx/d,ny=dy/d;b.x=qx+nx*R;b.y=qy+ny*R;const vn=b.vx*nx+b.vy*ny;
+        if(vn<0){const tx=-ny,ty=nx,vt=b.vx*tx+b.vy*ty;b.vx=-vn*EC*nx+vt*.96*tx;b.vy=-vn*EC*ny+vt*.96*ty;if(ev&&ev.rail)ev.rail(b,-vn)}}
+      if(b.x<0||b.x>PW||b.y<0||b.y>PH){b.on=false;b.vx=b.vy=0;let k=0,bd=1e9;POCK.forEach((p,i)=>{const d=Math.hypot(p[0]-b.x,p[1]-b.y);if(d<bd){bd=d;k=i}});b.pk=k;if(ev&&ev.pot)ev.pot(b,k)}}
+  }
+  const moving=B=>B.some(b=>b.on&&(b.vx||b.vy));
+  const energy=B=>B.reduce((e,b)=>e+(b.on?b.vx*b.vx+b.vy*b.vy:0),0)/2;
+  const clone=B=>B.map(b=>({...b}));
+  const shotRec=isBreak=>({first:null,pots:[],scratch:false,isBreak,rails:0,contact:false});
+  function recorder(sh,extra){
+    return{
+      hit(a,b,rel){if(sh.first==null&&(a.n===0||b.n===0))sh.first=a.n===0?b.n:a.n;sh.contact=true;extra&&extra.hit&&extra.hit(a,b,rel)},
+      rail(b,v){if(sh.first!=null)sh.rails++;extra&&extra.rail&&extra.rail(b,v)},
+      pot(b,k){sh.pots.push(b.n);if(b.n===0)sh.scratch=true;extra&&extra.pot&&extra.pot(b,k)}
+    };
+  }
+  function strike(B,a,v){B[0].vx=Math.cos(a)*v;B[0].vy=Math.sin(a)*v}
+  /* run a shot to rest on a copy of the balls; returns the shot record and final balls */
+  function runShot(B0,a,v,isBreak,maxT=25){
+    const B=clone(B0),sh=shotRec(isBreak),ev=recorder(sh);strike(B,a,v);let t=0;
+    while(moving(B)&&t<maxT){step(B,HSTEP,ev);t+=HSTEP}
+    return{sh,B,t};
+  }
+  function cast(B,c,dx,dy){
+    let best=1e9,hit=null;
+    for(const b of B){if(!b.on||b===c)continue;const fx=b.x-c.x,fy=b.y-c.y,p=fx*dx+fy*dy;if(p<=0)continue;const q=fx*fx+fy*fy-p*p,r2=4*R*R;if(q>=r2)continue;const t=p-Math.sqrt(r2-q);if(t<best){best=t;hit=b}}
+    let tw=1e9;if(dx>1e-9)tw=Math.min(tw,(PW-R-c.x)/dx);if(dx<-1e-9)tw=Math.min(tw,(R-c.x)/dx);if(dy>1e-9)tw=Math.min(tw,(PH-R-c.y)/dy);if(dy<-1e-9)tw=Math.min(tw,(R-c.y)/dy);
+    return tw<best?{t:Math.max(0,tw),hit:null}:{t:Math.max(0,best),hit};
+  }
+  function clear(B,ax,ay,bx,by,skip,rad=2*R){
+    const ex=bx-ax,ey=by-ay,L2=ex*ex+ey*ey||1;
+    for(const b of B){if(!b.on||skip.includes(b))continue;let t=((b.x-ax)*ex+(b.y-ay)*ey)/L2;t=t<0?0:t>1?1:t;if(Math.hypot(ax+ex*t-b.x,ay+ey*t-b.y)<rad*.98)return false}
+    return true;
+  }
+  function needV(d,ve){let v2=ve*ve;const n=24,ds=d/n;for(let i=0;i<n;i++)v2+=2*(A+KD*Math.sqrt(v2))*ds;return Math.sqrt(v2)}
+  const okSpot=(B,x,y,skip)=>x>=R&&x<=PW-R&&y>=R&&y<=PH-R&&B.every(b=>!b.on||b===skip||Math.hypot(b.x-x,b.y-y)>=2*R+.5);
+  function freeSpot(B,x,y,skip){for(let i=0;i<200;i++){const d=Math.ceil(i/2)*R*.8*(i%2?1:-1),yy=y+d;if(okSpot(B,x,yy,skip))return{x,y:yy};if(okSpot(B,x+d,y,skip))return{x:x+d,y}}return{x,y}}
+  const targetsFor=(B,g,cleared)=>B.filter(b=>b.on&&b.n&&(cleared?b.n===8:g?b.n!==8&&typ(b.n)===g:b.n!==8));
+  const isCleared=(B,g)=>!!g&&!B.some(b=>b.on&&b.n&&b.n!==8&&typ(b.n)===g);
+  /* straight ghost-ball shots for every target ball and pocket, scored by cut angle and distance */
+  function shots(B,g,cleared){
+    const cue=B[0],out=[];
+    for(const t of targetsFor(B,g,cleared))for(let k=0;k<6;k++){
+      const px=AIMP[k][0],py=AIMP[k][1];let ux=px-t.x,uy=py-t.y;const d2=Math.hypot(ux,uy);if(d2<1)continue;ux/=d2;uy/=d2;
+      const dg=DIAG[k],dl=Math.hypot(dg[0],dg[1]),ap=(ux*dg[0]+uy*dg[1])/dl;if(ap<(k===2||k===3?.7:.5))continue;
+      const gx=t.x-ux*2*R,gy=t.y-uy*2*R;if(gx<R-.5||gx>PW-R+.5||gy<R-.5||gy>PH-R+.5)continue;
+      const vx=gx-cue.x,vy=gy-cue.y,d1=Math.hypot(vx,vy);if(d1<1)continue;const cs=(vx*ux+vy*uy)/d1;if(cs<.2)continue;
+      if(!clear(B,cue.x,cue.y,gx,gy,[cue,t]))continue;if(!clear(B,t.x,t.y,px,py,[t,cue]))continue;
+      const vc=needV(d2,90)/(cs*(1+EB)/2),v0=needV(d1,vc)*1.1;
+      const score=cs*cs/(1+d1/500+d2/280)*(v0>VMAX?.3:1)*(k===2||k===3?.85:1)*(.7+.3*ap);
+      out.push({a:Math.atan2(vy,vx),v:Math.min(VMAX,Math.max(160,v0)),score,t:t.n,k});
+    }
+    return out.sort((p,q)=>q.score-p.score);
+  }
+  function legalResult(sh,g,cleared,B0){
+    if(sh.scratch||sh.first==null)return false;
+    if(cleared)return sh.first===8;
+    if(sh.first===8||(g&&typ(sh.first)!==g))return false;
+    if(sh.pots.includes(8))return false;
+    return true;
+  }
+  function gauss(rng){return(rng()+rng()+rng()-1.5)*1.41}
+  /* computer shot: level 1 easy, 2 hard */
+  function plan(B,g,level,isBreak,rng=Math.random){
+    const cue=B[0],hard=level>=2,cleared=isCleared(B,g);let p=null;
+    if(isBreak){const a=Math.atan2(FOOT.y-cue.y,FOOT.x+(rng()-.5)*3-cue.x);return{a:a+gauss(rng)*(hard?.004:.012),v:VMAX*(hard?.98:.85),kind:'break'}}
+    const list=shots(B,g,cleared);
+    if(!hard)list.forEach(s=>s.score*=.45+rng()*1.1);
+    list.sort((p,q)=>q.score-p.score);
+    if(hard){
+      for(const s of list.slice(0,7)){const r=runShot(B,s.a,s.v,false);if(legalResult(r.sh,g,cleared)&&r.sh.pots.includes(s.t)){p=s;break}}
+      if(!p&&list.length&&list[0].score>.25)p=list[0];
+    }else if(list.length)p=list[Math.min(list.length-1,rng()<.25?1:0)];
+    if(p){const sd=hard?.0019:.011;return{a:p.a+gauss(rng)*sd,v:Math.min(VMAX,p.v*(1+(rng()-.5)*(hard?.06:.3))),kind:'pot',t:p.t}}
+    return safety(B,g,cleared,hard,rng);
+  }
+  function safety(B,g,cleared,hard,rng){
+    const cue=B[0],T=targetsFor(B,g,cleared).sort((p,q)=>Math.hypot(p.x-cue.x,p.y-cue.y)-Math.hypot(q.x-cue.x,q.y-cue.y));
+    const cands=[];
+    for(const t of T){
+      if(clear(B,cue.x,cue.y,t.x,t.y,[cue,t]))for(const off of [0,-.6,.6,-1.2,1.2]){const a=Math.atan2(t.y-cue.y,t.x-cue.x),d=Math.hypot(t.y-cue.y,t.x-cue.x);cands.push({a:a+Math.asin(Math.min(.9,off*R/d)),v:Math.min(1100,needV(d,260)),kind:'safe'})}
+      /* one-cushion kicks: mirror the target in each rail */
+      for(const [mx,my] of [[2*R-t.x,t.y],[2*(PW-R)-t.x,t.y],[t.x,2*R-t.y],[t.x,2*(PH-R)-t.y]]){const d=Math.hypot(mx-cue.x,my-cue.y);cands.push({a:Math.atan2(my-cue.y,mx-cue.x),v:Math.min(VMAX,needV(d,300)),kind:'kick'})}
+    }
+    const n=hard?cands.length:Math.min(cands.length,6);
+    for(let i=0;i<n;i++){const c=cands[i],r=runShot(B,c.a,c.v,false);if(legalResult(r.sh,g,cleared)&&(r.sh.rails>0||r.sh.pots.length))return{...c,a:c.a+gauss(rng)*(hard?.002:.01)}}
+    for(let i=0;i<n;i++){const c=cands[i],r=runShot(B,c.a,c.v,false);if(legalResult(r.sh,g,cleared))return c}
+    if(cands.length)return cands[0];
+    return{a:rng()*Math.PI*2,v:600,kind:'blind'};
+  }
+  /* where to put the cue ball with ball in hand */
+  function place(B,g,level,isBreak,rng=Math.random){
+    const cleared=isCleared(B,g),cue=B[0];let best=null,bs=-1;const N=level>=2?70:14;
+    for(let i=0;i<N;i++){
+      const x=R+rng()*(PW-2*R),y=isBreak?HEAD.y+rng()*(PH-R-HEAD.y):R+rng()*(PH-2*R);
+      if(!okSpot(B,x,y,cue))continue;const ox=cue.x,oy=cue.y;cue.x=x;cue.y=y;const s=shots(B,g,cleared)[0];cue.x=ox;cue.y=oy;
+      const sc=s?s.score:0;if(sc>bs||!best){bs=sc;best={x,y}}
+    }
+    return best||freeSpot(B,HEAD.x,HEAD.y,cue);
+  }
+  function rules(G,me,onBefore,sh){
+    const op=1-me,g=G.slice(),objs=sh.pots.filter(n=>n>0&&n!==8),p8=sh.pots.includes(8);
+    const cleared=!!g[me]&&!onBefore.some(n=>n>0&&n!==8&&typ(n)===g[me]);
+    let foul=null;
+    if(sh.first==null)foul='No ball hit';
+    else if(!sh.isBreak){if(g[me]){if(cleared?sh.first!==8:(sh.first===8||typ(sh.first)!==g[me]))foul=cleared?'Hit the 8 first':'Wrong ball first'}else if(sh.first===8)foul='Hit the 8 first'}
+    if(sh.scratch)foul='Scratch';
+    const r={foul,g,cont:false,win:null,why:'',respot8:false,assigned:false};
+    if(p8){
+      if(sh.isBreak)r.respot8=true;
+      else{r.win=cleared&&!foul?me:op;r.why=r.win===me?'8 ball down':foul?'8 ball with a foul':'8 ball too early';return r}
+    }
+    if(!g[me]&&!foul&&objs.length){g[me]=typ(objs[0]);g[op]=g[me]==='S'?'T':'S';r.assigned=true}
+    r.cont=!foul&&objs.some(n=>!g[me]||typ(n)===g[me]);
+    return r;
+  }
+  return{R,PW,PH,VMAX,HSTEP,SEGS,POCK,HEAD,FOOT,CM,SM,typ,rack,step,moving,energy,clone,shotRec,recorder,strike,runShot,cast,clear,needV,okSpot,freeSpot,targetsFor,isCleared,shots,plan,place,rules};
+})();
+
+function pool(root,S){
+  const P=POOL,{R,PW,PH}=P,MODE=S.level,TWO=MODE===3;
+  const st=status(root,'Drag on the table to aim, then pull the power bar down and let go to shoot. Pot your group, then the 8.');
+  const W=360,H=650,OX=27,OY=80,RW=20,BX=325,BW=29;
+  const {c,x}=canvas(root,W,H);c.classList.add('pool-cv');const K=pal();const fx=sparks();
+  const NAMES=TWO?['Player 1','Player 2']:['You','Computer'];
+  const T={auto:false,speed:1};
+  let B,G=[null,null],turn=0,phase='aim',inHand=true,isBreak=true,aim=-Math.PI/2,power=0,drag=null,sh=null,onBefore=[],sink=[],ai=null,winner=null,overWhy='',t=0,lastClick=0,kbPow=.6,kbUsed=false,msg='',msgT=0;
+  const isAI=p=>T.auto||(!TWO&&p===1);
+  const gname=g=>g==='S'?'Solids':g==='T'?'Stripes':'Open';
+  function flash(s){msg=s;msgT=1.8}
+  function reset(){B=P.rack();G=[null,null];turn=0;phase='aim';inHand=true;isBreak=true;aim=-Math.PI/2;power=0;winner=null;sink=[];startTurn()}
+  function startTurn(){
+    phase='aim';power=0;
+    const who=NAMES[turn];
+    if(isAI(turn)){phase='ai';st(TWO?`${who} is aiming…`:'Computer is thinking…');S.after(500/T.speed,aiThink);return}
+    const tail=inHand?(isBreak?' Drag the cue ball to place it, then break.':' Ball in hand: drag the cue ball anywhere.'):'';
+    st(isBreak?`${TWO?who+' breaks.':'Your break.'}${tail}`:`${TWO?who+"'s turn":'Your turn'} (${gname(G[turn])}).${tail}`);
+  }
+  function aiThink(){
+    if(phase!=='ai')return;const lvl=TWO?2:MODE;
+    if(inHand){const p=P.place(B,G[turn],lvl,isBreak);B[0].x=p.x;B[0].y=p.y;inHand=false}
+    const p=P.plan(B,G[turn],lvl,isBreak);
+    let a1=p.a;while(a1-aim>Math.PI)a1-=2*Math.PI;while(a1-aim<-Math.PI)a1+=2*Math.PI;
+    ai={a0:aim,a1,v:p.v,t:0};
+  }
+  function shoot(v){
+    if(!(v>0))return;inHand=false;phase='roll';onBefore=B.filter(b=>b.on&&b.n).map(b=>b.n);sh=P.shotRec(isBreak);
+    ev=P.recorder(sh,{hit:(a,b,rel)=>{if(rel>40&&t-lastClick>.03){lastClick=t;beep(900+Math.min(600,rel/2),25,'sine')}},rail:(b,v)=>{if(v>80)beep(160,30,'sine')},
+      pot:(b,k)=>{const p=P.POCK[k];sink.push({n:b.n,x:b.x,y:b.y,px:p[0],py:p[1],t:0});beep(b.n===8?220:b.n?520:180,140);fx.add(OX+p[0],OY+p[1],b.n?POOL_C[b.n>8?b.n-8:b.n]:'#fff',14,150)}});
+    P.strike(B,aim,v);power=0;beep(300+v/8,60,'square');
+  }
+  let ev=null;
+  function endShot(){
+    const r=P.rules(G,turn,onBefore,sh);G=r.g;
+    const me=turn;
+    if(sh.scratch){B[0].on=true;const p=P.freeSpot(B,P.HEAD.x,P.HEAD.y,B[0]);B[0].x=p.x;B[0].y=p.y;B[0].vx=B[0].vy=0}
+    if(r.respot8){const p=P.freeSpot(B,P.FOOT.x,P.FOOT.y,B[8]);Object.assign(B[8],{on:true,x:p.x,y:p.y,vx:0,vy:0});flash('8 ball respotted')}
+    isBreak=false;
+    if(r.win!=null){gameOver(r.win,r.why);return}
+    if(r.assigned){const g=G[me];flash(TWO||!isAI(me)?`${TWO?NAMES[me]+': ':'You are '}${gname(g)}`:`Computer is ${gname(g)}`);beep(780,120)}
+    if(r.cont){if(!r.assigned)flash(isAI(me)&&!TWO?'Computer goes again':'Shoot again!');inHand=false}
+    else{
+      turn=1-turn;inHand=!!r.foul;
+      if(r.foul){S.fx.toast('Foul: '+r.foul,`${NAMES[turn]} ${TWO||isAI(turn)?'gets':'get'} ball in hand`);beep(140,200,'sawtooth')}
+    }
+    startTurn();
+  }
+  function gameOver(w,why){
+    phase='over';winner=w;overWhy=why;msgT=0;
+    if(TWO){st(`${NAMES[w]} wins! ${why}. Tap the table for a rematch.`);S.fx.confetti();S.fx.banner(`${NAMES[w]} wins!`,why)}
+    else if(w===0){st(`You win! ${why}. Tap the table to play again.`);S.next()}
+    else{st(`Computer wins: ${why}. Tap the table to try again.`);S.shake();S.fx.banner('Computer wins',why);beep(150,400,'sawtooth')}
+  }
+  /* ---- input ---- */
+  const tp=p=>({x:p.x-OX,y:p.y-OY});
+  function setAim(p){const q=tp(p),dx=q.x-B[0].x,dy=q.y-B[0].y;if(dx*dx+dy*dy>64)aim=Math.atan2(dy,dx)}
+  function human(){return phase==='aim'&&!isAI(turn)}
+  function moveCue(p){
+    const q=tp(p),minY=isBreak?P.HEAD.y:R;
+    const nx=clamp(q.x,R,PW-R),ny=clamp(q.y,minY,PH-R);
+    if(P.okSpot(B,nx,ny,B[0])){B[0].x=nx;B[0].y=ny}
+  }
+  S.on(c,'pointerdown',e=>{
+    const p=c.pos(e);
+    if(phase==='over'){if(t-overAt>.8)S.restart();return}
+    if(!human())return;try{c.setPointerCapture(e.pointerId)}catch(_){}
+    kbUsed=false;if(p.x>=BX-8){drag={k:'pow',y0:p.y};power=0;return}
+    const q=tp(p);
+    if(inHand&&Math.hypot(q.x-B[0].x,q.y-B[0].y)<R*3.2){drag={k:'cue'};return}
+    drag={k:'aim'};setAim(p);
+  });
+  S.on(c,'pointermove',e=>{
+    if(!drag||!human())return;const p=c.pos(e);
+    if(drag.k==='pow')power=clamp((p.y-drag.y0)/(PH*.8),0,1);
+    else if(drag.k==='cue')moveCue(p);
+    else setAim(p);
+  });
+  const up=()=>{if(!drag)return;const k=drag.k;drag=null;if(k==='pow'&&human()){if(power>.03)shoot(P.VMAX*Math.pow(power,1.2));else power=0}};
+  S.on(c,'pointerup',up);S.on(c,'pointercancel',()=>{drag=null;power=0});
+  S.on(window,'keydown',e=>{
+    if(phase==='over'&&(e.key===' '||e.key==='Enter')){e.preventDefault();S.restart();return}
+    if(!human())return;const f=e.shiftKey?.05:.006;if(/^(Arrow|[adws ]$|Enter)/.test(e.key))kbUsed=true;
+    if(e.key==='ArrowLeft'||e.key==='a'){e.preventDefault();aim-=f}
+    else if(e.key==='ArrowRight'||e.key==='d'){e.preventDefault();aim+=f}
+    else if(e.key==='ArrowUp'||e.key==='w'){e.preventDefault();kbPow=clamp(kbPow+.05,.05,1)}
+    else if(e.key==='ArrowDown'||e.key==='s'){e.preventDefault();kbPow=clamp(kbPow-.05,.05,1)}
+    else if(e.key===' '||e.key==='Enter'){e.preventDefault();shoot(P.VMAX*Math.pow(kbPow,1.2))}
+  });
+  let overAt=0;
+  /* test handle */
+  c._pool={T,kick:()=>{if(phase==="aim")startTurn()},get:()=>({B,G,turn,phase,inHand,isBreak,winner,overWhy}),P};
+  reset();
+  /* ---- drawing ---- */
+  function ballGfx(cx,cy,n,r,b,alpha=1){
+    x.save();x.globalAlpha=alpha;x.translate(cx,cy);
+    if(alpha===1){x.fillStyle='rgba(0,0,0,.32)';x.beginPath();x.ellipse(r*.22,r*.32,r,r*.92,0,0,7);x.fill()}
+    x.save();x.beginPath();x.arc(0,0,r,0,7);x.clip();
+    const col=POOL_C[n>8?n-8:n],ang=b?b.ang:-Math.PI/2,ph=b?(Math.cos(b.ph)<0?b.ph+Math.PI:b.ph):0;
+    x.fillStyle=n>8?POOL_C[0]:col;x.fillRect(-r,-r,2*r,2*r);
+    if(n>8){x.save();x.rotate(ang+Math.PI/2+Math.sin(ph)*.25);x.fillStyle=col;x.fillRect(-r,-r*.56,2*r,r*1.12);x.restore()}
+    if(n>0){const o=Math.sin(ph)*r*.6,cp=Math.cos(ph);if(cp>-.1){const sx=Math.cos(ang)*o,sy=Math.sin(ang)*o,sc=Math.max(.15,cp);
+      x.save();x.translate(sx,sy);x.rotate(ang);x.fillStyle='#fbfaf4';x.beginPath();x.ellipse(0,0,r*.56*sc,r*.56,0,0,7);x.fill();
+      if(cp>.45){x.rotate(-ang);x.fillStyle='#151515';x.font=`800 ${n>9?r*.78:r*.92}px system-ui,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(n,0,r*.06)}x.restore()}}
+    else{x.fillStyle='rgba(215,38,43,.55)';const o=Math.sin(ph)*r*.6;if(Math.cos(ph)>0){x.beginPath();x.arc(Math.cos(ang)*o,Math.sin(ang)*o,r*.13,0,7);x.fill()}}
+    const sh=x.createRadialGradient(0,0,r*.5,0,0,r);sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(1,'rgba(0,0,0,.38)');x.fillStyle=sh;x.fillRect(-r,-r,2*r,2*r);
+    const hl=x.createRadialGradient(-r*.38,-r*.42,0,-r*.38,-r*.42,r*.7);hl.addColorStop(0,'rgba(255,255,255,.95)');hl.addColorStop(.25,'rgba(255,255,255,.35)');hl.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=hl;x.fillRect(-r,-r,2*r,2*r);
+    x.restore();x.restore();
+  }
+  let TBL=null;
+  function tableLayer(){
+    const r=Math.min((window.devicePixelRatio||1)*1.6,3.2),cv=document.createElement('canvas');cv.width=Math.round(W*r);cv.height=Math.round(H*r);const g=cv.getContext('2d');g.scale(r,r);
+    const L=OX-RW,Tp=OY-RW,Wd=PW+2*RW,Ht=PH+2*RW;
+    g.fillStyle='rgba(0,0,0,.25)';rr(g,L+3,Tp+5,Wd,Ht,18);g.fill();
+    const wood=g.createLinearGradient(L,0,L+Wd,0);wood.addColorStop(0,'#5b3217');wood.addColorStop(.5,'#8a5326');wood.addColorStop(1,'#5b3217');
+    g.fillStyle=wood;rr(g,L,Tp,Wd,Ht,16);g.fill();g.lineWidth=3;g.strokeStyle=K.edge;g.stroke();
+    g.strokeStyle='rgba(255,220,170,.25)';g.lineWidth=1.5;rr(g,L+4,Tp+4,Wd-8,Ht-8,13);g.stroke();
+    /* grain */
+    g.save();rr(g,L,Tp,Wd,Ht,16);g.clip();g.strokeStyle='rgba(40,18,5,.18)';g.lineWidth=1;for(let i=0;i<26;i++){const yy=Tp+i*Ht/26+((i*37)%11);g.beginPath();g.moveTo(L,yy);g.bezierCurveTo(L+Wd*.3,yy+6,L+Wd*.7,yy-6,L+Wd,yy+2);g.stroke()}g.restore();
+    /* felt */
+    const CD=7;
+    const felt=g.createRadialGradient(OX+PW/2,OY+PH/2,40,OX+PW/2,OY+PH/2,PH*.62);felt.addColorStop(0,'#21a06a');felt.addColorStop(1,'#11704a');
+    g.fillStyle=felt;g.fillRect(OX-CD,OY-CD,PW+2*CD,PH+2*CD);
+    /* felt texture */
+    g.globalAlpha=.06;for(let i=0;i<900;i++){g.fillStyle=i%2?'#fff':'#000';g.fillRect(OX+((i*97)%PW),OY+((i*211)%PH),1,1)}g.globalAlpha=1;
+    /* pockets */
+    for(const [px,py] of P.POCK){const side=Math.abs(py-PH/2)<1,pr=side?1.75*R:1.95*R;
+      g.fillStyle='#3a2410';g.beginPath();g.arc(OX+px,OY+py,pr+4,0,7);g.fill();
+      const pg=g.createRadialGradient(OX+px,OY+py,1,OX+px,OY+py,pr);pg.addColorStop(0,'#000');pg.addColorStop(1,'#1a1a1a');g.fillStyle=pg;g.beginPath();g.arc(OX+px,OY+py,pr,0,7);g.fill()}
+    /* cushions with angled jaws */
+    const cush=(pts)=>{g.beginPath();pts.forEach(([a,b],i)=>i?g.lineTo(OX+a,OY+b):g.moveTo(OX+a,OY+b));g.closePath();g.fillStyle='#0f6a43';g.fill();g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=1;g.stroke()};
+    const cm=P.CM,sm=P.SM,j=CD*.9;
+    cush([[cm,0],[PW-cm,0],[PW-cm+j*.7,-CD],[cm-j*.7,-CD]]);
+    cush([[cm,PH],[PW-cm,PH],[PW-cm+j*.7,PH+CD],[cm-j*.7,PH+CD]]);
+    cush([[0,cm],[0,PH/2-sm],[-CD,PH/2-sm+j*.4],[-CD,cm-j*.7]]);
+    cush([[0,PH/2+sm],[0,PH-cm],[-CD,PH-cm+j*.7],[-CD,PH/2+sm-j*.4]]);
+    cush([[PW,cm],[PW,PH/2-sm],[PW+CD,PH/2-sm+j*.4],[PW+CD,cm-j*.7]]);
+    cush([[PW,PH/2+sm],[PW,PH-cm],[PW+CD,PH-cm+j*.7],[PW+CD,PH/2+sm-j*.4]]);
+    g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=1;g.strokeRect(OX+.5,OY+.5,PW-1,PH-1);
+    /* diamonds */
+    g.fillStyle='#f3ead2';const dm=(a,b)=>{g.save();g.translate(a,b);g.rotate(Math.PI/4);g.fillRect(-2,-2,4,4);g.restore()};
+    for(const k of [1,2,3,5,6,7]){const yy=OY+PH*k/8;dm(OX-CD-(RW-CD)/2,yy);dm(OX+PW+CD+(RW-CD)/2,yy)}
+    for(const k of [1,2,3]){const xx=OX+PW*k/4;dm(xx,OY-CD-(RW-CD)/2);dm(xx,OY+PH+CD+(RW-CD)/2)}
+    /* head string and spots */
+    g.strokeStyle='rgba(255,255,255,.16)';g.setLineDash([4,5]);g.beginPath();g.moveTo(OX,OY+P.HEAD.y);g.lineTo(OX+PW,OY+P.HEAD.y);g.stroke();g.setLineDash([]);
+    g.fillStyle='rgba(255,255,255,.35)';for(const s of [P.HEAD,P.FOOT]){g.beginPath();g.arc(OX+s.x,OY+s.y,1.6,0,7);g.fill()}
+    return cv;
+  }
+  function hud(){
+    for(let p=0;p<2;p++){
+      const px=6+p*176,pw=172,act=turn===p&&phase!=='over',win=phase==='over'&&winner===p;
+      x.fillStyle=act||win?K.c2:K.board;rr(x,px,4,pw,52,12);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
+      const ink=act||win?'#1E1F5C':K.ink;
+      x.fillStyle=ink;x.font=`13px ${DISPLAY}`;x.textAlign='left';x.textBaseline='middle';x.fillText((act?'▶ ':'')+NAMES[p],px+9,19);
+      x.font='800 11px system-ui,sans-serif';x.textAlign='right';x.globalAlpha=.8;x.fillText(gname(G[p]),px+pw-9,19);x.globalAlpha=1;
+      const g=G[p];
+      if(!g){x.fillStyle=ink;x.globalAlpha=.55;x.font='700 11px system-ui,sans-serif';x.textAlign='left';x.fillText(isBreak?'Break to start':'Pot any ball to choose',px+9,41);x.globalAlpha=1}
+      else{const ns=g==='S'?[1,2,3,4,5,6,7]:[9,10,11,12,13,14,15];const done=P.isCleared(B,g);
+        ns.forEach((n,i)=>{const on=B[n].on;ballGfx(px+16+i*19.5,41,n,7.2,{ang:-Math.PI/2,ph:0},on?1:.18)});
+        if(done)ballGfx(px+pw-14,41,8,7.2,{ang:-Math.PI/2,ph:0},1)}
+    }
+  }
+  function powerBar(pw){
+    const y0=OY,h=PH;x.fillStyle=K.line;rr(x,BX,y0,BW,h,12);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
+    if(pw>0){const gr=x.createLinearGradient(0,y0,0,y0+h);gr.addColorStop(0,K.c3);gr.addColorStop(.5,K.c2);gr.addColorStop(1,K.c1);x.save();rr(x,BX+3,y0+3,BW-6,h-6,9);x.clip();x.fillStyle=gr;x.fillRect(BX,y0,BW,h*pw);x.restore()}
+    /* cue butt handle */
+    const hy=y0+12+pw*(h-60);x.fillStyle='#2b1a0c';rr(x,BX+6,hy,BW-12,40,6);x.fill();x.fillStyle='#d9b27a';x.fillRect(BX+6,hy+28,BW-12,4);x.strokeStyle=K.edge;x.lineWidth=1.5;rr(x,BX+6,hy,BW-12,40,6);x.stroke();
+    x.save();x.translate(BX+BW/2,y0+h-34);x.rotate(-Math.PI/2);x.fillStyle=K.muted;x.font=`11px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText(pw>0?Math.round(pw*100)+'%':'◂ PULL',0,0);x.restore();
+  }
+  function cueStick(cx,cy,a,pull){
+    const dx=Math.cos(a),dy=Math.sin(a),g0=R+4+pull*46,L=250;
+    const sx=cx-dx*g0,sy=cy-dy*g0,ex=cx-dx*(g0+L),ey=cy-dy*(g0+L);
+    x.save();x.lineCap='round';
+    x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=6;x.beginPath();x.moveTo(sx+4,sy+6);x.lineTo(ex+4,ey+6);x.stroke();
+    const gr=x.createLinearGradient(sx,sy,ex,ey);gr.addColorStop(0,'#f4f0e6');gr.addColorStop(.03,'#f4f0e6');gr.addColorStop(.035,'#e8c48c');gr.addColorStop(.6,'#c48a4a');gr.addColorStop(.62,'#222');gr.addColorStop(.7,'#7a1f1f');gr.addColorStop(1,'#2a160a');
+    x.strokeStyle=gr;x.lineWidth=4.5;x.beginPath();x.moveTo(sx,sy);x.lineTo(ex,ey);x.stroke();
+    x.strokeStyle='#3d6fd8';x.lineWidth=4.5;x.beginPath();x.moveTo(sx,sy);x.lineTo(sx-dx*2,sy-dy*2);x.stroke();
+    x.restore();
+  }
+  function aimGuide(a){
+    const cue=B[0],dx=Math.cos(a),dy=Math.sin(a),r=P.cast(B,cue,dx,dy),gx=cue.x+dx*r.t,gy=cue.y+dy*r.t;
+    x.save();x.translate(OX,OY);x.strokeStyle='rgba(255,255,255,.75)';x.lineWidth=1.5;x.setLineDash([5,4]);x.beginPath();x.moveTo(cue.x+dx*R,cue.y+dy*R);x.lineTo(gx,gy);x.stroke();x.setLineDash([]);
+    x.beginPath();x.arc(gx,gy,R,0,7);x.strokeStyle='rgba(255,255,255,.85)';x.stroke();
+    if(r.hit){
+      const nx=r.hit.x-gx,ny=r.hit.y-gy,nl=Math.hypot(nx,ny)||1,ux=nx/nl,uy=ny/nl;
+      const g=G[turn],cl=P.isCleared(B,g),n=r.hit.n,ok=g?(cl?n===8:n!==8&&P.typ(n)===g):n!==8||isBreak;
+      x.strokeStyle=ok?'rgba(255,255,255,.95)':K.c1;x.lineWidth=2;x.beginPath();x.moveTo(r.hit.x+ux*R,r.hit.y+uy*R);x.lineTo(r.hit.x+ux*(R+55),r.hit.y+uy*(R+55));x.stroke();
+      if(!ok){x.beginPath();x.moveTo(gx-4,gy-4);x.lineTo(gx+4,gy+4);x.moveTo(gx+4,gy-4);x.lineTo(gx-4,gy+4);x.stroke()}
+      const cs=dx*ux+dy*uy;let tx=dx-cs*ux,ty=dy-cs*uy;const tl=Math.hypot(tx,ty);
+      if(tl>.05){tx/=tl;ty/=tl;x.strokeStyle='rgba(255,255,255,.4)';x.lineWidth=1.5;x.setLineDash([2,3]);x.beginPath();x.moveTo(gx,gy);x.lineTo(gx+tx*30*tl,gy+ty*30*tl);x.stroke();x.setLineDash([])}
+    }
+    x.restore();
+  }
+  let simAcc=0;
+  S.loop(dt=>{
+    t+=dt;
+    /* AI aiming animation */
+    if(phase==='ai'&&ai){
+      ai.t+=dt*T.speed;const k=Math.min(1,ai.t/.8),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;aim=ai.a0+(ai.a1-ai.a0)*e;
+      const pp=Math.pow(ai.v/P.VMAX,1/1.2);if(ai.t>.9)power=Math.min(pp,(ai.t-.9)/.45*pp);
+      if(ai.t>1.5){aim=ai.a1;const v=ai.v;ai=null;phase='aim';shoot(v)}
+    }
+    if(phase==='roll'){
+      simAcc+=dt*T.speed;let n=0;
+      while(simAcc>=P.HSTEP&&n<20000){P.step(B,P.HSTEP,ev);simAcc-=P.HSTEP;n++}
+      if(!P.moving(B)){simAcc=0;endShot()}
+    }
+    if(phase==='over'&&!overAt)overAt=t;
+    /* draw */
+    x.fillStyle=K.board;x.fillRect(0,0,W,H);
+    if(!TBL)TBL=tableLayer();x.drawImage(TBL,0,0,W,H);
+    sink=sink.filter(s=>(s.t+=dt*3)<1);
+    for(const s of sink){const k=s.t;ballGfx(OX+s.x+(s.px-s.x)*k,OY+s.y+(s.py-s.y)*k,s.n,R*(1-k*.45),null,1-k)}
+    for(const b of B)if(b.on)ballGfx(OX+b.x,OY+b.y,b.n,R,b);
+    const still=phase==='aim'||phase==='ai';
+    if(still&&inHand&&!isAI(turn)){const pr=R+5+Math.sin(t*5)*2;x.strokeStyle=K.c2;x.lineWidth=2;x.setLineDash([4,3]);x.beginPath();x.arc(OX+B[0].x,OY+B[0].y,pr,0,7);x.stroke();x.setLineDash([])}
+    if(still&&(!isAI(turn)||ai)){aimGuide(aim);cueStick(OX+B[0].x,OY+B[0].y,aim,phase==='aim'&&!isAI(turn)&&!drag?0:power)}
+    fx.draw(x,dt);
+    hud();
+    powerBar(drag&&drag.k==='pow'?power:phase==='ai'?power:kbUsed&&human()?kbPow:0);
+    if(msgT>0){msgT-=dt;x.save();x.globalAlpha=Math.min(1,msgT*3);x.font=`15px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';const w=x.measureText(msg).width+24;x.fillStyle='rgba(0,0,0,.55)';rr(x,OX+PW/2-w/2,OY+PH/2-16,w,32,16);x.fill();x.fillStyle='#fff';x.fillText(msg,OX+PW/2,OY+PH/2+1);x.restore()}
+    if(phase==='over'){
+      x.fillStyle='rgba(0,0,0,.45)';x.fillRect(OX,OY,PW,PH);x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+      x.font=`26px ${DISPLAY}`;x.fillText(TWO?`${NAMES[winner]} wins!`:winner===0?'You win!':'Computer wins',OX+PW/2,OY+PH/2-24);
+      x.font='800 15px system-ui,sans-serif';x.fillText(overWhy,OX+PW/2,OY+PH/2+6);x.fillText('Tap to play again',OX+PW/2,OY+PH/2+30);
+    }
+  });
+}
+
+/* Sliding Puzzle: slide numbered tiles into order */
+const SLIDE_COL=['#FF5D73','#FF8A3D','#FFC53D','#2EC4B6','#5B6CFF','#B06CFF'];
+/* random legal gap moves from the solved board, so the result is always solvable. b[cell]=tile (0 = gap) */
+function slideShuffle(N,rnd){
+  rnd=rnd||Math.random;
+  for(;;){
+    const b=[...Array(N*N)].map((_,i)=>(i+1)%(N*N));let gap=N*N-1,prev=-1;const path=[gap],steps=[0,200,400,700,1000][N-2]||N*N*30;
+    for(let s=0;s<steps;s++){
+      const r=gap/N|0,c=gap%N,nb=[];
+      if(r>0)nb.push(gap-N);if(r<N-1)nb.push(gap+N);if(c>0)nb.push(gap-1);if(c<N-1)nb.push(gap+1);
+      const opts=nb.filter(x=>x!==prev),t=opts[Math.floor(rnd()*opts.length)];
+      b[gap]=b[t];b[t]=0;prev=gap;gap=t;path.push(gap);
+    }
+    const ok=b.filter((v,i)=>v&&v===i+1).length;
+    if(ok<=Math.max(1,Math.floor(N*N/5)))return{b,path};
+  }
+}
+function slidepuzzle(root,S){
+  const N=S.level+2,NN=N*N,BK='slide'+N;
+  const st=status(root,'Slide the tiles into order, 1 at the top left, with the gap at the bottom right.');
+  const bar=el('div','row mbar sp-bar',root,`<span class="sp-mv">Moves 0</span><span class="sp-t">⏱️ 0:00</span><span class="sp-best"></span>`);
+  const mvEl=$('.sp-mv',bar),tEl=$('.sp-t',bar),bEl=$('.sp-best',bar);
+  const g=el('div','sp',root);g.dataset.ar=1;g.style.aspectRatio=1;g.dataset.max=600;g.style.setProperty('--n',N);
+  const inner=el('div','sp-in',g);
+  const ctl=el('div','row sp-ctl',root);const shufB=el('button','btn ghost',ctl,'🔀 Shuffle');
+  const sh=slideShuffle(N);const b=sh.b;g._seq=sh.path;
+  const tiles=[];let moves=0,t0=0,over=false,secs=-1;
+  for(let v=1;v<NN;v++){
+    const t=el('button','sp-tile',inner,`<span class="sp-face"><b>${v}</b></span>`);
+    t.style.setProperty('--c',SLIDE_COL[Math.floor((v-1)/N)%6]);t.style.animationDelay=Math.min(v*18,500)+'ms';
+    S.on(t,'click',()=>tap(b.indexOf(v)));tiles[v]=t;
+  }
+  const fmt=s=>`${s/60|0}:${String(s%60).padStart(2,'0')}`;
+  function showBest(){const m=store.get('best:'+BK),t=store.get('best:'+BK+'t');bEl.textContent=m?`🏆 ${fmt(t)} · ${m}`:'';bEl.hidden=!m}
+  function draw(){
+    b.forEach((v,i)=>{if(!v)return;const t=tiles[v];t.style.transform=`translate(${i%N*100}%,${(i/N|0)*100}%)`;t.classList.toggle('ok',v===i+1);
+      t.setAttribute('aria-label',`Tile ${v}, row ${(i/N|0)+1}, column ${i%N+1}`)});
+  }
+  function tap(i){
+    if(over)return;const gap=b.indexOf(0),r=i/N|0,c=i%N,gr=gap/N|0,gc=gap%N;
+    if(i===gap)return;
+    if(r!==gr&&c!==gc){restartAnim(tiles[b[i]],'nope');beep(170,90,'square');return}
+    const step=r===gr?(c<gc?-1:1):(r<gr?-N:N);let k=gap,n=0;
+    while(k!==i){b[k]=b[k+step];k+=step;n++}b[i]=0;
+    if(!t0)t0=performance.now();moves+=n;mvEl.textContent='Moves '+moves;restartAnim(mvEl,'bump');
+    beep(420+rand(60),40);draw();
+    if(b.every((v,j)=>v===(j+1)%NN))win();
+  }
+  function win(){
+    over=true;const s=Math.max(1,Math.round((performance.now()-t0)/1000));tEl.textContent='⏱️ '+fmt(s);
+    const rt=best(BK+'t',s,true),rm=best(BK,moves,true);showBest();
+    st(`Solved in ${moves} moves and ${fmt(s)}!`+(rt||rm?` New best ${rt&&rm?'time and moves':rt?'time':'moves'}.`:''));
+    g.classList.add('done');
+    for(let v=1;v<NN;v++){tiles[v].style.animationDelay=((v-1)%N+((v-1)/N|0))*45+'ms';restartAnim(tiles[v],'win')}
+    S.after(500,S.next);
+  }
+  /* direction = the way the tile moves into the gap */
+  function dir(d){
+    const gap=b.indexOf(0),gr=gap/N|0,gc=gap%N;
+    const src=d==='left'?(gc<N-1?gap+1:-1):d==='right'?(gc>0?gap-1:-1):d==='up'?(gr<N-1?gap+N:-1):(gr>0?gap-N:-1);
+    if(src>=0)tap(src);else beep(170,60,'square');
+  }
+  S.on(window,'keydown',e=>{const d=KEYDIR[e.key];if(d&&e.key.startsWith('Arrow')){e.preventDefault();dir(d)}});
+  onSwipe(S,g,dir);
+  S.on(shufB,'click',()=>S.restart());
+  S.every(250,()=>{if(over||!t0)return;const s=Math.floor((performance.now()-t0)/1000);if(s!==secs){secs=s;tEl.textContent='⏱️ '+fmt(s)}});
+  showBest();draw();
+}
+
+/* Water Sort: pour colors between tubes until each tube holds one color */
+const WATER_LV=[4,6,8,10],WATER_CAP=4,WATER_EMPTY=2;
+const WATER_COL=['#FF5D73','#FFC53D','#2EC4B6','#5B6CFF','#B06CFF','#FF8A3D','#7BD957','#FF8AD8','#5CC8FF','#A0703F'];
+const WATER_NAME=['red','yellow','teal','blue','purple','orange','green','pink','sky blue','brown'];
+function waterRng(s){return()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+/* depth-first search with state hashing; returns a list of [from,to] pours or null if not found within the node cap */
+function waterSolve(start,cap,limit){
+  limit=limit||60000;let nodes=0;
+  const key=t=>t.map(x=>x.join('')).sort().join('|');
+  const seen=new Set([key(start)]),path=[];
+  const solved=t=>t.every(x=>!x.length||(x.length===cap&&x.every(c=>c===x[0])));
+  function moves(t){
+    const out=[];
+    for(let i=0;i<t.length;i++){
+      const a=t[i];if(!a.length)continue;const top=a[a.length-1];let run=1;while(run<a.length&&a[a.length-1-run]===top)run++;
+      const uni=run===a.length;if(uni&&a.length===cap)continue;let emptyDone=false;
+      for(let j=0;j<t.length;j++){
+        if(j===i)continue;const b=t[j];if(b.length===cap)continue;
+        if(!b.length){if(uni||emptyDone)continue;emptyDone=true;out.push([i,j,run,0]);continue}
+        if(b[b.length-1]!==top)continue;const amt=Math.min(run,cap-b.length);
+        const bu=b.every(c=>c===top);out.push([i,j,amt,(amt===run?2:0)+(bu?3:0)+(bu&&b.length+amt===cap?4:0)+1]);
+      }
+    }
+    return out.sort((p,q)=>q[3]-p[3]);
+  }
+  function dfs(t){
+    if(solved(t))return true;if(++nodes>limit)return false;
+    for(const [i,j,amt] of moves(t)){
+      const n=t.map(x=>x.slice());for(let k=0;k<amt;k++)n[j].push(n[i].pop());
+      const k=key(n);if(seen.has(k))continue;seen.add(k);path.push([i,j]);
+      if(dfs(n))return true;path.pop();if(nodes>limit)return false;
+    }
+    return false;
+  }
+  return dfs(start)?path:null;
+}
+/* random shuffle of full tubes plus empties, kept only when the solver finds a solution */
+function waterGen(n,rnd,cap,empty){
+  cap=cap||WATER_CAP;empty=empty==null?WATER_EMPTY:empty;
+  for(let tries=0;;tries++){
+    const a=[];for(let c=0;c<n;c++)for(let k=0;k<cap;k++)a.push(c);
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+    const t=[];for(let c=0;c<n;c++)t.push(a.slice(c*cap,c*cap+cap));for(let e=0;e<empty;e++)t.push([]);
+    if(t.some(x=>x.length&&x.every(c=>c===x[0])))continue;
+    let pairs=0;for(const x of t)for(let k=1;k<x.length;k++)if(x[k]===x[k-1])pairs++;
+    if(pairs>n*.6&&tries<40)continue;
+    const sol=waterSolve(t,cap);if(sol)return{tubes:t,sol,tries};
+  }
+}
+function watersort(root,S){
+  const L=S.level,NC=WATER_LV[L-1],CAP=WATER_CAP,key='water:num:'+L,num=store.get(key)||1;
+  const st=status(root,'Pour the colors between tubes until every tube holds just one color.');
+  const bar=el('div','row mbar ws-bar',root,`<span class="ws-num">Puzzle #${num}</span><span class="ws-mv">Moves 0</span>`);
+  const mvEl=$('.ws-mv',bar);
+  const g=el('div','ws',root);g.dataset.max=620;
+  const stream=el('i','ws-stream',g);
+  const ctl=el('div','row ws-ctl',root);
+  const undoB=el('button','btn ghost',ctl,'↶ Undo'),addB=el('button','btn ghost',ctl,'+ Tube'),nextB=el('button','btn',ctl,'Next puzzle ▶');nextB.hidden=true;
+  const gen=waterGen(NC,waterRng(L*100003+num*7919));
+  let tubes=gen.tubes.map(x=>x.slice()),queue=[],hist=[],sel=-1,lock=false,over=false,moves=0,added=false,geo,els=[];
+  g._start=gen.tubes.map(x=>x.slice());
+  const top=a=>a[a.length-1];
+  const runOf=a=>{if(!a.length)return 0;let r=1;while(r<a.length&&a[a.length-1-r]===top(a))r++;return r};
+  const full=a=>a.length===CAP&&a.every(c=>c===a[0]);
+  const canPour=(i,j)=>i!==j&&tubes[i].length&&!full(tubes[i])&&tubes[j].length<CAP&&(!tubes[j].length||top(tubes[j])===top(tubes[i]));
+  function layout(){
+    const N=tubes.length,wide=innerWidth>innerHeight*1.1,rows=N<=(wide?8:5)?1:2,cols=Math.ceil(N/rows),pitch=100/cols;
+    const tw=Math.min(pitch*.6,14),lh=tw*.86,th=lh*CAP+tw*.75,padT=tw*1.55,gapY=tw*1.25,H=padT+rows*th+(rows-1)*gapY+tw*.35;
+    geo={tw,lh,th,pitch,pos:[]};
+    for(let i=0;i<N;i++){const r=rows===1?0:(i<cols?0:1),inRow=rows===1?N:(r?N-cols:cols),k=r?i-cols:i;
+      geo.pos.push({x:(100-inRow*pitch)/2+(k+.5)*pitch-tw/2,y:padT+r*(th+gapY)})}
+    g.dataset.ar=100/H;g.style.aspectRatio=100/H;g.style.setProperty('--u',tw/10+'cqw');
+    while(els.length<N)els.push(mkTube(els.length));
+    els.forEach((e,i)=>{e.style.left=geo.pos[i].x+'cqw';e.style.top=geo.pos[i].y+'cqw';e.style.width=tw+'cqw';e.style.height=th+'cqw'});
+    if(typeof fit==='function')requestAnimationFrame(fit);
+  }
+  function mkTube(i){
+    const e=el('button','ws-tube',g,'<span class="ws-cork"></span><span class="ws-glass"></span>');
+    e.style.animationDelay=i*45+'ms';S.on(e,'click',ev=>{ev.stopPropagation();tap(i)});return e;/* keyboard activation; pointer taps are hit-tested on the board */
+  }
+  function draw(i,fresh=0,drain=0){
+    const e=els[i],a=tubes[i],gl=e.lastChild;gl.innerHTML='';
+    a.forEach((c,k)=>{const d=el('i','ws-liq',gl);d.dataset.c=c;d.style.background=WATER_COL[c];d.style.bottom=k*geo.lh+'cqw';d.style.height=geo.lh+(k===a.length-1?0:.3)+'cqw';
+      if(k>=a.length-fresh)d.classList.add('ws-in')});
+    for(let k=0;k<drain.n;k++){const d=el('i','ws-liq ws-out',gl);d.style.background=WATER_COL[drain.c];d.style.bottom=(a.length+k)*geo.lh+'cqw';d.style.height=geo.lh+'cqw'}
+    e.classList.toggle('done',full(a));
+    e.setAttribute('aria-label',`Tube ${i+1}: `+(a.length?a.map(c=>WATER_NAME[c]).reverse().join(', ')+' (top first)':'empty'));
+  }
+  const drawAll=()=>tubes.forEach((_,i)=>draw(i));
+  function select(i){if(sel>=0)els[sel].classList.remove('up');sel=i;if(i>=0)els[i].classList.add('up')}
+  function tap(i){
+    if(lock){if(!over&&queue.length<4)queue.push(i);return}
+    if(over||i>=tubes.length)return;
+    if(sel<0){if(!tubes[i].length||full(tubes[i])){restartAnim(els[i],'nope');beep(200,80,'square');return}select(i);beep(520,40);return}
+    if(sel===i){select(-1);beep(400,30);return}
+    if(!canPour(sel,i)){
+      if(tubes[i].length&&!full(tubes[i])){select(i);beep(520,40);return}
+      restartAnim(els[i],'nope');beep(180,120,'sawtooth');return;
+    }
+    pour(sel,i);
+  }
+  function pour(i,j){
+    const a=tubes[i],b=tubes[j],c=top(a),amt=Math.min(runOf(a),CAP-b.length);
+    hist.push(tubes.map(x=>x.slice()));for(let k=0;k<amt;k++)b.push(a.pop());
+    moves++;mvEl.textContent='Moves '+moves;restartAnim(mvEl,'bump');undoB.disabled=false;
+    const e=els[i],p=geo.pos[i],q=geo.pos[j],tw=geo.tw,dir=q.x>p.x+.1?1:q.x<p.x-.1?-1:(q.x>50?-1:1);
+    const dx=q.x+tw/2-dir*tw*.55-(p.x+tw/2),dy=q.y-tw*1.05-p.y;
+    e.classList.remove('up');sel=-1;lock=true;e.classList.add('pour');
+    e.style.transform=`translate(${dx}cqw,${dy}cqw) rotate(${dir*76}deg)`;
+    S.after(REDUCED?0:210,()=>{
+      draw(i,0,{n:amt,c});draw(j,amt);
+      Object.assign(stream.style,{left:q.x+tw/2-tw*.09+'cqw',top:q.y-tw*.85+'cqw',width:tw*.18+'cqw',height:tw*.85+geo.th-tw*.45-(b.length-amt)*geo.lh+'cqw',background:WATER_COL[c]});
+      restartAnim(stream,'on');
+      for(let k=0;k<amt;k++)S.after(k*70,()=>beep(330+(b.length-amt+k)*90,70,'sine'));
+    });
+    S.after(REDUCED?0:500,()=>{
+      stream.classList.remove('on');draw(i);e.style.transform='';lock=false;const qd=queue.splice(0);
+      S.after(REDUCED?0:200,()=>{e.classList.remove('pour')});
+      if(full(b)){sparkle(j);beep(880,90);S.after(90,()=>beep(1175,140))}
+      check();qd.forEach(tap);
+    });
+  }
+  function sparkle(j){
+    if(REDUCED)return;const e=els[j];
+    for(let k=0;k<7;k++){const s=el('i','ws-spark',e,'✦');s.style.setProperty('--a',(k/7*360+rand(30))+'deg');s.style.color=['var(--c2)','#fff','var(--c3)'][k%3];S.after(900,()=>s.remove())}
+  }
+  function anyMove(){for(let i=0;i<tubes.length;i++)for(let j=0;j<tubes.length;j++)if(canPour(i,j)&&!(runOf(tubes[i])===tubes[i].length&&!tubes[j].length))return true;return false}
+  function check(){
+    if(tubes.every(a=>!a.length||full(a))){
+      over=true;undoB.disabled=addB.disabled=true;store.set(key,num+1);
+      st(`Puzzle #${num} solved in ${moves} moves!`);nextB.hidden=false;
+      els.forEach((e,k)=>{e.style.animationDelay=k*60+'ms';restartAnim(e,'win')});
+      S.after(500,S.next);return;
+    }
+    if(!anyMove()){st(added?'No moves left. Tap Undo.':'No moves left. Tap Undo or + Tube.');restartAnim(undoB,'nope')}
+    else st(`Moves ${moves}`);
+  }
+  S.on(undoB,'click',()=>{
+    if(lock||over||!hist.length)return;const h=hist.pop();while(h.length<tubes.length)h.push([]);
+    tubes=h;select(-1);drawAll();moves=hist.length;mvEl.textContent='Moves '+moves;beep(300,60);undoB.disabled=!hist.length;st('Moves '+moves);
+  });
+  S.on(addB,'click',()=>{
+    if(lock||over||added)return;added=true;addB.disabled=true;tubes.push([]);layout();draw(tubes.length-1);beep(660,80);
+    st('One extra tube added.');
+  });
+  S.on(nextB,'click',()=>S.restart());
+  /* tap anywhere in a tube's column slot (bigger than the glass, and unaffected by a tube that is mid-pour) */
+  S.on(g,'click',e=>{
+    if(e.target.closest('.ws-tube'))return;
+    const r=g.getBoundingClientRect(),w=g.clientWidth,x=(e.clientX-r.left-g.clientLeft)/w*100,y=(e.clientY-r.top-g.clientTop)/w*100;
+    const i=geo.pos.findIndex(p=>x>=p.x+geo.tw/2-geo.pitch/2&&x<p.x+geo.tw/2+geo.pitch/2&&y>=p.y-geo.tw*1.3&&y<p.y+geo.th+geo.tw*.5);
+    if(i>=0)tap(i);else if(!lock)select(-1);
+  });
+  S.on(window,'resize',()=>{if(!lock)layout()});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(/^[0-9]$/.test(e.key)){const i=(+e.key+9)%10;if(i<tubes.length)tap(i)}
+    else if(e.key==='z'||e.key==='Z'||e.key==='Backspace'||e.key==='u'||e.key==='U'){e.preventDefault();undoB.click()}
+    else if(e.key==='Escape')select(-1);
+    else if(e.key==='Enter'&&over)nextB.click();
+  });
+  undoB.disabled=true;layout();drawAll();
+}
+
+/* Wood Blocks: 9x9 board, drag three pieces at a time, fill rows, columns or 3x3 boxes to clear them */
+const WB_BASES=[ // [cells, weight]
+  [[[0,0]],2],
+  [[[0,0],[0,1]],3],
+  [[[0,0],[0,1],[0,2]],3],
+  [[[0,0],[0,1],[0,2],[0,3]],2],
+  [[[0,0],[0,1],[0,2],[0,3],[0,4]],1.4],
+  [[[0,0],[0,1],[1,0],[1,1]],3],
+  [[[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]],1],
+  [[[0,0],[1,0],[1,1]],3],
+  [[[0,0],[1,0],[2,0],[2,1]],2.5],
+  [[[0,0],[0,1],[0,2],[1,1]],2],
+  [[[0,0],[0,1],[1,1],[1,2]],1.6],
+  [[[0,0],[1,0],[2,0],[2,1],[2,2]],1.5]
+];
+const WB={
+  norm(cells){
+    const r0=Math.min(...cells.map(p=>p[0])),c0=Math.min(...cells.map(p=>p[1]));
+    return cells.map(([r,c])=>[r-r0,c-c0]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  },
+  orients(cells){
+    const out=[],seen=new Set();let cur=cells;
+    for(let m=0;m<2;m++){
+      for(let k=0;k<4;k++){const n=WB.norm(cur),key=JSON.stringify(n);if(!seen.has(key)){seen.add(key);out.push(n)}cur=cur.map(([r,c])=>[c,-r])}
+      cur=cells.map(([r,c])=>[r,-c]);
+    }
+    return out;
+  },
+  fits(b,sh,r,c){for(const[dr,dc]of sh){const R=r+dr,C=c+dc;if(R<0||C<0||R>8||C>8||b[R*9+C])return false}return true},
+  anyFit(b,sh){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(WB.fits(b,sh,r,c))return true;return false},
+  full(b){
+    const rows=[],cols=[],boxes=[],cells=new Set();
+    for(let i=0;i<9;i++){
+      let R=true,C=true,X=true;
+      for(let j=0;j<9;j++){
+        if(!b[i*9+j])R=false;if(!b[j*9+i])C=false;
+        if(!b[((i/3|0)*3+(j/3|0))*9+(i%3)*3+j%3])X=false;
+      }
+      if(R){rows.push(i);for(let j=0;j<9;j++)cells.add(i*9+j)}
+      if(C){cols.push(i);for(let j=0;j<9;j++)cells.add(j*9+i)}
+      if(X){boxes.push(i);for(let j=0;j<9;j++)cells.add(((i/3|0)*3+(j/3|0))*9+(i%3)*3+j%3)}
+    }
+    return{rows,cols,boxes,cells};
+  },
+  /* place a shape (assumes it fits); returns the board before clearing, after clearing and what cleared */
+  place(b,sh,r,c,v){
+    const pre=b.slice(),at=[];for(const[dr,dc]of sh){const i=(r+dr)*9+c+dc;pre[i]=v;at.push(i)}
+    const f=WB.full(pre),nb=pre.slice();for(const i of f.cells)nb[i]=0;
+    return{pre,b:nb,at,cells:f.cells,lines:f.rows.length+f.cols.length+f.boxes.length};
+  },
+  /* points: one per cell placed, plus a clear bonus that grows with the square of clears at once and with the streak */
+  points(n,lines,streak){return lines?n+Math.round(18*lines*lines*(1+.5*Math.max(0,streak-1))):n},
+  over(b,pieces){return pieces.every(p=>!p||!WB.anyFit(b,p.cells))},
+  pick(){
+    const T=WB_BASES.reduce((s,x)=>s+x[1],0);let t=Math.random()*T,i=0;
+    while(t>=WB_BASES[i][1]&&i<WB_BASES.length-1){t-=WB_BASES[i][1];i++}
+    const o=WB.orients(WB_BASES[i][0]);return{cells:o[rand(o.length)],tone:1+rand(5)};
+  },
+  deal(b){
+    let set;for(let k=0;k<40;k++){set=[WB.pick(),WB.pick(),WB.pick()];if(set.some(p=>WB.anyFit(b,p.cells)))break}
+    return set;
+  }
+};
+function woodblocks(root,S){
+  const st=status(root,'Drag pieces onto the board. Fill a row, column or 3×3 box to clear it.');
+  const bar=el('div','row mbar wbBar',root,'<span class="wbS">Score <b>0</b></span><span class="wbBest">Best <b>0</b></span>');
+  const sEl=$('.wbS b',bar),bEl=$('.wbBest b',bar);
+  const g=el('div','wb',root);g.dataset.ar=100/137;g.dataset.max=520;
+  const frame=el('div','wbFrame',g),grid=el('div','wbGrid',frame);
+  const cells=[...Array(81)].map((_,i)=>el('div','wbC',grid));
+  const base=i=>'wbC'+(((i/27|0)+((i%9)/3|0))%2?' alt':'');
+  const tray=el('div','wbTray',g),slots=[0,1,2].map(()=>el('div','wbSlot',tray));
+  let b=Array(81).fill(0),pieces=[],score=0,streak=0,over=false,ghost=null,drag=null,kb=null,cid=0;
+  const clearing=new Map(),dropped=new Set();
+  const best0=store.get('best:woodblocks')||0;bEl.textContent=best0;
+  function render(){
+    cells.forEach((c,i)=>{
+      const cl=clearing.get(i),t=b[i]||(cl&&cl.t);let k=base(i);
+      if(t)k+=' wbW t'+t;if(cl&&!b[i])k+=' clr';if(dropped.has(i))k+=' drop';
+      if(ghost){if(ghost.at.includes(i))k+=ghost.ok?' gh':' bad';else if(ghost.ok&&ghost.hl.has(i)&&b[i])k+=' hl'}
+      if(c.className!==k)c.className=k;
+      if(cl&&!b[i])c.style.animationDelay=cl.d+'ms';else if(c.style.animationDelay)c.style.animationDelay='';
+    });
+    dropped.clear();
+  }
+  function mini(p,cls,parent){
+    const w=Math.max(...p.cells.map(x=>x[1]))+1,h=Math.max(...p.cells.map(x=>x[0]))+1;
+    const e=el('div',cls,parent);e.style.gridTemplateColumns=`repeat(${w},1em)`;e.style.gridTemplateRows=`repeat(${h},1em)`;
+    for(const[r,c]of p.cells){const q=el('i','wbW t'+p.tone,e);q.style.gridRow=r+1;q.style.gridColumn=c+1}
+    return{e,w,h};
+  }
+  function renderTray(fresh){
+    slots.forEach((s,k)=>{
+      s.innerHTML='';s.classList.remove('lift','sel','no');const p=pieces[k];if(!p)return;
+      const m=mini(p,'wbP'+(fresh?' in':''),s);if(fresh)m.e.style.animationDelay=k*70+'ms';
+      s.setAttribute('aria-label','Piece '+(k+1));
+      if(!WB.anyFit(b,p.cells))s.classList.add('no');
+      if(drag&&drag.k===k)s.classList.add('lift');if(kb&&kb.k===k)s.classList.add('sel');
+    });
+  }
+  function paintScore(){sEl.textContent=score;bEl.textContent=Math.max(best0,score);restartAnim(sEl.parentNode,'bump')}
+  function deal(){pieces=WB.deal(b);renderTray(true);beep(620,50)}
+  function ghostAt(p,r,c){
+    if(r<0||c<0||!p.cells.every(([dr,dc])=>r+dr<9&&c+dc<9))return null;
+    const ok=WB.fits(b,p.cells,r,c),at=p.cells.map(([dr,dc])=>(r+dr)*9+c+dc);
+    return{ok,at,r,c,hl:ok?WB.place(b,p.cells,r,c,p.tone).cells:new Set()};
+  }
+  function pop(text,r,c,cls){
+    const e=el('div','wbPop'+(cls?' '+cls:''),g);e.textContent=text;
+    e.style.left=clamp((c+.5)/9*100,12,88)+'%';e.style.top=(r+.5)/9*(100/137)*100+'%';S.after(1000,()=>e.remove());
+  }
+  function place(k,r,c){
+    const p=pieces[k],res=WB.place(b,p.cells,r,c,p.tone);
+    for(const i of res.at){clearing.delete(i);dropped.add(i)}
+    b=res.b;pieces[k]=null;
+    if(res.lines){
+      streak++;const id=++cid,cr=r+1,cc=c+1;
+      for(const i of res.cells){const d=Math.round(Math.hypot((i/9|0)-cr,i%9-cc)*28);clearing.set(i,{t:res.pre[i],id,d})}
+      S.after(900,()=>{for(const[i,v]of clearing)if(v.id===id)clearing.delete(i);render()});
+      [523,659,784,1046].slice(0,1+Math.min(3,res.lines)).forEach((f,j)=>S.after(j*70,()=>beep(f,120)));
+    }else{streak=0;beep(330,60,'square')}
+    let gain=WB.points(res.at.length,res.lines,streak);
+    const cy=r+Math.max(...p.cells.map(x=>x[0]))/2,cx=c+Math.max(...p.cells.map(x=>x[1]))/2;
+    if(res.lines){
+      pop('+'+gain,cy,cx);
+      if(res.lines>1||streak>1)S.after(160,()=>pop(res.lines>1?`Combo ×${res.lines}!`:`Streak ×${streak}!`,cy+1.1,cx,'big'));
+      if(b.every(v=>!v)){gain+=300;S.after(300,()=>{S.fx.banner('Board clear!','+300');S.fx.confetti(80)})}
+      if(res.lines>=3)restartAnim(frame,'wow');
+    }
+    score+=gain;best('woodblocks',score);paintScore();
+    if(res.lines&&!COMPACT.matches)st(res.lines>1?`${res.lines} clears at once! +${gain}`:streak>1?`Streak ×${streak}! +${gain}`:`Nice clear! +${gain}`);
+    if(pieces.every(x=>!x))deal();else renderTray();
+    render();check();
+  }
+  function check(){
+    if(!WB.over(b,pieces))return;
+    over=true;kb=null;renderTray();
+    S.after(450,()=>{
+      const nb=score>best0&&score>0;
+      if(!COMPACT.matches)st(`No room left! Final score ${score}.`);beep(196,380,'sawtooth');S.shake();
+      if(nb)S.fx.confetti();
+      const o=el('div','wbOver',g,`<b>${nb?'New best!':'No room left'}</b><span>${score} points</span><button class="btn">Play again</button>`);
+      S.on($('button',o),'click',()=>S.restart());
+    });
+  }
+  /* dragging */
+  function geo(){const a=cells[0].getBoundingClientRect(),c2=cells[1].getBoundingClientRect();return{x:a.left,y:a.top,cs:a.width,pitch:c2.left-a.left}}
+  S.on(tray,'pointerdown',e=>{
+    if(over||drag)return;const s=e.target.closest('.wbSlot');if(!s)return;const k=slots.indexOf(s);if(!pieces[k])return;
+    e.preventDefault();try{tray.setPointerCapture(e.pointerId)}catch(_){}
+    kb=null;const G=geo(),p=pieces[k];
+    const f=document.createElement('div');f.className='wbFloat';document.body.append(f);
+    f.style.setProperty('--cs',G.cs+'px');f.style.gap=(G.pitch-G.cs)+'px';f.style.fontSize=G.cs+'px';
+    const m=mini(p,'wbFl',f);f.firstChild.style.gap='inherit';
+    const w=m.w*G.pitch,h=m.h*G.pitch,touch=e.pointerType!=='mouse';
+    drag={k,id:e.pointerId,f,G,w,h,lift:touch?h/2+G.pitch*1.5+14:0,r:null,c:null};
+    renderTray();moveDrag(e);beep(480,30);
+  });
+  function moveDrag(e){
+    const d=drag,x=e.clientX-d.w/2,y=e.clientY-d.h/2-d.lift;
+    d.f.style.transform=`translate(${x}px,${y}px)`;
+    const r=Math.round((y-d.G.y)/d.G.pitch),c=Math.round((x-d.G.x)/d.G.pitch);
+    if(r!==d.r||c!==d.c){d.r=r;d.c=c;ghost=ghostAt(pieces[d.k],r,c);render()}
+  }
+  function endDrag(ok){
+    const d=drag;drag=null;const gh=ghost;ghost=null;
+    if(ok&&gh&&gh.ok){d.f.remove();place(d.k,gh.r,gh.c);return}
+    const s=slots[d.k].getBoundingClientRect();
+    d.f.classList.add('back');d.f.style.transform=`translate(${s.left+s.width/2-d.w/2}px,${s.top+s.height/2-d.h/2}px) scale(.5)`;
+    d.f.style.opacity='0';S.after(220,()=>d.f.remove());render();renderTray();
+  }
+  S.on(tray,'pointermove',e=>{if(drag&&e.pointerId===drag.id)moveDrag(e)});
+  S.on(tray,'pointerup',e=>{if(drag&&e.pointerId===drag.id)endDrag(true)});
+  S.on(tray,'pointercancel',e=>{if(drag&&e.pointerId===drag.id)endDrag(false)});
+  S.on(tray,'lostpointercapture',e=>{if(drag&&e.pointerId===drag.id)endDrag(true)});
+  /* keyboard: 1-3 pick a piece, arrows move it, Enter places, Esc cancels */
+  function kbShow(){ghost=kb?ghostAt(pieces[kb.k],kb.r,kb.c):null;render();renderTray()}
+  S.on(window,'keydown',e=>{
+    if(over||drag)return;const n='123'.indexOf(e.key);
+    if(n>=0&&pieces[n]){kb={k:n,r:kb?kb.r:3,c:kb?kb.c:3};const p=pieces[n];kb.r=Math.min(kb.r,9-Math.max(...p.cells.map(x=>x[0]))-1);kb.c=Math.min(kb.c,9-Math.max(...p.cells.map(x=>x[1]))-1);kbShow();return}
+    if(!kb){if(KEYDIR[e.key]||e.key==='Enter'){const k=pieces.findIndex(p=>p);if(k>=0){e.preventDefault();kb={k,r:3,c:3};kbShow()}}return}
+    const p=pieces[kb.k],H=Math.max(...p.cells.map(x=>x[0])),W=Math.max(...p.cells.map(x=>x[1]));
+    const D={up:[-1,0],down:[1,0],left:[0,-1],right:[0,1]}[KEYDIR[e.key]];
+    if(D){e.preventDefault();kb.r=clamp(kb.r+D[0],0,8-H);kb.c=clamp(kb.c+D[1],0,8-W);kbShow()}
+    else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(WB.fits(b,p.cells,kb.r,kb.c)){const{k,r,c}=kb;kb=null;ghost=null;place(k,r,c)}else{restartAnim(grid,'nope');beep(150,90)}}
+    else if(e.key==='Escape'){kb=null;kbShow()}
+  });
+  S.on(window,'pointerdown',()=>{if(kb){kb=null;kbShow()}},{capture:true});
+  deal();render();
+  if(!pieces.length)check();
+}
+
+const WF_THEMES={
+  Animals:'lion tiger zebra giraffe monkey elephant rabbit panda koala horse donkey camel wolf bear otter beaver moose kangaroo squirrel badger hippo rhino leopard cheetah llama',
+  Fruits:'apple banana cherry grape lemon mango melon orange peach pear plum kiwi papaya apricot lime coconut berry fig guava raspberry pineapple date olive',
+  Space:'planet comet star moon orbit galaxy rocket nebula meteor saturn jupiter mars venus earth gravity alien asteroid crater eclipse cosmos satellite pluto mercury',
+  Sports:'soccer tennis hockey golf rugby boxing karate cricket skiing surfing rowing cycling archery bowling diving judo polo sailing netball baseball skating fencing',
+  Ocean:'whale shark dolphin coral wave tide reef squid octopus crab lobster shell seaweed starfish turtle seal anchor island current kelp clam oyster jellyfish',
+  Weather:'rain snow wind cloud storm thunder sunny frost hail fog breeze mist rainbow drizzle sleet tornado humid chilly blizzard lightning monsoon climate dew',
+  Music:'piano guitar drum violin flute trumpet harp cello banjo tuba melody rhythm chord song tempo choir band opera rock jazz note concert singer chorus',
+  Colors:'red blue green yellow purple orange pink brown black white silver gold violet indigo maroon teal navy beige coral cyan lilac amber crimson scarlet',
+  Food:'pizza pasta bread cheese salad soup burger taco noodle rice pancake waffle cookie cake sandwich muffin bagel omelet curry yogurt honey butter popcorn pretzel',
+  Jobs:'doctor nurse teacher chef pilot farmer baker artist dentist lawyer plumber writer actor singer judge builder painter driver sailor dancer barber tailor vet',
+  Countries:'france spain italy brazil canada mexico japan china india egypt kenya peru chile norway sweden greece turkey ireland poland cuba nepal ghana iceland',
+  Body:'head hand foot knee elbow ankle wrist finger thumb shoulder chest heart lung brain nose mouth tooth tongue ear eye chin neck spine muscle skin',
+  Kitchen:'spoon fork knife plate bowl cup oven stove kettle pan pot whisk ladle grater fridge sink toaster blender teapot apron napkin mixer spatula',
+  Vehicles:'car bus truck train plane boat bicycle tractor scooter taxi van ferry rocket subway tram jeep wagon yacht canoe kayak glider sled helicopter',
+  Insects:'ant bee wasp beetle moth fly gnat flea cricket termite ladybug firefly hornet mantis cicada aphid weevil earwig locust midge dragonfly butterfly',
+  Birds:'robin eagle hawk owl crow raven parrot pigeon sparrow swan goose duck heron stork penguin falcon finch wren puffin toucan ostrich flamingo pelican',
+  Flowers:'rose tulip daisy lily orchid poppy iris violet lotus peony daffodil lilac pansy aster dahlia jasmine marigold sunflower bluebell crocus magnolia',
+  School:'pencil eraser ruler book desk chalk paper teacher lesson class recess lunch exam homework science reading math library notebook crayon glue backpack',
+  Camping:'tent fire lantern compass map hike trail cabin canoe forest river campfire torch flashlight log axe kettle stars backpack boots blanket picnic',
+  Dinosaurs:'raptor fossil egg claw tail swamp jungle bones extinct jurassic triassic herd roar teeth herbivore volcano meteor sauropod iguanodon carnivore dig crest'
+};
+const WF_LV=[{z:8,n:6,d:[[0,1],[1,0]]},{z:10,n:9,d:[[0,1],[1,0],[1,1],[-1,1]]},{z:12,n:12,d:[[0,1],[1,0],[1,1],[-1,1],[0,-1],[-1,0],[-1,-1],[1,-1]]}];
+const WF_FILL='EEEEEEAAAAAIIIIOOOOOTTTTTNNNNSSSSRRRRHHHLLLDDDCCCUUUMMPPGGFFWYBBVKXJQZ';
+/* build a puzzle: returns {grid:[[ch]], placed:[{w,r,c,dr,dc}]} with exactly n words, or null */
+function WF_gen(words,z,n,dirs,rnd=Math.random){
+  const R=k=>Math.floor(rnd()*k);
+  for(let attempt=0;attempt<60;attempt++){
+    const pool=words.map(w=>w.toUpperCase()).filter(w=>w.length>=3&&w.length<=z);
+    for(let i=pool.length-1;i>0;i--){const j=R(i+1);[pool[i],pool[j]]=[pool[j],pool[i]]}
+    const pick=pool.slice(0,n).sort((a,b)=>b.length-a.length);if(pick.length<n)return null;
+    const grid=[...Array(z)].map(()=>Array(z).fill('')),placed=[];
+    for(const w of pick){
+      let done=false;
+      for(let t=0;t<300&&!done;t++){
+        const [dr,dc]=dirs[R(dirs.length)],r=R(z),c=R(z),er=r+dr*(w.length-1),ec=c+dc*(w.length-1);
+        if(er<0||er>=z||ec<0||ec>=z)continue;
+        let okk=true,overlap=0;
+        for(let k=0;k<w.length;k++){const ch=grid[r+dr*k][c+dc*k];if(ch&&ch!==w[k]){okk=false;break}if(ch)overlap++}
+        if(!okk||overlap===w.length)continue;
+        for(let k=0;k<w.length;k++)grid[r+dr*k][c+dc*k]=w[k];
+        placed.push({w,r,c,dr,dc});done=true;
+      }
+      if(!done)break;
+    }
+    if(placed.length<n)continue;
+    for(const row of grid)for(let c=0;c<z;c++)if(!row[c])row[c]=WF_FILL[R(WF_FILL.length)];
+    return{grid,placed};
+  }
+  return null;
+}
+function wordfind(root,S){
+  const lv=WF_LV[S.level-1],Z=lv.z;
+  const names=Object.keys(WF_THEMES),last=store.get('wf:theme');
+  let theme;do theme=names[rand(names.length)];while(theme===last);store.set('wf:theme',theme);
+  const P=WF_gen(WF_THEMES[theme].split(' '),Z,lv.n,lv.d);
+  const st=status(root,`Theme: ${theme}. Find all ${lv.n} hidden words by dragging from the first letter to the last.`);
+  const bar=el('div','row mbar wf-bar',root,`<span class="wf-theme"></span><span class="wf-time">⏱ 0:00</span><span class="wf-cnt"></span>`);
+  $('.wf-theme',bar).textContent=theme;
+  const timeEl=$('.wf-time',bar),cntEl=$('.wf-cnt',bar);
+  const g=el('div','wf-grid',root);g.dataset.ar=1;g.dataset.max=Z*56;g.style.setProperty('--z',Z);
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',`0 0 ${Z} ${Z}`);svg.setAttribute('class','wf-svg');svg.setAttribute('aria-hidden','true');g.append(svg);
+  const cells=[];
+  P.grid.forEach((row,r)=>row.forEach((ch,c)=>{const d=el('div','wf-c',g,ch);d.style.animationDelay=(r+c)*14+'ms';cells.push(d)}));
+  const list=el('div','wf-list',root);
+  const items=P.placed.slice().sort((a,b)=>a.w.localeCompare(b.w)).map(p=>{const s=el('span','wf-w',list,p.w);return{p,s,found:false}});
+  const COL=['--c1','--c2','--c3','--c4','--c5','--c6'];
+  let found=0,t0=performance.now(),secs=0,over=false;
+  const paint=()=>{cntEl.innerHTML=`<b>${found}</b>/${lv.n}`};paint();
+  S.every(1000,()=>{if(over)return;secs=Math.floor((performance.now()-t0)/1000);timeEl.textContent=`⏱ ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`});
+  function capsule(r1,c1,r2,c2,cls,color){
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1',c1+.5);l.setAttribute('y1',r1+.5);l.setAttribute('x2',c2+.5);l.setAttribute('y2',r2+.5);
+    l.setAttribute('class',cls);if(color)l.style.stroke=`var(${color})`;svg.append(l);return l;
+  }
+  const cellAt=e=>{const b=g.getBoundingClientRect();return{x:(e.clientX-b.left)/b.width*Z,y:(e.clientY-b.top)/b.height*Z}};
+  let sel=null,anchor=null,tmp=null;
+  function endFrom(s,e){
+    const p=cellAt(e),dx=p.x-(s.c+.5),dy=p.y-(s.r+.5),len=Math.hypot(dx,dy);
+    if(len<.5)return{r:s.r,c:s.c,dr:0,dc:0,n:0};
+    const a=Math.round(Math.atan2(dy,dx)/(Math.PI/4)),dc=Math.round(Math.cos(a*Math.PI/4)),dr=Math.round(Math.sin(a*Math.PI/4));
+    let n=Math.round((dx*dc+dy*dr)/(dr&&dc?2:1));
+    n=Math.max(0,n);
+    while(n>0&&(s.r+dr*n<0||s.r+dr*n>=Z||s.c+dc*n<0||s.c+dc*n>=Z))n--;
+    return{r:s.r+dr*n,c:s.c+dc*n,dr,dc,n};
+  }
+  function drawTmp(s,e){if(tmp)tmp.remove();tmp=capsule(s.r,s.c,e.r,e.c,'wf-sel')}
+  function clearTmp(){if(tmp){tmp.remove();tmp=null}}
+  function startCell(e){const p=cellAt(e);return{r:clamp(Math.floor(p.y),0,Z-1),c:clamp(Math.floor(p.x),0,Z-1)}}
+  S.on(g,'pointerdown',e=>{
+    if(over||(e.pointerType==='mouse'&&e.button!==0))return;e.preventDefault();
+    const s=startCell(e);
+    if(anchor&&(anchor.r!==s.r||anchor.c!==s.c)){
+      const dr=s.r-anchor.r,dc=s.c-anchor.c;
+      if(dr===0||dc===0||Math.abs(dr)===Math.abs(dc)){const n=Math.max(Math.abs(dr),Math.abs(dc));const a=anchor;anchor=null;clearTmp();check(a,{r:s.r,c:s.c,dr:Math.sign(dr),dc:Math.sign(dc),n});return}
+    }
+    anchor=null;sel={s,id:e.pointerId};try{g.setPointerCapture(e.pointerId)}catch(_){}drawTmp(s,s);beep(500,30);
+  });
+  S.on(g,'pointermove',e=>{if(!sel||e.pointerId!==sel.id)return;const en=endFrom(sel.s,e);if(!sel.e||en.r!==sel.e.r||en.c!==sel.e.c){sel.e=en;drawTmp(sel.s,en);if(en.n)beep(520+en.n*40,20)}});
+  const up=e=>{
+    if(!sel||e.pointerId!==sel.id)return;const s=sel.s,en=sel.e||{r:s.r,c:s.c,n:0};sel=null;
+    if(!en.n){anchor=s;return} // a tap marks the first letter; tap the last letter next
+    clearTmp();check(s,en);
+  };
+  S.on(g,'pointerup',up);S.on(g,'pointercancel',e=>{if(sel&&e.pointerId===sel.id){sel=null;clearTmp()}});
+  function check(s,en){
+    let str='';for(let k=0;k<=en.n;k++)str+=P.grid[s.r+en.dr*k][s.c+en.dc*k];
+    const rev=str.split('').reverse().join('');
+    const it=items.find(i=>!i.found&&(i.p.w===str||i.p.w===rev));
+    if(!it){if(en.n>=2){beep(170,120,'sawtooth');const l=capsule(s.r,s.c,en.r,en.c,'wf-sel wf-bad');S.after(380,()=>l.remove())}return}
+    it.found=true;found++;const color=COL[(found-1)%6];
+    capsule(s.r,s.c,en.r,en.c,"wf-hit",color);
+    it.s.classList.add('on');it.s.style.setProperty('--wc',`var(${color})`);restartAnim(it.s,'pop');
+    for(let k=0;k<=en.n;k++){const d=cells[(s.r+en.dr*k)*Z+s.c+en.dc*k];d.style.animationDelay=k*40+'ms';restartAnim(d,'wf-hop')}
+    [660,880,990].forEach((f,i)=>S.after(i*70,()=>beep(f+found*10,90)));paint();
+    if(found===lv.n){
+      over=true;secs=Math.floor((performance.now()-t0)/1000);
+      const tt=`${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;timeEl.textContent='⏱ '+tt;
+      const nb=best('wordfind'+S.level,secs,true);
+      st(`All found in ${tt}!${nb?' New best time!':''}`);S.after(350,S.next);newB.classList.add('wf-glow');
+    }else st(`Found ${it.p.w}! ${lv.n-found} to go.`);
+  }
+  const row=el('div','row',root);const newB=el('button','btn wf-new',row,'🔄 New puzzle');S.on(newB,'click',()=>S.restart());
+}
+
+const WG_ANS={4:'time good only know make over back want well much very even here need work year made take life down last best such love home long look same come part find help high game give next each show feel sure team ever keep free away left city name play real done care week case full live read told four hard mean once tell seen stop call head took came side went less line open area face five kind hope able book talk fact half hand mind body food true lost room else girl nice idea past move wait late stay deal soon turn form fire easy near plan west list meet type baby song word gave self cost held main road town fine hear rest term date land miss club film knew lead hold star test view hour wish gold gone king bank east park role sent bill cool rate save blue fall fast felt size step page paid send vote born code door hair lose pick race seem sign walk safe goal huge base deep mark pass ball card dark mine note wall rock cold beat text join kept sort drop fair feet link sale tour sell sold wide lady plus unit rule none ship band cash wear luck rich skin fish glad grow trip spot shop cell foot hall nine heat fell ride slow tree wind cent lake fund hill pull push rose seat draw gain ring rise soul camp cast firm gift shut wood copy dear host rare boss wake busy farm file roll edge iron core port flat fuel kick mail pair zone bear boat duty path rain warm crew moon suit grew jump user flow hero joke loan soft feed pool hole milk pack snow weak cook cute fake task fill pure bird bowl meat mode neck zero tiny wave seek solo wing salt bell blow bond mile flag kiss load plot rent chat diet item lane navy tank tend yard golf laid tool mate rice roof calm hide quit sing bike cake loud peak grab pink tall lock nose wise lift coal hunt inch tone vast earn grey meal rush bone gate thin gear wash fort gray math bath mood rank sand tape wage desk rear wire belt soil deck dust rail root hire pace spin hook seed ward coat gene jean tube epic exit poll wolf bull ease fame tail twin boom knee teen trap chip dare jazz mask cape edit seal stem beef clay drag loop mall rely sole tale wore bass dual gulf logo pump slip dawn tune bold clip exam menu oral worn lion pipe poem vary dirt lazy shoe chef palm pole shed folk leaf dish duck hood nail poet sink skip snap swim cave flip wrap yoga boot bulk coin corn taxi bare clue grid soap aunt flew icon tier crop soup beam horn lean peer pile plug bend disc keen visa blew deer dive heal drum grip mild noon silk urge pine pose pour sang cafe mice slot fold myth pale toll hint nest reed scan span doll hull rope buzz lamp oven slim tent tide bolt echo soda fork junk arch axis goat lamb tire warn sail wipe chin dash barn neat bean bump cart cord lawn oval pond ruby clan melt stir trek hike lily sigh trio acre dial halt monk norm lend mint bake glow rode sack toss wool dome fond frog moss trim haul sour saga fade lime maid surf bait bark',5:'about other after first think could where right still never world great while every state three since under thing house place again found might money night until group start today point music power water small white later order party thank black whole maybe story least early local video young given level often south known large along class close cause happy human woman leave north watch light short taken third among check heart child major phone quite final front ready bring heard march study clear month board field force issue price space total above share sense break event sorry guess learn alone movie press worth sound value round stand stuff drive green match model trust range trade chief lower style stage title enjoy cover legal seven staff super union began built daily paper voice whose earth below offer sleep table truth build piece visit wrote river shall speak write album eight funny peace spent store track ahead allow brown radio cross focus extra quick agree clean photo scene spend coach heavy train claim hotel judge brain floor image meant reach civil dance stock dream grand sweet touch drink shown basic carry fully plant avoid catch coast truly queen glass prior royal serve begin twice brand count fresh mouth owner scale score smart throw click faith metal agent apply basis enter prime waste weird adult grade stone apart aware fifth proud birth labor lucky prove tough alive apple dress horse magic stick frank guide raise treat youth exist guard solid sport taste hello plane shape upper cheap joint steel crowd limit ocean proof chair honor email sugar drama entry grant grown route squad teach laugh lunch storm actor chain equal quiet split urban phase smile truck novel shirt cream giant mayor minor theme usual draft spoke cycle aside empty prize rural admit favor frame guest teeth bunch fruit index shift stood tight crown grace chose depth noise panel plate cable print sight broad drawn motor solar brief chest debut paint pilot steam exact quote trend bread inner reply tower wheel pride rough smell topic sharp trick audio chart mount occur bound cloud loose moral thick threw angel bonus flash refer trail uncle chase ideal clock label pitch pizza plain comic ghost newly skill solve boost knife saint buddy delay elite forth layer marry nurse rugby sheet bench medal shell silly angle forum grass hence rapid sixth valid vital creek honey ratio spell sword begun daddy drove glory juice logic strip dozen fancy input knock ought flood rally swing alert arena brave fleet robin shake shore pound punch fewer mouse piano craft sauce slide tiger alien beast candy relax alarm globe spare opera quest lover scope alpha brick mercy outer venue habit naval noble robot wider asset baker brush essay maker snake usage climb fluid twist unity fence dealt forty laser loyal patch radar villa adopt blade cargo humor nerve sandy sheep trace chill grain liver metro rival slept spray suite verse bless couch genre lease shine react rocky shade vocal yield bacon salad stake swift awake blank curve hurry organ pearl alike arrow cabin eagle eaten haven valve charm delta ridge tribe canon stamp voter belly booth cliff lemon shark dairy diary drill meter olive safer skull basin bride chick fairy lodge merit micro tooth beard drain flame ninth penny reign sunny cheer elder fiber pulse realm shout alter brass graph stack audit buyer cloth eager elect lobby orbit ranch trunk badge ferry gauge rider shelf width sheer stark thumb wheat wrist acute civic clerk drone flour minus pause puppy slice vinyl probe spark steep straw weigh adapt dense kitty whale amber ankle armor berry clash grasp handy poker scout steak sweep cheek curry polar skirt spike toast waist blend brake feast frost purse tense chess float grind grove hobby newer spice towel arise bloom clown dodge guild prone sixty sonic spine crane donor pasta tenth batch paste plaza stare champ scrap shaft slope snack stern stiff unite vault wagon midst onion abbey bunny choir holly shiny spoon teddy alley marsh messy ninja roast salon coral dough hardy maple relay risen stunt ivory niche porch elbow goose grill ruler swamp tasty merry reset drift hatch scent slate surge token yacht manor pupil altar combo ounce spicy belle raven strap bliss daisy disco forge notch omega queue trout bravo crawl digit jelly lunar peach cedar heath pinch syrup dwarf liner merge vivid boxer brook hedge rainy salty skate tempo torch turbo blink chili excel glove greet renew retro stoke aisle brace motto onset pixel razor steer bingo cubic macro slack stove tract vista adore crisp crust flora gamma grape juicy prank chalk flock moist scoop scrub titan trait troop clone jewel scarf sushi timer dusty focal noisy snail tutor verge yeast erase oxide repay basil chord crest decor fetch fuzzy nicer optic panda baton camel chunk cocoa comet dummy flare lever pedal query swell align attic await comfy flick funky groom lyric wedge alloy linen moose motel resin rusty weary chant curly mound muddy abide avail madam nanny poppy tease bluff flyer miner swipe tango cloak dwell jolly windy blush mango oasis rhyme savvy witty woven amend blond finch sedan algae dryer ethic flair hazel viola yummy adobe salsa denim erect fauna flute stool tread unfit aloud boast birch canoe cider equip humid milky mixer pivot cling icing mimic mural diner gravy rinse squat thorn wiser crate gloss rodeo snowy plank siren stalk clamp inlet quake racer stout parry patio prism squid swarm aspen dizzy pouch tummy broom medic nylon ozone agile carve diver genie ledge tenor zebra broth heist misty satin tonic jumbo otter relic waltz biker apron azure cadet geese ebony itchy latch',6:'people should really before around better little during school family please second number public system person change enough making though season course health within social single become coming office almost taking anyone matter pretty friend saying either future rather reason report myself living behind market former street chance father across action moment mother energy summer strong period record common likely center county couple happen inside online player return higher member middle result answer design policy church longer became giving ground source follow amount league review itself entire choice simple simply career figure modern forget listen access recent seeing growth charge create effect except moving weight double expect island normal credit nearly region travel beyond minute nature unless income safety asking search author global leader letter nobody sister annual degree active master wonder effort impact latest secret senior spring anyway bought choose direct easily finish caught doctor notice highly winter advice nation theory agency camera status coffee flight accept actual appear eating mobile screen speech bottom demand engine famous square fourth mostly remain acting budget estate larger target animal memory silver spread supply artist method option window winner handle spirit decide dinner bridge garden length easier fellow volume beauty buying corner driver paying unique bigger lovely closer honest reduce plenty prince proper toward useful valley flying museum remove border ensure forest profit launch native survey update writer yellow ending planet taught adding appeal device factor golden hoping lawyer sector studio twenty debate escape faster secure talent forgot slowly vision editor orange signal stream voting bright chosen desire medium ticket mainly switch affect dollar motion saving branch heaven random afford assume bottle cheese detail harder parent prefer scheme unlike weekly button expert latter object turkey attend carbon circle deputy manner nearby origin relief retail surely client driven empire manage widely hardly height hidden marine reform sample breath decade rising singer campus comedy wealth facing fairly racing shower visual barely junior repeat riding sought finger guitar ignore pocket rescue soccer stable defend extent format gotten lesson loving mirror belief server castle formal hungry palace rating select silent spoken temple deeply legend muscle shadow thread avenue custom output reveal worker assist behalf flower hockey prayer rarely struck walker aspect bureau cousin dragon lately lowest remote repair butter decent desert obtain poetry recall smooth string sudden thrown abroad liquid makeup narrow arrive belong bishop thirty hunter legacy merely remind resort settle tongue asleep engage gaming regard salary script cotton expand luxury tennis twelve extend reader column commit foster genius priest proven reward wooden frozen hiding invest jacket manual purple tissue versus define domain praise rocket steady symbol treaty triple affair agenda deeper enable equity invite partly phrase shield summit throat wisdom polish ruling timing worthy filter galaxy intent knight mature submit copper margin vessel autumn fiscal mutual pursue garage oxygen powder sooner spider divine export gather oldest relate tunnel casual hiring laptop recipe rubber serial strict cruise delete outfit permit safely slight backup clever clinic holder bronze caring depend eighth resist solely beside census dealer poster cancel carpet cherry patent runner barrel boxing cinema gentle notion trophy bubble hammer marvel parade retain cattle farmer finest harbor inform strain tackle urgent wallet aboard accent dining immune patrol pepper breach closet iconic lesser rookie banner colony divide eleven entity jungle linear resume dental freeze humble hybrid mixing openly parish potato potter throne facial import mighty purely rental advise fixing indoor intend roster statue tender vacuum fabric gently layout pastor subtle adjust assess basket bucket burger cookie freely matrix monkey nicely assure ballot streak detect diesel filing median rabbit retire rhythm stance static subway tablet thesis blonde collar comply donate finale flavor joking lineup newest sketch sunset arctic chapel differ insist kidney ladder modest tribal anchor bounce cannon diving fisher fridge fusion helmet keeper namely ritual insert nephew salmon seller timber upside banana behave borrow escort firmly kindly noting outlet pledge portal clause dancer fossil infant liking offset roller upload vector absent atomic circus expose intact intake needle porter sequel slower admire grande merger resign canyon cooler employ marble pillow pirate puzzle sprint superb tricky viable ballet binary critic herald hollow locker pencil plasma spouse waking cement locate motive postal refund robust virtue bundle costly darker ginger mentor occupy pierce sleeve tenure wizard baking fierce garlic impose lounge polite runway sensor aerial anthem exotic glance refuge sphere turtle verbal chorus chrome esteem peanut unlock aiming alumni awhile broker emerge module voyage weaker candle clutch header lining metric naming opener ranger verify yearly hiking marker sodium breeze coupon fringe legion lively pickup prompt radius scroll thrust cowboy spiral splash timely tomato heroic marina owning skiing typing violet convey inland inning overly wholly decree endure enzyme louder maiden nickel pardon remedy replay absorb accord archer barber coding kindle melody ribbon suburb temper evolve ironic picnic puppet sticky vacant warmth gamble loudly modify remake shrimp vendor'};
+const WG_OK={4:'abba abby abed abel abit ably acct aced acer aces ache acid aclu acme acne acta acts adam adds addy aden aeon aero afar afro agar aged ages agra agua ahab ahem ahoy aide aids aims aint aire airs airy ajar ajax akin alan alas alba alec ales alex alfa alia alle allo alls ally alma alms aloe alps also alto alum amal amar amen amex amid amin amir amis amit amma ammo amok amor amos amps anal anas anda andi andy anew anil anna anne anni anno anon ansi ante anti ants anus apes apex apis appt aqua arab arco arcs aren ares argh argo aria arid arms army arne arse arte arts arty arya asap asha ashy asia asks assn asst asta atom atop atta attn atty auld aura auth auto avid avis awed awol awry axed axel axes axle axon baal baba babe babs babu bach bade bags baht bail bain baja baka baku bala bald bale bali balk balm bana banc bane bang bani bans bara barb bard barf bari barr bars bart bash bask bast bate bats batt bays bead beak beal beau beck bede beds been beep beer bees beet begs bein bela bene beni benn bent berg berk bern bert bess beta beth bets bevy bias bibi bide bids bien biff bigg bile bind bing bins bios bite bits blah bldg bled bleu blip blob bloc blot blur blvd boar boas boba bobo bobs boca bock bode boer bogs boho boil bois boko bola bolo bomb bona bong bono bony boob boon boos bora bore borg boro bose bosh both bots bout bowe bows boxy boyd boys bozo brad brag bram bran bras brat bray bred bree bren bret brew brie brig brim brin brit bros brow brut buck buds buff bugs bulb bums bund bung bunk buns bunt buoy burg burn burp burr burt bury bush buss bust bute buts butt buys byes byte cabs cade cady cage cain cair calc calf cams cana cane cans cant capa capo caps cara carl caro carp carr cars cary casa cask cass cate cath cats cava cede cera cern cert chad chai cham chan chao chap char chee chem chen cher chet chew chez chia chic chil chit chop chou chow choy chub chug chum chun ciao cine cite clad clam clap claw clem clio clit clog clos clot cmdr coax cobb coca cock coco coda coed cogs coil coke cola cole coli coll colt coma comb comm comp coms cond cone conf cong conn cons cont coon coop coos copa cope cops cora cork corp corr cory cosy cote cots coup cove cowl cows cozy cpus crab crag cram crap cray cree crib crim cris crit croc crow crud crux ctrl cuba cube cubs cuck cues cuff cull cult cunt cups curb curd cure curl curt cusp cuss cuts cyan cyst czar dabs dada dade dads daft dais dale dali dame damn damp dams dana dane dang dani dank darn dart data dave davy days daze dead deaf dean debs debt deco deed deem deft defy deja deli dell demi demo dens dent deny dept desc desi deus deux deva devi devs dewy dian dias dibs dice dick didn dido died diem dies diff digs dike dill dime dine ding dink dino dint dion dips dire dirk disk diss dist diva dock docs dodd dodo doer does doge dogs dojo dole dona dong dons dont doom doon dope dora dorm dorn dory dose dost doth dots doug dour dove dowd doze drab dram drew drip drug dubs duct dude duds duel dues duet duff duke dull duly duma dumb dump dune dung dunk duos dupe dura dusk dyed dyer dyes dyke earl ears eats eben econ eddy eden edgy edna eels eggs egos elan elec elia elks ella elle elms elon elsa emil emir emit emma emmy ends engl enid enos envy eons eras ergo eric erie erik erin eros esau esse etch etna eton etta euro eval evan evil exec exes exon expo eyed eyes eyre ezra fads fags fail fait falk fang fans fare faro fart fate fats faux fawn faze fear feat feds fees fend fern fess fest feta fete feud fiat fico fide fido fife figs fiji fink finn fins firs fisk fist fits fitz fizz flak flap flaw flax flea fled flee flex flog flop flor flue flux foal foam foes foil font fool fora ford fore foss foul fowl foxy frat frau fray fred fret frey from fuck fuji fume funk furs fury fuse fuss fuzz gabe gabi gaby gael gaff gaga gage gags gaia gail gait gala gale gall gals galt gang gant gaol gaon gaps garb gard gare gary gash gasp gaul gays gaze geek gees geez gels gems gens gent gere germ gets ghee gigi gigs gila gill gilt gimp ginn giro gist glam glee glen glib glue glut glyn gnaw goad gods goer goes goff gogo gong goof goon goop gore gory gosh goss goth goto gout gove govt gown grad graf gram gras greg grim grin gris grit grog gros grub guam guan gull gulp gump gums gung guns gurl guru gush gust guts guys gwen gyms gyro hack haha hail hain haji hajj hala hale halo hams hang hank hans hare hark harm harp hart harv hash hast hate hath hats have hawk haye hays haze hazy heap heck heed heel heft hehe heil hein heir hell helm hemp hens hera herb herd herr hers hewn hick hilt hind hing hips hiro hiss hist hits hive hoax hobo hock hoes hogg hogs hoke hola holi holm holt holy homo hone hong honk hoof hoon hoop hoot hopi hops hora hors hose hoss hots hove howe howl hows hoya hubs huck hued hues huey huff hugh hugo hugs hula hulk hulu huma hume hump hung hunk huns hurl hurt hush husk huts hwan hyde hymn hype hypo iago ibid ibis icbm iced ices icky ides idle idly idol ieee iffy ills ilya imam iman inca incl indy inez info inga init inks inky inns inst intl into ions iota iowa iran iraq iris irks irma isis isle isnt itch itll ivan izzy jabs jack jade jags jail jain jake jama jams jane jars java jaws jays jeep jeez jeff jell jeon jerk jess jest jesu jets jews jigs jill jing jinn jinx jive joan jobs jock joel joes joey john jolt jong joni joon jose josh joss jour jove joys juan juba jude judo judy jugs juju juke july june juno jura jure jury just jute kain kaka kala kale kali kama kami kana kane kang kant kari karl kart kate kath katy kcal keel kegs keir kell kelp kemp kent kerb kern keto keys khan kids kiel kiev kiki kill kiln kilo kilt kink kino kirk kite kits kiwi klan knit knob knot knox koch kohl koko kona kong kook kors kota kris kuan kung kurt kwan kyle labs lace lack lacs lacy lads lags lain lair lakh lama lame lana lang laos laps lard lark lars lash lass laud lava laws lays leah leak leap lear leds leed leek leer lees legs leif lena leno lens lent leon lest leto lets levi levy lewd liar libs lice lick lido lids lied lien lies lieu like lila lima limb limo limp lina lind ling linn lino lint lipa lips lira lire lisa lise lisp lite liza loaf loam lobe lobo loca loch loci loco lode loft logs loin lois loki lola lolo loma lone loom loon loos loot lope lora lord lore lori loss lots lowe lows lube luce lucy luge lugs luis luke lula lull lulu lump luna lung lupe lure lurk lush lust lute luxe lynn lynx lyon lyra lyre mace mach mack macs madi mads maga mage magi mags maha mahi maia maim mair maja maki mako mala male mali malo malt mama mana mane mang mani mann mano mans many maps mara marc mare marg mari marl mars mart maru marx mary masa mash mass mast mats matt maud maul maxi maya mayo mays maze mbps mead mech meek meer mein mela meld memo mems mend meng mens ment meow merc mere merv mesa mesh mess meta meth mets mews mica mick midi mike miki mila mill milo milt mime mimi mina ming mini mink mino mins mira mire miri miro misc miso mist mite mitt mmmm moan moat mobs mock modi mods mohr mojo mold mole moll moly momo moms mona mong mono mons mont moor moot mora more morn moro mort mose most mota mote moth mott moya muck mudd muff mugs muir mule mull mums musa muse mush musk must mute mutt myra nach nada naga naik nair nama nana napa nape naps narc nary nasa nash nasi nast nate natl nato nave navi nazi neal neet neil nell nemo nene neon nerd ness nets neve news newt nick nigh nike nile nils nina ning nips nist noah noam node nods noel noir nome nona nook nope nora nori nosy nots noun nous nova novo nude nuke null numb nuns nuts oaks oars oath oats oban obey oboe odds odin odor offs ogle ogre ohio ohms oils oily okay okey okra olaf olds oleg olga oman omar omen omer omit omni ones onto onus onyx oooo oops ooze opal opec opts opus orbs orca orcs ores orgy orig oslo otis otto ouch ours oust outs ovid owed owen owes owls owns oxen paco pacs pact pads pail pain pala pali pall pals pane pang pans pant papa pape para parc pare pari parr pars paso pate pats paul pave pawn paws pays pear peas peat peck peed peek peel peep pees pegs pele pell pelt peng pens pent pere perf peri perk perm perp pers pert peru perv peso pest pete petr pets pews phat phew phil phys pico pics pied pier pies piet pigs pika pike pill pima pimp pina ping pino pins pint pips pisa piss pita pits pity pius plat plea pled plex plop plow ploy plum poco pods pogo poke polk polo poly pomp pong pons pont pony poof pooh poon poop poor pope pops pore pork porn posh post pots pout pows pram prat pray prem prep pres prev prey prim prix prob proc prod prof prog prom prop pros prov psst publ pubs puck puff pugh pugs puja puke pulp puma punk puns punt puny pups puri purr puss puts putt pyke pyre pyro quad qual quan quay ques quid quin quip quiz quot rack racy rada rafe raff raft rage rags raid raja rake ralf rama rami ramp rams rana rand rang rani rant rape raps rasa rash rata rath rats raul rave ravi raya rays reap redd redo reds reef reek reel rees refs reid rein reis reit remi reno reps resp revs rhea ribs rick rife riff rift riga rigs rims rind rink riot ripe rips risk rita rite ritz riva roam roan roar robe robs rods rolf rome romp roms rong rood rook rory rosa ross rosy rota rote rots rout roux rove rows roxy rsvp rube rubs ruck rudd rude rudy ruff rugs ruin rukh rump rune rung runs ruse rusk russ rust ruth saad saba sacs sade sadr sage said sake saki sala sane sank sans sant saps sara sari sark sash sass sata sate saul sawn saws saya says scab scam scar scat scot scum seam sean sear seas secs sect seep seer sees semi sena sept sera serb seri seth sets sewn sexy shad shag shah sham shan shat shaw shay shea shem shen sher shes shia shih shim shin shit shiv shoo shot shou shri shun siam sich sick sidi sift sikh sill silo silt sims sina sind sine sins sion sips sire sirs sisi sita site sith sits situ siva skew skid skim skis skit skye slab slag slam slap slav slaw slay sled slew slid slit slob slog slop slug slum slur slut smog smug smut snag snip snob snot snub snug soak soar sobs sock sofa soho sola soma some sone sons sook soot sora sore sous sown sows soya spam spar spas spat spec sped spew spit spud spun spur stab stag stan stat stew stow stub stud stun styx subs suck suds sued sues suez sufi sulu sumo sump sums sung sunk suns supp supt sura suzy swab swag swam swan swap swat sway swig swot syed sync tabs tack taco tact taft tags tait taka tama tame tana tang tans taos taps tara tarn taro tarp tart tash tass tate tats taut taxa tbsp teak teal tear teas tech tees tele temp teng tens tera teri tern tess tete thad thai than thar that thaw thea thee them then theo they this thon thor thos thou thro thru thud thug thus tick tics tidy tied tien ties tiff tiki tile till tilt timo tina tine ting tink tino tins tint tips tits toad tobe toby tock toda todd toed toes tofu toga togo toil toke toma tomb tome toms tong tonk tons tony toon toot tops tora tore tori torn toro tort tory tosh tote toto tots tout toys trad tram tran trav tray tres trey trig tron trot troy tsar tuan tuba tubs tuck tuff tuft tugs tuna tung turd turf turk tusk tutu twas twat twig twit twos tyne typo tyre ufos ugly ulta undo univ unix unto upon ural urdu urea uric urns ursa used uses ussr utah vail vain vale vamp vane vans vase vats veal veda veep veer vega veil vein vela vent vera verb vern vers vert vest veto vets vial vibe vice vick vide viii vila vile vine vino vips vise vita viva vive vivo vogt void vole vols volt vows wack waco wade wadi wags wail waka wale wali walt wand wane wang wank ware warp wars wart wary wasn wasp watt wavy wawa waxy ways wean webs weed weep weir weld welt wept were weve wham what when whet whew whey whig whim whip whit whiz whoa whom whoo wich wick wife wigs wild wile will wilt wily wine wink wins wisp with wits woes woke wold womb wong wont woof worm wort wove wray wren writ wynn xiii xmas xvii xxii yale yams yang yank yarn yawn yaya yeah yell yelp yeti ymca yogi yoke yolk yore york youd your yous yoyo yuan yuck yuki yule yuma zach zack zain zany zeal zeke zest zeta zeus zinc zing zion zips zona zoom zoos zulu',5:'aaron aback abate abbas abbie abbot abhor abies abled abner abode abort abram abuse abuts abuzz abyss accel accra accts ached aches acids acker acorn acres acrid acted actin acton adage adams added adder addie addis adela adept adieu adios adlai admin adolf adorn aedes aegis aeons aerie aesop affix afire afoot afore afoul agape agata agate agave agers agger aggie aggro aging aglow agnes agony agora agron ahmed ahmet ahold ahsan aided aides aimed aimee aioli aired akali akron alain alamo alban albee albin albus alden alder aleck aleph algal alias alibi alice aline aliya alkyl allah allan allay allen aller allez allie allis allot aloft aloha alois aloof altho altos alums alvin alway amani amara amass amaze ambit amble ameen ameer amici amide amiga amigo amine amino amish amiss amity amman amour ample amply amrit amuse andes andor andre anent anger angie anglo angry angst angus anima anime anion anise anita anjou anker annas annex annie annoy annul annum anode anova ansar ansel antar antes antic antis anton antsy anvil anzac aoife aorta apace aphid aphis apnea appel april aptly arabs arbor archy ardor areal areas arent argan argon argos argue argus arian arias ariel aries arius arjun arles armed aroma arose arras array arses arson artic artie artsy aryan asana asaph ascii ascot ashen asher ashes asian asked askew aspca assam assay asses assis assoc aster astor async atlas atlee atman atmos atoll atoms atone atria attar aubin auger aught augur aunts aunty aural auras aurum autos autre auxin avant avast avert avery avian awacs award awash aways awful awoke axial axing axiom axles axons aztec babby babel babes bache backs badly bafta bagel baggy bahar baile bails baits baked bakes balan baldy baler bales balls bally balms balmy baloo balor balsa banal banca banco banda bande bando bands bandy banff banga bangs banjo banks bantu barat barba barbs bardo bards bared bares barge barks barmy barns baron barra barre barry barth basal based bases basso basta baste basti bated bates bathe baths batik batts batty bawdy bayou bazar beach beads beady beaks beams beano beans bears beata beats beaut beaux bebop becks becky beech beefs beefy beeps beers beery beets begat beget begum beige being beira belay belch belie bella belli bello bells belts benda bends bendy benes benet benin benjy benny benzo beret berne berth beryl beset bests betas betel betis betsy betta betty bevel bezel bibby bible bicep biddy bidet biffy bight bigly bigot bijou biked bikes bilbo biles bilge billa bills billy bimbo bindi binds binge biome biota birds birdy birks bison bitch biter bites bitsy bitty blain blair blake blame blanc bland blare blase blast blaze bleak bleed bleep blest blick blimp blind blips blitz bloat blobs block blocs bloke blood bloop blots blown blows blued bluer blues bluey blume blunt blurb blurs blurt boars boats bobby bocce boden bodes bodhi boers bogan bogey boggy bogie bogle bogue bogus boils boing boise boles bolts bolus bombs bonds boned boner bones boney bongo bongs bonne bonny boobs booby booed books booms boone boons boots booty booze boozy boras borax bored borel borer bores boric boris borne boron bosch bosom boson bossa bossy botch bough boult bourg bourn bouts bowed bowel bower bowie bowls boxed boxes boyce boyer brack brags braid brant brash brats brava brawl brawn bream breck breed brees brent brest brett brews brian briar bribe brier brill brims brine brink briny brisk brite brits britt brock broil broke bromo bronx brood brows bruce bruin brule bruno brunt brute bryan bryce bryon bubba bucko bucks bucky budge bueno buffs buffy buggy bugle buick bulbs bulge bulky bulla bulls bully bumps bumpy bunce bundt bundy bunga bunks bunty buoys burbs burge burgh burka burke burly burma burns burnt burps burro burrs burry bursa burst busby buses bushy bussy busts busty butch butte butts butyl buxom buzzy bylaw byron bytes byway cabal cabot cacao cache cacti caddo caddy cadre cafes caged cages cagey caird cairn cairo cajon cajun caked cakes caleb calif calla calls calms calyx cameo campo camps campy camus canal caned canes canis canna canny canst canto caped capel caper capes capon cappy capra capri carat carbo cards cared carer cares carex carey carib carle carli carlo carne carol carpe carte carts carty caryl casas casco cased cases casey casks caste casts casus cater cates cathy catty caulk causa caved caves cease cecil ceded celeb celia cello cells celts cento cents ceres cesar chace chaco chafe chaff chaka chama chang chaos chaps chara chard chars chasm chats chaya cheat cheep chefs cheng chert chevy chews chewy chiao chiba chica chico chide chien chile chime chimp china chine ching chink chino chins chips chirp chive chloe chock choco choke chola cholo chomp chook chops chore chowk chris chron chubb chuck chugs chump chums chung churn chute cigar cilia cinch cindy circa circe cisco cissy cited cites clack clade claes clair clams clang clank clans claps clara clare clark claro clary clasp claus clave claws clays cleat cleft cleve clift cline clink clint clips clive clogs clots clout clove clubs cluck clued clues clump clung clunk clyde coals coats cobbs cobol cobra cocks cocky cocos codec coded coder codes codex codon coffs cohen coils coins coked coker cokes colas colds coles coley colic colin colon color colts coman comas combe combs comer comes comma comme compo comps comte conch condo cones coney conga congo conic conor const conte contr conus cooch cooks cools coons coops coots coped copes coppa copra copse coram corby cords cordy cored cores corey corgi corks corky corns corny corps corse corso corvo cosmo costa costs cotes cotta cough coupe coups cours court coven coves covet covey covid cowan cowed cower crabs crack crags craig crain cramp crank craps crash crass crave craze crazy creak creat credo creed creel creep creme crepe crept cress crete crewe crews cribs crick cried crier cries crime crimp crips criss croak croat crock croft crone cronk crony crook croon crops crore croup crows crude cruel crumb crump crunk cruse crush crypt cuban cubby cubed cubes cuddy cuffs culls culpa cults cumin cunts cupid cuppa curbs curds cured cures curia curie curio curls curse curvy cushy cusps cuter cutie cutty cyber cyclo cynic cyril cyrus cysts czech dacha daffy dagon dalai dales dally daman dames damme damon dancy dandy danes danke danny dansk dante darby darcy dared daren dares darin darts darya daryl dated dates datum david davis dawns dayal dayan dazed deals deans dears death debby debit debts debug decal decay decks decoy decry deeds deems deeps deers defer degas deign deism deity delft delhi delia della dells delph delve demon demos denis dents depot derby derek derry desks deter deuce devas devel devil devon dewan dewar dewey dhoni dials diana diane diced dicey dicks dicky diddy didnt didst diego diets digne dikes dildo dilly dimer dimes dimly dinah dinar dined dines dingo dings dingy dinka dinky dinos diode dione dippy dirge dirks dirty discs disks ditch ditto ditty divan divas dived dives divvy diwan dixie dixit djinn dobby dobie docks dodgy doers doesn doggo doggy dogma doing dolce doled dolls dolly dolor dolph domed domes domus donal dongs donna donne donny donut dooms doors doozy doped dopey doria doric doris dorms dosed doses doted dotty doubt douce douma douse dover doves dovey dowdy dowel dower downs downy dowry doyen doyle dozed dozer draco drago drags drake drang drank drape drawl draws dread dregs dried drier dries drips droit droll drool droop drops dross drown drugs druid drums drunk drury druze dryly duals duane ducal duchy ducks ducky ducts duddy dudes duels duets duffy dukes dulce dumas dumps dumpy dunce dunes dunks dunne dunno dunst duomo duped duper dupes duras durst dusky dusts dutch duvet dwelt dying dykes dylan eared earle earls earns eased easel eases eater eaves ebbed echos ecole eddie edema edgar edged edges edict edith edits edwin eerie effie egged egret egypt eject eland elegy elfin elias elihu eliot eliza ellen elmer elope elric elses elude elves elvis embed ember emcee emden emery emily emits emmet emory emote enact ended ender endow enema enemy engin engle ennui enoch enrol ensue entre envoy epics epoch epoxy epsom equus erica erick erika ernie ernst erode erred error erupt erwin essex essie ester ethan ethel ether ethos ethyl etude euler euros evade evans evens evert evict evils evoke ewing exalt exams execs exert exile exits expel expos extol exude exxon eyrie fable faced faces facet facie facto facts faded fader fades fagin fails faint faire fairs faked faker fakes fakir falco falls false falun famed fangs fanny fanon farce fared fares farms farsi farts fasts fatal fated fates fatty fatwa fault faust fawns faxed faxes fayed fazed fears feats fecal feces feeds feels feely feign feint feist felix fella fells felon femme femur feral feria fermi ferns ferri festa fetal feted fetid fetus feuds fever fibre fibro ficus fidel fides fiefs fiend fieri fiery fifty fight filed filer files filet fille fills filly films filth finds fined finer fines finis finns fired fires firma firms firth fishy fists fitch fiver fives fixed fixer fixes fizzy fjord flack flags flail flake flaky flank flaps flask flats flaws fleas fleck flees flesh fleur flier flies fling flint flips flirt floes flops floss flout flown flows floyd fluff fluke flume flung flunk fluor flush flyby foals foams foamy foggy foils folds folic folio folks folly fonds fonts foods fools foots footy foray fords forex forgo forks forma forme forms forst forte forts fossa fosse fouls fount fours fowls foxes foyer frack frail franc franz fraud freak freed freer frees freon frere frets freud freya friar fried fries frill frisk frist frith fritz frizz frock frogs frond frosh froth frown froze fryer fucks fudge fuels fugue fultz fumed fumes funds fungi furor furry fused fuses fussy gabby gable gabon gaels gaffe gaily gains gaius galas galen gales galli galls gally gamba gamed gamer games gamut ganda ganga gangs ganja garbo garde garth gases gasps gassy gated gates gator gaudy gauls gault gaunt gauss gauze gauzy gavel gayer gazed gazes gears gecko geeks geist gekko gemma genes genet genii genny genoa gents genus geoff germs getup ghana ghats ghazi ghent ghoul gibby giddy gifts giles gills gilly gilts gimme ginny gipsy girls girly girth giver gives givin gizmo glace glade gland glans glare glaze gleam glean glebe glenn glens glial glick glide glint gloat gloom glows gluck glued glues gluon glynn glyph gnats gnome goals goats godly goers going golds goldy golem golgi golly gomer goner gongs gonna gonzo goods goody gooey goofs goofy goons goran gored gorge gorse gotch gotha goths gotta gouda gouge gourd gowan gowdy gowns grabs grads graff graft grail grama grams grata grate grave grays graze grebe greco greed greek gregg greta grete greys grice grids grief griff grift grime grimm grimy grins gripe grips grist grits groan groff groin groot grope gross grote grout growl grows grubs gruel gruff grump grunt guano guava guido guile guilt guise gulch gules gulls gully gulps gumbo gumby gummy gundy gunny guppy gurus gusto gusts gusty gutsy gutta guyer gypsy gyros gyrus hacks hacky hades hadji hadnt hafiz hagar hagia hague haida haiku hails hairs hairy haiti hajji hakim halal halas hales hallo halls halos halts halve haman hamel hammy hamza hands hangs hanif hanks hanky hanna hanoi hansa hants haram hards harem hares harms harps harpy harry harsh harts hasan hasnt hasta haste hasty hated hater hates hauls haunt hausa haute havel haver haves havoc hawks haydn hayes hayne hazen heads heady heald heals heaps hears heats heave hecht heels hefty heidi heinz heirs helen helge helio helix hells helms helps henna henny henry herat herbs herds heres herne heron heros hertz herve hetty hexes hicks hides highs hight hiked hiker hikes hilda hills hilly hinch hindi hinds hindu hinge hints hippo hippy hiram hired hires hirst hissy hitch hives hoard hoary hobos hocus hodge hogan hoist hokey holds holed holes holla homed homer homes homey homme homos honan honda hondo honed hones honks honky hooch hoods hoody hoofs hooks hooky hoops hoots hoped hopes hoppy horde horns horny horry horst hosea hosed hoses hosts hotch hotly hough hound hours hovel hover howdy howes howls hoyle hsien hubba hubby huffs huffy hulks hulls humic humph humps humus hunch hunks hunky hunts hurls huron hurst hurts husks husky hussy hutch hydra hydro hyena hymen hymns hyoid hyped hyper icons idaho ideas ident idiom idiot idler idols idyll igloo ignis iliac iliad ilium illus imago imams imbue impel imply inane incan incas incur india indic indra indus inept inert infer infos infra inger ingle ingot inigo inked inlay inset intel inter intra intro ionic irani iraqi irate irena irene irfan irish irked irons irony irvin irwin isaac islam islay isles islet issei italy items izumi jacko jacks jacky jacob jaded jager jails jaime jaina jakes jakob james jamie jammy janes janet janos janus japan jared jason jaunt jawed jazzy jeans jebel jeeps jeers jello jenna jenny jerez jerks jerky jerry jesse jesus jetty jewry jiffy jiggy jihad jimbo jimmy jinks jinny jocks johan johns joins joist joked joker jokes jokey jolts jonah jonas jones jorge josey joshi josie josip joule jours joust joyce judah judas jukes julep jules julia julie julio jumps jumpy junks junky junta juris juror jussi justo kaaba kafir kafka kalam kamel kanga kanji kappa kapur karat karel karen karma karoo karst karts kashi katha kathy katie kayak kazoo keats kebab keels keeps keita keith kelly kemal kenai kendo kenny kenya kerns kerri kerry ketch kevan kevin keyed khadi khair khaki khans khmer kicks kiddo kiddy kiley kills kilns kilos kilts kinds kings kinks kinky kiosk kiowa kirby kisan kissy kites kiwis klaus kling knack knave knead kneed kneel knees knell knelt knick knits knobs knoll knorr knots knows koala kodak kohls kondo kongo kooks kooky koran korea kraft kraut krebs krill kriss krona krone kudos kurta kutch kylie kyoto kyrie kyung laban labia laced laces lacey lacks laden ladle lager laine laird lairs laity laker lakes lakhs lally lamas lambs lamer lamia lamps lanai lance lande lands lanes laney lanky lanny lapel lapis lapse larch largo larks larry larva lasso lasts latex lathe latin laude lauds laura laure lavas laver lawns layed layne layup lazar leach leads leafs leafy leaks leaky leans leant leaps leapt leary leash leben leche leech leeds leeks leery lefts lefty leger legge leggy legit leigh leila leith leman lemma lemur lends lenin lenny lense leone leper leste letty leung levee leven levin levis lewis lexis liana liane liang liars libby libel liber libra libre libri libya licht licks lidar lidia liege liens lieut lifer lifts liger ligne liked liken likes lilac lilly liman limbo limbs limes limos limps linda lindo lindy linea lined lines lingo links linky linus lions lipid lippy lisle lists liszt liter lites lithe litre lived liven lives livid livre llama llano lloyd loach loads loamy loans loath lobed lobes lobos lochs locks locos locum locus loess lofts lofty logan logie login logos lohan loins lolly loner longs looks looky looms loons loony loops loopy lopes loran lords lordy loren loris lorry loser loses lossy lotta lotte lotto lotus lough louie louis louse lousy lovat loved loves lovey lowes lowly lowry lucan lucia lucid luger luigi lukas lulls lumen lumps lumpy lunge lungs lupin lupus lurch lured lures lurid lurks lusts lusty lydia lying lymph lynch lynne lysis lysol mabel macan macao macaw machi macho macon madge madly madre mafia mafic mages magma magna magog magus mahal mahdi maida maids mails maine mains maint maire maize makes malam malay males malik malls malta malts malus mamas mamba mambo mamie mamma mammy manas mandi manes manet manga mange mania manic manis manly manna manny manos manse manta manus maori marci marco mardi marek mares marga marge maria marie mario maris marko marks marla marly marts marty marys masai masha masks mason massa masse massy masts mated mater mates matey maths matin matsu matta matte matti matty matzo mauve maven mavis maxim maxis mayan mayer mazda mazel mazes mazur mccoy mckay meads meals mealy means meany meath meats meaty mecca medea media medio meech meeks meese meets meiji melba melds melee meles melia melon melts memos mende mendy mensa menus meows merch merci merle mesas messe meted metis metra metre meuse mezzo miami micah micky midas midge mikes mikey milan milch miler miles milks milla mille mills milly milos mimes minas mince minds mined mines mingo minis minny minos minot mints minty mired mirth mirza miser mises missa missy mists mitch miter mites mitra mitre mitts mitty mixed mixes mixup moans moats mobil mocha mocks modal modem modes modoc modus mogul moira moise molar molds moldy moles molle molly molto momma mommy monad monde mondo mongo monks monte monty mooch moods moody moons moore moors moped moran moray morel mores morin morne moron morph morro morse moses mosey mossy mosul motes moths motif motte mould moult mourn moved mover moves mowed mower moxie mucky mucus mudra muffs mufti muggy mulch mules mulla mulls multi mumbo mummy mumps munch mungo murat murky murph murry mused muses mushy musky musty mutch muted mutes mutts mylar myron myrrh myths nacho nadir nagel nahum nails naira naive naked named names nance nancy nanda nandi naomi naoto nappa nappy narco nasal nasty natal natch natty navel nawab nazim nazir nazis nears neath necks necro needs needy negro negus nehru neigh nelly nepal nerds nerdy nervy nests neves newts nexus niall nicht nicks nicky nicol niece niels nifty nigel nihil nikko nikon nines niobe nippy nitro nitty nixed nixon nizam nobby nobel nobis nobly nodal noddy nodes noire nomad nomen nonce nooks noose norah norma norms norse norsk nosed noses nosey noted notes notre nouns novus nubia nudes nudge nudie nukes nutty nymph nyssa oases oaths obese obeys ochre octet oddly odell odeon odors odour offal ogres oiled oiler olden older oldie oleic oliva ollie olson omaha omani ombre omens omits oomph oozed oozes opals opens ophir opine opium opted orang orcas oriel orion oromo orson ortho osage osaka oscar oskar ostia ouija outdo outed ovals ovary ovate ovens overs overt ovoid owing owned oxbow ozark pablo paced pacer paces pacha packs pacts paddy padre paean pagan paged pager pages pails paine pains pairs paisa paise palau paled paler pales pally palma palms palsy pampa panes pangs panic panna panos pansy panto pants panty paola paolo papal papas pappy papua param paras pardo pared pares paris parka parks parle parma parra parse parsi parte parti parts paseo pasha passe pasts pasty patel pater paths patsy patty paula paved paves pavia pawns payed payee payer peaks peaky pears peart pease peasy peaty peavy pecan pecks pecos pedro peeks peele peels peeps peers peeve peggy pekin pelts penal pence penis penna penta peons peony peppy pepsi perch percy peres peril perks perky perla perle perry perse pesky pesos pests petal peter petit petre petri petro petty phage pharm phill phlox phono phony picea picks picky picot piers piety piezo piggy pikes pilaf pilar piled piles pills pimps pinal pines piney pings pinks pinky pinot pinto pints pinup pinus piotr pious piped piper pipes pique pisco piste pithy pitta pixie plaid plait plans plato plats platt playa plays plead pleas pleat plebs plied plies pliny plonk plots plows ploys pluck plugs plumb plume plump plums plush pluto poach pocus podge poems poets poise poked pokes pokey poles polio polis polit polka polls polly polos polyp ponca ponce ponds pongo pooch pools poops popes poppa pored pores porgy porky porno porta porte porto ports posed poser poses posey posit posse posts potty potus pours pouty prado prana pratt prawn prays preen preps preys priam prick pricy pried prima primo prion prise prius privy prods profs promo proms prong props prose prost proto prowl proxy prude prune psalm psych pubes pubic pubis pucks pudge pudgy puffs puffy puget puked pukes pulis pulls pulpy pumas pumps punic punks punky punta punto punts pupae pupal purdy puree purer purge purim purrs pushy pussy putts putty pygmy pylon pyrex qatar quack quads quail quant quark quart quash quasi quays queer quell quill quilt quint quips quire quirk quito quits quota rabat rabbi rabid rabin raced races racks radek radii radix radon rafts raged rager rages raghu rahul raids rails rains rajab rajah rajiv raked rakes ralph raman rambo ramon ramps rance randy ranks rants raped raper rapes rarer raspy ratan rated rater rates ratty raved ravel raver raves rayed rayon razed razer reads reals reams reaps rears rebar rebbe rebel rebus rebut recap recce recon recto recur reddy redid redox redux reeds reedy reefs reeks reels reese reeve refit regal regia reich reina reins remit remix remus renal rents repel repro rerun rests retry reuse revel revie revue rhein rhine rhino rhoda riche ricin ricks ricky rides riffs rifle rifts rigid rigor riled riles riley rimes rinds rings rinks riots ripen riser rises rishi risks risky rites ritzy riven rives rivet roach roads roams roars robed robes roche rocks rogan roger rogue rohan roker roles rolfe rollo rolls roman romeo ronde rondo ronin roofs rooks rooms roomy roose roost roots roped roper ropes roque roses roshi rosin rotor rouen rouge rouse rover rowan rowdy rowed rower roxie rubes rubin ruble ruddy rufus ruins ruled rules rumba rumen rummy rumor runes rungs runic runny rupee russe ryder saban saber sabin sable sabra sabre sacks sacra sacre sadhu sadie sadly safes sagan sagas sager sages saggy sahib sails saith sakai sakes salar salat salem sales salix salle sally salma salts salud salva salve salvo samaj samba sambo samir sammy samoa sands saner sangh santa santo sappy sarah saran saree sarge sarin saris sasse sassy satan sated satyr saucy saudi sault sauna saute saved saver saves savin savor savoy sawed saxon sayer sayid scabs scala scald scalp scaly scamp scams scans scant scape scare scarp scars scary scion scoff scold scone scoot scorn scots scott scour scowl scram scree screw scrim scrip scrum scuba scuff scull seals sealy seams sears seats sebum sects seder sedge seeds seedy seeks seely seems seeps seers segue seine seize selah sella sells selva semen semis sence sends senna senor sensu senza seoul sepia septa serfs serge serif serio serra serum servo setae seton setup sever sewed sewer sexed sexes shack shady shahi shaka shaky shale shalt shame shams shane shang shank shard shari shaul shave shawl shawn sheaf shear sheds sheen sheik sheng sheva shied shill shins ships shire shirk shits shiva shoal shock shoes shoji shona shone shook shoop shoot shops shorn shots shove shows showy shred shree shrew shrub shrug shuck shuns shunt shure shush shute shuts shyam shyly sibyl sided sider sides siege siena sieur sieve sighs sigil sigma signs sikes sikhs silas silks silky sills silos silva simba simon sinew singe singh sings sinks sinus sioux sippy sired sires sisal sissy sitar sited sites sitka sivan sixes sized sizes skeet skein skews skids skied skier skies skiff skimp skins skint skips skits skunk slabs slade slags slain slams slang slant slaps slash slats slave slavs slays sleds sleek sleet slick slime slims slimy sling slink slips slits sloan slobs sloop sloth slots slows slugs slump slums slung slurp slurs slush sluts slyly smack smash smear smelt smirk smite smith smock smoke smoky smoot smote smuts smyth snafu snags snape snaps snare snark snarl snead sneak sneer snell snide sniff snipe snips snobs snook snoop snore snort snout snows snubs snuck snuff soaks soaps soapy soars sober socks sodas sodom sofas sofia softy soggy soils soled soler soles solon solos solus sonar songs sonja sonny sooth sooty soppy sorel sores sorts souls soups soupy sours sowed sower spade spain spake spall spank spans spars spasm spate spats spawn spear speck specs spect speed speer spelt sperm spews spica spied spiel spies spiky spill spilt spina spink spins spiny spire spiro spite spits spitz splat spock spoil spoof spook spool spore spots spout spree sprig spuds spunk spurn spurs spurt squaw squib stabs stacy stade stags staid stain stair stale stall stang stank staph starr stars stash stats stave stays stead steal steed steen stein stele stems stent steps steve stews stile stilt stine sting stink stint stipe stirs stoic stole stoma stomp stony stoop stops stork stott stour stray strep strix strom strop strum strut stubs stuck studs stump stung stunk stuns stupa sturt suave sucks sucre sudan suede suing suits sulky sulla sully sumac summa sunil sunni suomi suppl supra surah surat surer surfs surly surya susan susie sutra sutta suzan swabs swain swale swami swamy swank swans swaps swart swash swath swati sways swear sweat swede swept swill swims swine swire swirl swish swiss swizz swoon swoop swore sworn swung sybil sykes synch syncs synod syria tabby taber tabla taboo tabor tacit tacks tacky tacos taels taffy taiga tails taint tajik takao taker takes takin tales talks tally talon taluk talus tamas tambo tamed tamer tamil tammy tampa tandy tanga tangy tania tanka tanks tanna tansy tanto tanya tapas taped taper tapes tapia tapir tarde tardy tarot tarps tarry tarte tarts tasks tatar tater tatty taunt taupe tauri tawny taxed taxes taxis taxon teams tears teary teats techy teens teeny telex tells telly telos tempe temps tempt tench tends tenet tengu tenon tents tepid terms terns terra terre terri terry terse tesla testa tests testy teton tetra texan texas texts thais thana thane thats thaws theft thein their there these theta theyd thief thigh thine thins thong thorp those throb thugs thule thump thyme tiara tiber tibet tibia ticks tidal tides tiers tigre tikka tilak tilda tilde tiled tiles tills tilly tilts timed times timid timon timor tinea tines tinge tings tinny tints tippy tipsy tired tires tithe titty titus tizzy toads toddy toils tokyo tolls tomas tombs tomes tommy tonal toned toner tones tonga tongs tonka tonne tonto tools toons toots topaz topsy torah torii toros torso torts torus tosca totem totes tours touts tovar towed towie towns toxic toxin toyed tozer tracy tramp trams trans traps trash trawl trays trees treks trent tress triad trial trice tried trier tries trike trill trims trina trine trios tripe trips trite trois troll trope trots trove truce trudy truer trump truss tryst tsars tubal tubby tuber tubes tucks tudor tufts tulip tulle tulsa tulsi tumor tuned tuner tunes tunic tunis tuple turds turki turks turns turvy tusks tutti twain twang twats tweak tweed tween tweet twigs twill twine twink twins twirl twits tying tyler typed types typos tyres udder uhuru ulama ulcer ulnar ultra umber umbra uncut undid undue unify units unlit unmet unsee untie unwed unzip upend upped upset urged urges uriah uriel urine ursus users usher using usurp usury utero uther utter uzbek vadim vague vagus valet valor vamos vamps vance vanda vanes vapid vapor vardy varia varna varus vases vedic veena veers vegan vegas veils veins velar venal venom vents venus verbs verde verdi versa verso verve vespa vesta vests vetch veuve vexed vials vibes vicar vices vichy vicki vicky vidya views vigil vigor vijay ville vince vinci viner vines vinny vinod viper viral virgo virus visas visor vitae vitro vivek vives vivre vixen vocab vodka vogue voids voila voles volga volta volte volts vomit voted votes vouch vowed vowel vroom vulva vying wacky waded wades wafer waged wager wages wagga wahoo wails waits waive waken waker wakes wales walks walla walls wally walsh wands waned wanes wanna wants wards wares warms warns warps warts washy wasnt wasps watts waugh waved waver waves waxed waxes wayne wazir weald wears weave webby weber weeds weedy weeks weeps weepy weirs welch welds wells welly welsh welts wench wendi wendy weren wests whack wharf whats whelp which whiff whigs whims whine whiny whips whirl whisk whist whizz whoop whore whorl wicca wicks widen widow wield wierd wifes wigan wight wilco wilds wiles willi wills willy wilts wince winch winds wines wings winks wiped wiper wipes wired wires wishy wisps wispy witch wives woken wombs women wonky woods woody wooed woolf wooly woops woozy words wordy works worms worry worse worst would wound wowed wrack wraps wrath wreak wreck wrens wrest wring writs wrong wrung wryly wurst wynne xenia xenon xerox xviii xxiii xylem yahoo yanks yards yarns yawns yazoo yearn years yells yemen yerba yikes yodel yogic yogis yoked yolks youre yours youse youve yucca yucky yukon zaire zakat zaman zeiss zeros zesty zetas zilch zilla zippy zonal zoned zones zooms zorro zulus',6:'abbott abject ablaze abound abrupt absurd abused abuser abuses acacia accrue accuse aching acidic actors acumen adapts addict adhere admits adonis adopts adored adores adrian adrift adults advent advert aegean affirm afghan afield afloat afraid africa agatha ageing agents agreed agrees aiding ailing airbag airbus airing airman airmen airway aisles alamos alarms alaska albany albeit albert albino albion albums aleppo alerts alexis alfred alicia aliens alight aligns alison alkali allege allele alleys allied allies allows alloys allure almond alonso alonzo alpine altars alters always amanda amazed amazes amazon ambush amelia amends amidst amigos amtrak amulet amused analog andean anders andhra andrea andrew anemia angela angelo angels angers angled angles angola ankara ankles annals annoys antics antony anyhow aortic apache apathy apical apiece apollo apples approx arabia arabic arable arcade arcane arched arches archie ardent arenas argued argues argyle argyll ariana arisen arises arlene armada armies arming armory armour armpit arnold arouse arrays arrest arrows arroyo artery artful arthur ascend ascent ashore ashraf ashram asians aspire assays assent assert assets assign asthma astral astray astrid astute aswell asylum athena athens atrial atrium attach attack attain attest attila attire aubrey auburn audits audrey august auntie aurora aussie austin autism avalon avatar avenge averse avoids awaits awaken awards axioms azalea aztecs babies backed backer badass badger badges bagels bagged bailed bailey bakers bakery balboa balkan ballad baller ballon baltic bamboo banded bandit banged banger banish banked banker banned banter barbed barbra barges baring barker barley barlow barney barons barred barren barrio barrow barter barton basalt bashed basics basing basins basque bathed batman batted batter battle baxter bazaar beacon beaded beagle beamed beanie beards bearer beasts beaten beater beaver becker beetle beggar begged begins behest behold beings beirut bender bengal benign bennet benson benton berger bering berlin bernie bertha bertie bessie bestow bethel betray beware bhutan bianca biased biases bibles biceps bidder biggie bigots bikers biking bikini billed billie binder bionic biopic biopsy birdie births bistro bitchy biting bitten bitter blacks blades blaine blamed blames blanca blanco blanks blasts blazed blazer bleach bleeds blends blight blinds blocks blokes bloods bloody blooms blouse blower bluffs bluish blurry boards boasts bodied bodies bodily boeing bogart bogged bogota boiled boiler bolder boldly bolted bombay bombed bomber bonded bonnet bonnie boogie booing booked booker boomer boosts booted booths boring borneo bosses boston botany bother bouncy bounds bounty bourne bovine bowden bowels bowers bowing bowled bowler bowles bowman bowser boxers braced braces brahma brahms braids brains brakes brandi brands brandy brasil braver braves brazen brazil breads breaks breast breech breeds breezy brenda breton brewed brewer bribed bribes bricks bridal brides briefs briggs brings brodie broken bronco brooch brooke brooks browns browse bruins bruise brunch brutal brutus bubbly buckle buddha buenos buffer buffet bugged bugger builds bullet bumble bummed bummer bumped bumper bunker burden burial buried burley burned burner burrow bursts burton bushes busier busted buster bustle butler buyers buyout buzzed buzzer bylaws bypass cabins cables caches cactus cadets caesar cahill cairns calais calico caliph called caller callum calmed calmer calmly calves calvin camden camels cameos camino camped camper campos canaan canada canals canary cancer candid canine canned cannot canoes canons canopy canton cantor canvas capita capone capped carers caress carlin carlos carmel carmen carnal carney carole carols carrie carrot carson cartel carter carton carved carver cashed casing casino casket caspar casper cassie caster castes castor castro catchy caters caucus causal caused causes caveat cavern caviar cavity cayman ceased ceases cedric celebs celery celiac cellar celtic censor centre centro cereal cervix cesare cetera ceylon chains chairs chakra chalet champs chants charms charts chased chaser chases chatty cheats checks cheeks cheeky cheers cheery cheesy cheney cheque chests cheung chewed chicks chiefs chilli chills chilly chimes chimps chisel choirs choked chokes chopin choppy choral chords chores christ chubby chunks chunky cicero cigars cinder cipher cirque cities citing citrus civics claims claire clamps clarke classy claude clawed cleans clears cleats cleave clergy cleric clerks cliche clicks cliffs climax climbs clinch clings clingy clique clocks cloned clones closed closes cloths clouds cloudy clough clover cloves clowns clumps clumsy coarse coasts coated cobalt cocked cocoon coerce coffin cognac cohort coiled coined colder collab collie collin colors colour combat combed combos cometh comets comics commas commie compel concur condom condor condos confer conner connie conrad consul contra convex convoy cooked cooker cooled cooley cooper copied copies coping copped coptic corals cordon cornea corona corpse corpus corral correa corset cortex cortez cosmic cosmos cougar coughs counts courts covent covers covert coward coyote cracks cradle crafts crafty cramps cranes cranky crappy crater crates craved craven craves crawls crayon crazed creams creamy crease creeks creeps creepy creole crimea crimes cringe crises crisis crisps crispy crooks crores crosby crosse crotch crouch crowds crowns crumbs crunch crusty crutch crying crypto cubans cuckoo cuddle cuddly culled cullen culver curate curfew curing curled curran currie cursed curses cursor curtis curved curves cutest cutler cutoff cutout cutter cyborg cycled cycles cyclic cyprus cystic czechs dagger dahlia dainty dakota dallas dalton damage dammit damned damnit damper damsel danced dances danger dangle daniel danish danube daphne dapper daring darius darken darkly darren darryl darwin dashed dashes dating davies dawned dawson dayton dazzle deacon deadly dearly dearth deaths debbie debris debtor debuts decals deceit decked decker decode deduce deduct deemed deepen defeat defect defied defies deftly defuse delays deluge deluxe demise demons dengue denial denied denies dennis denote denser denver depart depict deploy deport depots depths derail derive desist detach detain detest detour devils devise devoid devote devour devout dewitt dexter dharma diablo dialed dialog diaper dickey dickie dieter digest digger digits dilute diners diodes dipped disarm dishes dismal dismay disney dispel distal divers divert divest doable dobson docile docked docker docket dodged dodger doesnt dogged doggie domino donald donkey donnie donors donuts doodle dooley doomed doping dorado dorian dorsal dosage dosing dotted doubly doubts douche downed downer dozens drafts drains dramas draped draper drapes drawer dreams dreamt dreamy dreary dredge drifts drills drinks drives drones droves drunks drying dubbed dublin ducked dudley dugout duluth dumber dumped duncan dundee dunlop duplex durant durban duress durham dusted dustin duties dwarfs dwayne dwells dwight dyeing dynamo eagles earned earner earths earthy easing easter eaters echoed echoes eczema edging edible edison edited edmond edmund edward eerily eiffel eighty eileen elaine elated elbows elders eldest elects elicit elijah elisha elites elixir elliot eluded embark embers emblem embody embryo emilia emmett enamel encode encore enigma enjoys enlist enmity enrich enroll ensign ensued ensues entail enters entice envoys equals equate equine erased eraser ernest eroded erotic errand errant errors erupts escrow eskimo essays esters esther etched ethics ethnic euclid eugene eulogy eunice eureka europa europe evaded evelyn evenly events evoked evokes exceed excels excess excise excite excuse exempt exhale exiled exiles exists exited exodus expend expire expiry extant extras eyeing eyelid fabian fabled fables facade facets fading faggot failed fairer faiths faking falcon fallen famine fandom farley farmed farrow fascia fasten fathom fatima fatter faucet faults faulty favors favour feared feasts fedora feeble feeder feisty feline fellas felled felons felony female fenced fences fender fennel fergus ferrer ferret ferris fervor fetish feudal fewest fiance fiasco fibers fibres fickle fiddle fields fiesta fifths figaro fights fijian filled filler fillet filmed filthy finals finder finely finite firing firmer firsts fished fishes fitted fitter flakes flames flange flanks flared flares flashy flatly flaunt flawed fleece fleets fleshy fleury flicks fliers flimsy flinch flirty floats flocks floods floors floppy floral flores flowed fluent fluffy fluids flurry flyers fodder foiled folded folder folsom fondly fooled footed footer forage forbid forced forces forged forked formed forums fought fouled fowler framed frames france franco francs franks fraser frauds frazer freaks freaky freddy french frenzy fresco fresno friars friday fright frigid frills frisco fronts frosty frugal fruits fruity frying fucked fucker fueled fulfil fulham fuller fumble fuming funded fungal fungus funnel fusing futile gables gadget gaelic gagged gained galley gallon gallop gallup galore gambia gambit gander gandhi ganges gaping gareth garner garnet garret garter garvey gasket gasped gassed gatsby gauges gawker gazing geared geezer geiger gemini gender genera geneva genome genres gentry george gerald gerard german ghetto ghosts giants gibson gideon gifted giggle gilded gilles gladly gladys glands glazed glider glitch globes gloomy gloria glossy glover gloves gluten glycol goalie goblet goblin godwin goethe goings goldie golfer gopher gordon gorman gospel gossip gotham gothic govern graced graces graded grader grades graeme graham grains grammy grange granny grants grapes graphs grassy grated gratis gravel graves grazed grease greasy greats greece greedy greeks greens greets gregor grieve grille grills grimes grinch grinds gritty groans grocer groove groovy grotto groups grouse grover groves grower grudge grumpy grunts guards guelph guests guiana guided guides guilds guilty guinea gunman gunmen gunnar gunned gunner gurney gutted gutter guyana gypsum habeas habits hacked hacker hadith hailed haired hakeem halted halved halves hamlet hamper handed handel hander hangar hanged hanger harass harden harlem harman harmed harmon harold harper harris harrow harvey hassle hasten haters hating hatred hattie hauled haunts havana havens havent having hawaii hazard hazing headed healed healer heaped hearst hearth hearts hearty heated heater hebrew hectic hector hedges heeled helena helium heller helped helper herbal hereby herein heresy herman hermes hermit hernia heroes heroin herpes hester heyday hiatus hiccup hickey hijack hikers hilary hinder hindus hinged hinges hinted hippie hitler hitter hobbit holden holmes homage homely homers homing honors honour hooded hoodie hooked hooker hookup hooper hooray hoover hooves hopped hopper horace hordes horned horner hornet horrid horror horses hosted hostel hotels hotter hottie hounds hourly housed houses howard hubble hubert hubris huddle hudson hugely hugged hughes humane humans humbly hummus humour hunger hunted hurdle hurled hurley hurrah hurray hushed hustle icarus ideals idiocy idiots ignite images imbued imogen impair impala impart impede impure inbred incase incest inches incite indeed indian indict indies indigo induce infamy infect inflow influx ingram inhale inject injure injury inline inmate innate inputs insane insect insult insure intern invade invent invoke inward iodine iraqis ironed irving isabel isaiah israel issued issuer issues ithaca jackal jacked jackie jacoby jaeger jagged jagger jaguar jailed jammed janice jargon jarvis jasper jeanne jekyll jennie jeremy jerked jerome jersey jessie jester jesuit jethro jewels jewish jigsaw jingle joanna joanne jockey johann johnny joined joints jokers jordan joseph joshua josiah joyful joyous judged judges judith juggle juices julian julien juliet julius jumped jumper junkie juries jurors justin kaiser kamala kansas karate keenly kelvin kennel kenyan kernel kettle kicked kicker kiddie kiddos kidnap kieran killed killer kimono kinase kinder kirsty kissed kisses kitten knives knocks konrad korean kosher kraken kuwait labels labour lacked lackey lactic ladies lagged lagoon laguna lahore lakers lambda lament lancer lancet landau landed lander lapsed lapses larvae larval lasers lashed lashes lasted lastly latent latham latino latvia lauded lauder laughs laurel laurie lavish lawful lawson lawton layers laying layman leaked leaned learns learnt leased leases leaves ledger leeway legged lemons lender lenses leonid lesion leslie lessen lester lethal levant levels levers levied levies liable libido libyan licked lifted ligand lights lilies lilith limits linden liners linger linked lionel lipids liquor lisbon listed lister litany liters litres litter livery lizard lizzie loaded loader loaned loathe loaves locale locals locked locket locust lodged lodges logged london lonely longed looked lookup looney looped loosen looser looted losers losing losses lotion louisa louise louvre lovers lowell lowers lucian lucius ludlow ludwig lumbar lumber lumped lunacy luring luster lustre luther lyndon lyrics macron macros madame madden madman madras madrid maduro maggie magnet magnum magnus magpie mailed mailer maison majors makers malaga malawi malaya malice mallet malloy mammal manger maniac manila manned mantel mantis mantle mantra manuel manure maoist mapped marcel marcia marcos margot marian marion marked markup markus marlin maroon marred marrow marsha martha martin martyn martyr marvin mascot mashed masjid masked masons masses mather mating matron maxima mayday mayhem mayors meadow meager meagre medals meddle medial medici medics medina medley medusa mellon mellow melons melted melton memoir menace mental mercer merged merges merino merits merlin merton messed messes messrs metals meteor meters methyl metres mexico michel mickey micron midday midget midway miguel mikael milder mildew mildly milieu milled miller millet millie milner milton mimics minced minded miners mingle mining minion minnie minors minted mirage miriam misery mishap misled missed misses mister misuse mixers mocked models mohawk molded molten monaco monday mongol monica monies monroe months moored morale morals morbid morgan morgue mormon morons morris morrow mortal mortar mortem morton mosaic moscow mosque motels motifs motley motors mounds mounts mousse mouths movers movies mowing mozart muffin mugged mulder mullen muller mullet mumble munich murals murder muriel murmur murphy murray muscat musket muslim muster mutant mutiny mutton muzzle myriad myrtle mysore mystic mythic nailed napier napkin naples nassau nathan naught nausea navajo nazism nearer neatly nebula necked nectar needed negate nellie nelson nepali nerves nested nestle nestor nether netted neural neuron neuter nevada newark newton nguyen nibble nicest niches nieces nigger nights nimble ninety nipple nippon nitric nobles nodded noises nomads noodle nordic norman norway notary notify novels novice nozzle nuance nuclei nudity nugget nursed nurses nutmeg obeyed oblige oblong obsess obtuse occult occurs oceans octane octave ocular oculus odessa offend offers oilers oldies oliver olives olivia onions onward oozing opaque opened operas opiate oppose optics opting oracle orally orator orbits orchid ordeal orders oregon organs orgasm orient ornate orphan orwell oscars osiris osprey oswald oswego others ottawa otters ounces ousted outage outcry outing outlaw outrun outset owners oxford oxides oyster pacers pacing packed packer packet padded paddle padres pagans paging pagoda pained paints paired palais palate pallet palmer paltry pamela panama pandas panels panned pantry panzer papacy papaya papers parcel parity parked parker parlor parody parole parrot parted parton pascal passed passer passes pasted pastel pastry patchy patron patten paulie paused pauses paving payday payers payoff payout peachy peaked pearce pearls pearly pebble pedals peeing peeled pegged peking pellet pelvic pelvis penang penned peoria perils perish persia petals peters petite petrie petrol peyton phased phases philip phobia phoebe phoned phones photon photos pianos piazza picard picked picker picket pickle pieces pierre pigeon pilate piling pillar pilots pinkie pinned piping piracy pisces pissed pisses pistol piston pitted pixels pizzas placed placer places placid plague plains planar planes planks plants plaque plated plates played pleads pliers plight plough plowed plumes plunge plural podium poetic pointe points pointy poised poison poking poland police polity polled pollen pomona pompey ponder ponies poodle pooled pooped poorer poorly poplar popped popper porous ported portia posing possum posted potent potion potted pounce pounds poured powers prague pranks prawns praxis prayed preach prefix preset presto priced prices pricey pricks prides primal primed primer primes prints priory prison prized prizes probed probes pronto proofs propel proton proved proves prying psalms pseudo psyche psycho puddle pueblo puerto puffed puking pulled pulley pulpit pulses pumped pundit punish punter pupils purest purged purify purity purses pushed pusher pushes putter python quaint quaker qualms quarry quartz quebec queens quench quests queues quince quincy quinoa quirks quirky quorum quotas quoted quotes rabbis rabble rabies racers rachel racial racism racist racked racket radars radial radios rafael raffle ragged raging raided raider rained raised raiser raises raisin raking ramble rammed ramona ramsey rancho randle ranged ranges ranked ransom rapids raping rapist rapper raptor rarest rarity rascal ratify ration ratios rattle ravens ravine raving razors reacts reagan realms realty reaper reared rebate rebels reboot reborn rebuke recast recess recite reckon recoil recoup rectal rector rectum redeem redone reebok reeves refers refill refine reflex reflux refuse refute regain regent reggae reggie regime regina regret reigns reiner reject rejoin relays relics relied relies relish relive reload remade remand remark rename render renown rented reopen repaid repeal repent repost reread reruns resale resell resent reside resins rested retake retard retina retort reuben reused revamp reverb revere revert revise revive revoke revolt rewind rework rhinos rhodes rhonda rhymes ribbed richer riches richly ridden riddle riders ridges ridley rifles rigged rights ringed ringer ripped ripper ripple risked ritter rivals rivers roamed roared robbed robber robert robins robots rocked rocker rodent rodger rodman rodney rogers rogues roland rolled romain romano romans romero romney ronald rooted rosary roscoe rotary rotate rotors rotten rounds routed router routes rovers roving rowing rowley royale royals rubbed rubble rubles ruckus rudder rudely rudolf rugged ruined rulers rumble rumors rumour runoff rupees rupert rushed rushes ruskin russel russia rusted rustic sabine sabres sacked sacred sadder saddle safari safest sahara saigon sailed sailor sainte saints salaam salads salami saline saliva salons saloon salted salute samoan samson samuel sancho sandal sander sandra sanger sanity sanjay santos sarkar satire saturn saucer sauces saudis savage savers savior savory sawyer saxons saxony scalar scaled scales scarce scared scares scenes scenic scents schema schism scoops scopes scored scorer scores scotch scotia scotty scouts scrape scraps scream screws scribe scrubs seabed sealed seaman seamen seamus seared seated seater seduce seeded seeker seemed seized seizes seldom selena selina selves senate sender seneca senile sensed senses sentry sepsis septic septum serbia serena serene sergei sergio series sermon served serves sesame setter setups sevens severe sewage sewers sewing sexier sexism sexist sexton sexual shabby shaded shades shafts shaggy shahid shaken shaker shakes shalom shaman shamed shanks shaped shapes shards shared shares sharia sharif sharks sharon shasta shaved shaven shazam shears sheath sheets sheikh sheila shells shelly sherry shifts shiloh shines shirts shitty shiver shoals shocks shoddy shogun shoots shores shorts shorty shouts shoved shovel showed shrank shreds shrewd shrill shrine shrink shroud shrubs shrugs shrunk sicily sickle sickly siding sidney sienna sierra sighed sights signed silica silvia simeon simmer sinful sinned sinner siphon sirens sirius sitcom sitter sizing skater skates skewed skiers skills skinny skirts skulls slacks slalom slated slater slaves slavic slayer sleazy sledge sleeps sleepy sleigh sliced slices slider slides sliver slogan slopes sloppy slough slovak slowed sludge slurry slutty smacks smalls smarts smears smells smelly smiled smiles smiley smiths smoked smoker smokes smokey snacks snails snakes snappy snatch sneaks sneaky sneeze sniper snitch snooze snowed soaked soared socket sodomy soften softer softly soiled solace solder soleil solemn solids solved solves somali somber somers sonata sonnet soothe sophia sordid sorely sorrow sorted sounds soviet sowing spaced spaces spades spared spares sparks sparky sparse sparta spasms speaks spears speeds speedy spells spence spends sphinx spiced spicer spices spiked spikes spills spinal spines spleen splice splits spoils spoilt sponge spooky spoons spores sports sporty spotty sprain sprang sprawl sprays sprite sprout spruce sprung spying squads squash squats squeak squire squirt stacey stacks staffs staged stages stains stairs staked stakes stalin stalks stalls stamps stands stanza staple starch stared stares starry starts starve stasis stated states stayed steaks steals steamy steele steers stefan stella stench stereo steven sticks stifle stigma stiles stills stings stingy stinks stinky stints stitch stocks stoked stokes stolen stoned stoner stones stools stored stores storey storms stormy stoves strait strand straps strata straws streep stress strewn stride strife strike stripe strips strive strode stroke stroll stroud strung struts stuart stucco stuffs stuffy stumps stunts stupid sturdy styled styles stylus subbed subdue subset subtly sucked sucker suffer suffix sugars sugary suisse suited suites suitor sulfur sultan sultry summed summon sumner sunday sunken supper supple surfer surged surges surrey sussex sutter suture suzuki swamps swarms swayed swears sweats sweaty sweden swedes sweeps sweets swells swerve swings swiped swivel swords sydney sylvia synced syntax syrian tabled tables tacked tacoma tactic tagged tahiti tailed tailor taipei taiwan takers talbot talked talker taller talmud tamara taming tamper tampon tanaka tandem tangle tanker tanned tanner taping tapped tariff tarmac tartan tartar tarzan tasked tasted tastes tattoo taunts taurus tavern taxing taylor teague teamed teapot teased teaser teller tellin telugu tenant tended tendon tenets tensor tenths teresa termed terror tested tester tether texans thames thanks thefts theirs themed themes thence theres thermo theses theyre thighs things thingy thinks thinly thirds thirst thomas thorax thorns thorny thorpe thrash threat threes thrice thrift thrill thrive throws thumbs thwart ticked ticker tickle tiered tigers tights tiling tiller tilted timers tinder tinged tingle tinker tinted tipped tirade tiring titans titled titles tobias todays toffee toggle toilet tokens toledo tonnes topeka topics topped topper topple tories torque tossed tosses totals touchy toured touted towels towers towing toxins toying toyota traced tracer traces tracey tracks tracts traded trader trades tragic trails trains traits trance trashy trauma travis treads treats treble tremor trench trends trendy trevor triage trials tribes tricia tricks trifle tripod trisha triton trivia trixie trojan trolls troops tropes trough troupe trucks truest truman trumps trunks trusts trusty truths trying tryout tubing tucked tucker tucson tulips tumble tumors tumour tundra tuning turban turing turned turner turret tuscan tutors tuxedo tweaks tweets twists twitch tycoon tyrant tyrone uganda uglier ulcers ulster umpire unable unborn uncles undead undies undone unduly uneasy unesco uneven unfair unfold unholy unicef unions unisex unison united unites unjust unkind unload unpack unpaid unplug unreal unrest unruly unsafe unseen unsold unsung unsure untill untold untrue unused unveil unwell unwind unwise upbeat upheld uphill uphold upkeep upland uplift upping uproar upsets uptake uptown upward uranus urbana urging ursula usable uterus utmost utopia vacate vagina valium valour valued values valves vanish vanity vapour varied varies vassal vastly vaughn vaults vegans veiled velcro velvet veneer venice venous vented venues vermin vernon verona versed verses vertex vested vetoed vetted victim victor videos vienna viewed viewer vigour viking villas violin virgil virgin vishnu visits vistas vivian vocals voiced voices volley voodoo vortex voters vowels vulcan vulgar wading waffle waging wagner wagons waited waiter waived waiver walked walkie walled waller walnut walrus walter wander waning wanker wanted wanton warden warmed warmer warmly warned warner warped warren warsaw washed washer washes wasted wastes waters watery watson waving waxing weaken weakly weapon wearer weasel weaver weaves webber wedded wedged wedges weighs weiner weirdo welded welder weller werent werner wesley wetter whales wheels whence whilst whisky whiter whites whitey whoops whores wicked wicker wicket widest widget widows wiener wiggle wilbur wilder wildly willed willie willow wilson wilton winded winery winged winger winnie winona wiping wiring wisely wisest wished wishes wither witted wobble wobbly wolves wooded woolly worded worked worlds worsen wounds wraith wreath wrecks wrench wright wrists writes wrongs yachts yahweh yanked yankee yelled yemeni yields yogurt yonder yorker yoruba youths yvonne zambia zenith zephyr zipper zodiac zombie zoning zurich'};
+/* score a guess: 2 = right spot, 1 = in word elsewhere, 0 = not in word (repeated letters counted correctly) */
+const WG_score=(g,a)=>{
+  const r=Array(g.length).fill(0),left={};
+  for(let i=0;i<g.length;i++){if(g[i]===a[i])r[i]=2;else left[a[i]]=(left[a[i]]||0)+1}
+  for(let i=0;i<g.length;i++)if(r[i]!==2&&left[g[i]]>0){r[i]=1;left[g[i]]--}
+  return r;
+};
+const WG_sets={};
+function wordguess(root,S){
+  const N=S.level+3,TRIES=6;
+  if(!WG_sets[N]){const a=WG_ANS[N].split(' ');WG_sets[N]={ans:a,ok:new Set(a.concat(WG_OK[N].split(' ')))}}
+  const {ans,ok}=WG_sets[N];
+  const st=status(root,`Guess the ${N}-letter word in ${TRIES} tries. Green: right spot. Yellow: in the word. Grey: not in it.`);
+  const statKey='wg:'+N,stats=Object.assign({played:0,won:0,streak:0,top:0},store.get(statKey)||{});
+  const recentKey='wg:recent:'+N,recent=store.get(recentKey)||[];
+  let word;do word=ans[rand(ans.length)];while(recent.includes(word)&&recent.length<ans.length-1);
+  store.set(recentKey,[word,...recent].slice(0,Math.min(80,ans.length>>1)));
+  const g=el('div','wg-board',root);g.style.setProperty('--n',N);g.dataset.ar=(N/TRIES).toFixed(3);g.dataset.max=N*64;
+  const rows=[...Array(TRIES)].map((_,r)=>{const row=el('div','wg-row',g);return{el:row,t:[...Array(N)].map((_,i)=>{const t=el('div','wg-t',row);t.style.animationDelay=(r*N+i)*18+'ms';return t})}});
+  const bar=el('div','row wg-bar',root,'<span class="wg-stats"></span><button class="btn wg-next">Next word ▶</button>');
+  const statsEl=$('.wg-stats',bar),nextB=$('.wg-next',bar);
+  const paintStats=()=>{statsEl.innerHTML=`<span title="Current streak">🔥 <b>${stats.streak}</b> streak</span><span title="Games won">🏆 <b>${stats.won}</b> won</span>`};paintStats();
+  S.on(nextB,'click',()=>S.restart());
+  const kb=el('div','wg-kb',root),keys={},kstate={};
+  ['qwertyuiop','asdfghjkl','>zxcvbnm<'].forEach(line=>{
+    const r=el('div','wg-kr',kb);
+    for(const ch of line){
+      const b=el('button','wg-k'+(ch==='>'||ch==='<'?' wg-wide':''),r,ch==='>'?'Enter':ch==='<'?'⌫':ch);
+      b.setAttribute('aria-label',ch==='>'?'Enter':ch==='<'?'Delete':ch.toUpperCase());
+      S.on(b,'click',()=>press(ch==='>'?'Enter':ch==='<'?'Backspace':ch));if(ch>='a'&&ch<='z')keys[ch]=b;
+    }
+  });
+  let row=0,cur='',over=false,busy=false;
+  S.on(window,'keydown',e=>{
+    if(e.metaKey||e.ctrlKey||e.altKey||(e.target.closest&&e.target.closest('input,textarea')))return;
+    const inf=document.querySelector('.info');if(inf&&!inf.hidden)return;
+    if(e.key==='Enter'||e.key==='Backspace'){e.preventDefault();press(e.key)}
+    else if(/^[a-zA-Z]$/.test(e.key))press(e.key.toLowerCase());
+  });
+  function paintRow(){rows[row].t.forEach((t,i)=>{const c=cur[i]||'';if(t.textContent!==c){t.textContent=c;t.classList.toggle('full',!!c);if(c)restartAnim(t,'pop')}})}
+  function press(k){
+    if(k==='Enter'&&over){S.restart();return}
+    if(over||busy)return;
+    if(k==='Backspace'){if(cur){cur=cur.slice(0,-1);paintRow();beep(300,40)}return}
+    if(k==='Enter'){submit();return}
+    if(cur.length<N){cur+=k;paintRow();beep(420+cur.length*30,40)}
+  }
+  function nope(msg){restartAnim(rows[row].el,'wg-shake');st('');st(msg);beep(160,160,'sawtooth')}
+  function submit(){
+    if(cur.length<N){nope('Not enough letters');return}
+    if(!ok.has(cur)){nope('Not in word list');return}
+    const guess=cur,sc=WG_score(guess,word),R=rows[row];busy=true;cur='';
+    R.t.forEach((t,i)=>{
+      S.after(i*260,()=>{t.classList.remove('pop');restartAnim(t,'flip');beep([220,330,520][sc[i]]+i*20,90)});
+      S.after(i*260+170,()=>{t.dataset.s=sc[i]});
+    });
+    S.after(N*260+200,()=>{
+      guess.split('').forEach((ch,i)=>{if((kstate[ch]??-1)<sc[i]){kstate[ch]=sc[i];keys[ch].dataset.s=sc[i]}});
+      busy=false;row++;
+      if(sc.every(v=>v===2))finish(true,R);
+      else if(row>=TRIES)finish(false);
+      else if(row===TRIES-1)st('Last try!');
+    });
+  }
+  function finish(win,R){
+    over=true;stats.played++;
+    const W=word.toUpperCase();
+    if(win){
+      stats.won++;stats.streak++;stats.top=Math.max(stats.top,stats.streak);
+      R.t.forEach((t,i)=>{t.style.animationDelay=i*90+'ms';restartAnim(t,'wg-hop')});
+      st(`${['Genius!','Brilliant!','Great!','Nice!','Good job!','Phew!'][row-1]} The word was ${W}.`);
+      S.after(N*90+300,S.next);
+    }else{
+      stats.streak=0;S.shake();beep(150,300,'sawtooth');
+      st(`Out of tries. The word was ${W}.`);S.fx.banner(W,'The word was…');
+    }
+    store.set(statKey,stats);paintStats();nextB.classList.add('on');S.after(30,()=>nextB.focus({preventScroll:true}));
+  }
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -2317,11 +4613,24 @@ const GAMES=[
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Touch or drag anywhere and the cannon follows your finger, or use ← →. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. About every 20 seconds a broken rock drops a gold UPGRADE that keeps your cannon stronger for the whole run: ➕ extra barrel, ⏩ faster fire or 💪 stronger shots. Also grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
   {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, tap it again mid-jump to stop rising, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
-  {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
+  {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'backgammon',name:'Backgammon',icon:'🎲',blurb:'Roll, race and hit. Bear off all 15 checkers first.',help:'Tap Roll, then tap a checker and a highlighted spot to move it. Use both dice, Undo to take a move back, and Done to end your turn. Pick Easy, Hard or 2 Players at the top.',mount:backgammon,levels:3,open:true,names:['Easy','Hard','2 Players'],isNew:true},
+  {id:'blockfill',name:'Block Fill',icon:'🟧',blurb:'Fill every tile in one stroke without going back.',help:'Start on the glowing tile and drag (or tap the next tile, or use the arrow keys) to draw one path through every open tile. Drag back over your path to undo it. Pick a difficulty at the top.',mount:blockfill,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'puzzles',isNew:true},
+  {id:'checkers',name:'Checkers',icon:'⚫',blurb:'Jump, crown kings and clear the board vs computer or a friend.',help:'Tap a piece, then a glowing square. If a jump is possible you must take it, and multi-jumps continue until done. Pick Easy, Medium, Hard, or 2 Players at the top.',mount:checkers,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'connect',name:'Color Connect',icon:'🔗',blurb:'Join matching dots with pipes and fill every square.',help:'Drag from a dot to its matching dot to lay a pipe. Pipes can\'t cross, and drawing over a pipe cuts it. Join every pair and fill the whole board to win. Pick a board size at the top.',mount:colorconnect,levels:5,open:true,names:['5×5','6×6','7×7','8×8','9×9'],unit:'puzzles',isNew:true},
+  {id:'dots',name:'Dots and Boxes',icon:'🔲',blurb:'Draw lines, close boxes and outsmart the computer or a friend.',help:'Tap or click between two dots to draw a line. Close a box to claim it and go again. Pick Easy, Medium, Hard, or 2 Players at the top.',mount:dotsboxes,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'four',name:'Four in a Row',icon:'🟡',blurb:'Drop discs and line up four before the computer or a friend.',help:'Tap a column (or use ← → and Enter) to drop a disc. Get four in a row across, up or diagonally. Pick Easy, Medium, Hard, or 2 Players at the top.',mount:fourrow,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'hanoi',name:'Tower of Hanoi',icon:'🗼',blurb:'Move the tower peg by peg. Never put a big disc on a small one.',help:'Tap a peg to pick up its top disc, then tap another peg to drop it, or drag the disc. Keys 1, 2 and 3 pick pegs. Move every disc to peg 3 in as few moves as you can.',mount:hanoi,levels:6,open:true,names:['3 discs','4 discs','5 discs','6 discs','7 discs','8 discs'],isNew:true},
+  {id:'pool',name:'Billiards',icon:'🎱',blurb:'Pot your group, then sink the 8. Play the computer or a friend.',help:'Drag on the table to aim, then pull the power bar on the right down and let go to shoot. With ball in hand, drag the cue ball to place it. Keyboard: arrows aim and set power, Space shoots.',mount:pool,levels:3,open:true,names:['Easy','Hard','2 Players'],isNew:true},
+  {id:'slide',name:'Sliding Puzzle',icon:'🧩',blurb:'Slide the numbered tiles back into order.',help:'Tap a tile in the same row or column as the gap to slide it, or swipe on the board. Arrow keys move a tile into the gap. Pick 3×3 up to 6×6 at the top.',mount:slidepuzzle,levels:4,open:true,names:['3×3','4×4','5×5','6×6'],isNew:true},
+  {id:'water',name:'Water Sort',icon:'🧪',blurb:'Pour colored water between tubes until each holds one color.',help:'Tap a tube to lift it, then tap another tube to pour. You can only pour onto the same color or into an empty tube. Undo as often as you like, and add one extra tube per puzzle. Keyboard: 1–9 and 0 pick tubes, Z undoes.',mount:watersort,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true},
+  {id:'woodblocks',name:'Wood Blocks',icon:'🪵',blurb:'Drag wooden pieces onto the board and clear rows, columns and boxes.',help:'Drag a piece from the tray onto the board. On a computer you can also press 1, 2 or 3 to pick a piece, move it with the arrow keys and press Enter to place it.',mount:woodblocks,run:true,names:['Endless'],unit:'points',isNew:true},
+  {id:'wordfind',name:'Word Finder',icon:'🔎',blurb:'Find every hidden word in a themed letter grid.',help:'Drag from the first letter of a word to the last, in a straight line. You can also tap the first letter, then the last. Easy uses across and down, Medium adds diagonals, Hard hides words in all 8 directions.',mount:wordfind,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true},
+  {id:'wordguess',name:'Word Guess',icon:'🟩',blurb:'Crack the hidden word in six tries with color clues.',help:'Type or tap letters, then press Enter. Green means right spot, yellow means the letter is in the word somewhere else, grey means it isn\'t in the word. Pick 4, 5 or 6 letters at the top.',mount:wordguess,levels:3,open:true,names:['4 letters','5 letters','6 letters'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary'};
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
