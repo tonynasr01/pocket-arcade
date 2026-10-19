@@ -460,36 +460,44 @@ function snake(root,S){
 
 function pong(root,S){
   const L=S.level,TO=5;
+  /* On a portrait phone the court stands upright: you play at the bottom, the computer at the top.
+     The game always runs along x (the length, your goal at 0) and y (across); only drawing and input
+     are turned. A longer court gets a proportionally faster ball, so a rally takes the same time. */
+  const VL=tall(320,400,760,4),V=VL>400;
+  const W=V?VL:480,H=320,PH=64,PW=10,R=7,KL=W/480,AIS=170+50*L,SERVE=(210+20*L)*KL,VMAX=600*KL;
   const st=status(root,`Tap or press Space to serve. First to ${TO} wins.`);
-  const{c,x}=canvas(root,480,320);const K=pal();const k=held(S);const fx=sparks();
-  const W=480,H=320,PH=64,PW=10,R=7,AIS=170+50*L,SERVE=210+20*L;
+  const{c,x}=canvas(root,V?H:W,V?W:H);const K=pal();const k=held(S);const fx=sparks();
   let p=H/2,a=H/2,b,sc=[0,0],live=false,over=false,trail=[];
   const reset=d=>{b={x:W/2,y:H/2,vx:0,vy:0,d};trail=[]};reset(1);
   function serve(){if(over)return;if(live)return;live=true;b.vx=b.d*SERVE;b.vy=(Math.random()*2-1)*140;st(`First to ${TO} wins.`)}
-  S.on(c,'pointerdown',e=>{p=c.pos(e).y;serve()});S.on(c,'pointermove',e=>{p=c.pos(e).y});
+  const across=e=>{const q=c.pos(e);return V?q.x:q.y};
+  S.on(c,'pointerdown',e=>{p=across(e);serve()});S.on(c,'pointermove',e=>{p=across(e)});
   S.on(window,'keydown',e=>{if(e.key===' ')serve()});
   S.loop(dt=>{
-    if(k.ArrowUp||k.w)p-=380*dt;if(k.ArrowDown||k.s)p+=380*dt;p=clamp(p,PH/2,H-PH/2);
+    if(V){if(k.ArrowLeft||k.a)p-=380*dt;if(k.ArrowRight||k.d)p+=380*dt}else{if(k.ArrowUp||k.w)p-=380*dt;if(k.ArrowDown||k.s)p+=380*dt}p=clamp(p,PH/2,H-PH/2);
     const tgt=live&&b.vx>0?b.y:H/2;a+=clamp(tgt-a,-AIS*dt,AIS*dt);a=clamp(a,PH/2,H-PH/2);
     if(live){
       b.x+=b.vx*dt;b.y+=b.vy*dt;trail.push({x:b.x,y:b.y});if(trail.length>10)trail.shift();
       if(b.y<R){b.y=R;b.vy=Math.abs(b.vy)}if(b.y>H-R){b.y=H-R;b.vy=-Math.abs(b.vy)}
-      if(b.vx<0&&b.x-R<20+PW&&b.x>14&&Math.abs(b.y-p)<PH/2+R){b.x=20+PW+R;b.vx=Math.min(600,-b.vx*1.06);b.vy+=(b.y-p)*5;fx.add(b.x,b.y,K.c4,10);beep(440,60)}
-      if(b.vx>0&&b.x+R>W-20-PW&&b.x<W-14&&Math.abs(b.y-a)<PH/2+R){b.x=W-20-PW-R;b.vx=-Math.min(600,b.vx*1.06);b.vy+=(b.y-a)*5;fx.add(b.x,b.y,K.c1,10);beep(380,60)}
+      if(b.vx<0&&b.x-R<20+PW&&b.x>14&&Math.abs(b.y-p)<PH/2+R){b.x=20+PW+R;b.vx=Math.min(VMAX,-b.vx*1.06);b.vy+=(b.y-p)*5;fx.add(b.x,b.y,K.c4,10);beep(440,60)}
+      if(b.vx>0&&b.x+R>W-20-PW&&b.x<W-14&&Math.abs(b.y-a)<PH/2+R){b.x=W-20-PW-R;b.vx=-Math.min(VMAX,b.vx*1.06);b.vy+=(b.y-a)*5;fx.add(b.x,b.y,K.c1,10);beep(380,60)}
       if(b.x<-R||b.x>W+R){
         const who=b.x>W?0:1;sc[who]++;fx.add(who?0:W,b.y,who?K.c1:K.c4,30,280);live=false;reset(who===0?1:-1);
         if(sc[who]>=TO){over=true;if(who===0){st(`You won ${TO} to ${sc[1]}!`);S.next()}else{st(`Computer won ${TO} to ${sc[0]}. Press ↻ to try again.`);S.shake()}}
         else{st(who===0?'Point to you! Tap or press Space to serve.':'Point to the computer. Tap or press Space to serve.');if(who===1)S.shake();beep(who?160:880,180)}
       }
     }
+    x.save();if(V)x.transform(0,-1,1,0,0,W); // upright: court x runs bottom to top, court y left to right
     x.fillStyle=K.board;x.fillRect(0,0,W,H);
     x.strokeStyle=K.line;x.lineWidth=4;x.setLineDash([10,12]);x.beginPath();x.moveTo(W/2,0);x.lineTo(W/2,H);x.stroke();x.setLineDash([]);
-    x.fillStyle=K.muted;x.font=`36px ${DISPLAY}`;x.textAlign='center';x.fillText(sc[0],W/2-60,50);x.fillText(sc[1],W/2+60,50);
+    if(!V){x.fillStyle=K.muted;x.font=`36px ${DISPLAY}`;x.textAlign='center';x.fillText(sc[0],W/2-60,50);x.fillText(sc[1],W/2+60,50)}
     x.fillStyle=K.c4;rr(x,20,p-PH/2,PW,PH,4);x.fill();
     x.fillStyle=K.c1;rr(x,W-20-PW,a-PH/2,PW,PH,4);x.fill();
     trail.forEach((q,i)=>{x.globalAlpha=i/trail.length*.35;x.fillStyle=K.c2;x.beginPath();x.arc(q.x,q.y,R*i/trail.length,0,7);x.fill()});x.globalAlpha=1;
     if(!over){x.fillStyle=K.ink;x.beginPath();x.arc(b.x,b.y,R,0,Math.PI*2);x.fill()}
     fx.draw(x,dt);
+    x.restore();
+    if(V){x.fillStyle=K.muted;x.font=`36px ${DISPLAY}`;x.textAlign='left';x.fillText(sc[1],18,W/2-22);x.fillText(sc[0],18,W/2+50)}
   });
 }
 
@@ -836,8 +844,10 @@ function brickHP(L,r,q){
 function breakout(root,S){
   const L=S.level;
   const st=status(root,'Move to steer. Tap or press Space to launch.');
-  const{c,x}=canvas(root,480,360);const K=pal();const k=held(S);const fx=sparks();
-  const W=480,H=360,cols=8,gap=6,m=12,bw=(W-2*m-gap*(cols-1))/cols,bh=14,BASE=280+25*(L-1);
+  /* portrait phones get a taller field (bricks stay at the top, more room above the paddle); the ball
+     speeds up by the square root of the extra height so it neither crawls nor races across the screen */
+  const W=480,H=tall(480,360,1000,4),cols=8,gap=6,m=12,bw=(W-2*m-gap*(cols-1))/cols,bh=14,BASE=(280+25*(L-1))*Math.sqrt(H/360);
+  const{c,x}=canvas(root,W,H);const K=pal();const k=held(S);const fx=sparks();
   const RC=[K.c1,K.c6,K.c2,K.c3,K.c4,K.c5,K.c1];const HPC=[null,null,K.c5,K.c4];
   let pad,ball,bricks,lives,score,stuck,over,trail=[];
   pad={x:W/2,w:Math.max(64,90-L*4),h:10,y:H-26};ball={x:0,y:0,vx:0,vy:0,r:6};bricks=[];
@@ -1377,8 +1387,13 @@ const BUBLV=[
 const BUBCOL=['#FF4D5E','#4D7CFF','#22B8A8','#FFB020','#A35CFF','#FF7A3D','#3DBA5A','#E84DB8'];
 const BUBPW={double:{ico:'⚡',name:'Double harpoon',dur:12},sticky:{ico:'📌',name:'Sticky harpoon',dur:12},freeze:{ico:'⏱️',name:'Time freeze',dur:4},shield:{ico:'🛡️',name:'Shield',dur:0},dyn:{ico:'💥',name:'Dynamite',dur:0},life:{ico:'❤️',name:'Extra life',dur:0},fruit:{ico:'🍒',name:'+500',dur:0}};
 function bubbles(root,S){
-  const st=status(root,'');const W=480,H=360,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
-  const FL=H-26,RAD=[0,8,13,20,29,40],BH=[0,80,125,170,215,255],SPD=[0,85,80,75,70,65];
+  /* Portrait phones get a taller room. Everything vertical is stretched by KV, the room's height over the
+     desktop room's: bounce heights, gravity, harpoon and drop speeds. A bubble's bounce and a harpoon's flight
+     take exactly as long as on a computer and the across-the-room layout (levels, walls, speeds) is unchanged,
+     so the game plays the same, just in a taller room. The reserve is the control row under the room. */
+  const fine=matchMedia('(hover:hover) and (pointer:fine)').matches,cm=store.get('ctl2')||(TOUCHDEV?'touch':'wheel');
+  const st=status(root,'');const W=480,H=tall(480,360,1000,fine?54:{touch:46,wheel:138,arrows:118}[cm]||46),{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  const FL=H-26,KV=FL/334,G=420*KV,RAD=[0,8,13,20,29,40],BH=[0,80,125,170,215,255].map(v=>v*KV),SPD=[0,85,80,75,70,65];
   let players,balls,drops,walls,pw,lvl=1,state,timeLeft,timeMax,dropsLeft,t=0,moveDir=0,clearT=0,ballCol;
   let useMouse=store.get('bubmouse')===true,two=store.get('bub2p')===true;
   const mkP=(i)=>({i,x:two?W*(i?0.7:0.3):W/2,w:26,h:34,lives:3,score:0,shots:[],face:1,walk:0,inv:0,out:false,shield:false});
@@ -1392,7 +1407,7 @@ function bubbles(root,S){
   const pops=s=>2**s-1;
   function startLevel(){
     const d=levelDef(lvl);ballCol=BUBCOL[(lvl-1)%BUBCOL.length];
-    balls=d.b.map(([s,fx0,dir])=>({s,x:W*fx0,y:90+(s<3?40:0),vx:dir*SPD[s]*(d.sp||1),vy:0}));
+    balls=d.b.map(([s,fx0,dir])=>({s,x:W*fx0,y:FL-(244-(s<3?40:0))*KV,vx:dir*SPD[s]*(d.sp||1),vy:0}));
     walls=(d.w||[]).map(f=>({x:W*f,open:0}));drops=[];
     pw={double:0,sticky:0,freeze:0};dropsLeft=lvl<4?1:2;
     timeMax=timeLeft=Math.round(18+d.b.reduce((n,[s])=>n+pops(s),0)*1.7);
@@ -1433,10 +1448,10 @@ function bubbles(root,S){
   function award(p,pts){if(p)p.score+=pts}
   function pop(b,p){
     balls.splice(balls.indexOf(b),1);award(p,50*(6-b.s));fx.add(b.x,b.y,ballCol,16+b.s*2,200);beep(820-b.s*70,70);
-    if(b.s>1)for(const d of[-1,1])balls.push({s:b.s-1,x:b.x+d*4,y:b.y,vx:d*SPD[b.s-1]*(levelDef(lvl).sp||1),vy:-Math.sqrt(2*420*BH[b.s-1])*.7});
+    if(b.s>1)for(const d of[-1,1])balls.push({s:b.s-1,x:b.x+d*4,y:b.y,vx:d*SPD[b.s-1]*(levelDef(lvl).sp||1),vy:-Math.sqrt(2*G*BH[b.s-1])*.7});
     if(balls.length&&dropsLeft>0&&Math.random()<.13){
       dropsLeft--;const r=Math.random(),type=r<.07?'life':r<.27?'double':r<.45?'sticky':r<.6?'freeze':r<.74?'shield':r<.84?'dyn':'fruit';
-      drops.push({type,x:b.x,y:b.y,vy:-100,life:7});
+      drops.push({type,x:b.x,y:b.y,vy:-100*KV,life:7});
     }
     if(!balls.length){
       state='clear';clearT=0;const bonus=Math.ceil(timeLeft)*10;alive().forEach(q=>award(q,Math.round(bonus/alive().length)));
@@ -1446,7 +1461,7 @@ function bubbles(root,S){
   function collect(d,p){
     const P=BUBPW[d.type];beep(1040,90);setTimeout(()=>beep(1320,90),90);fx.add(d.x,d.y,K.c2,18,180);S.fx.toast(`${P.ico} ${P.name}`);
     if(d.type==='life')p.lives=Math.min(6,p.lives+1);else if(d.type==='shield')p.shield=true;else if(d.type==='fruit')award(p,500);
-    else if(d.type==='dyn'){const big=balls.filter(b=>b.s>1);for(const b of big){let q=[b];balls.splice(balls.indexOf(b),1);while(q.some(z=>z.s>1)){const z=q.find(z=>z.s>1);q.splice(q.indexOf(z),1);for(const dd of[-1,1])q.push({s:z.s-1,x:z.x+dd*(z.s*6),y:z.y,vx:dd*SPD[z.s-1],vy:-200})}const[lo,hi]=region(b.x);q.forEach(z=>{z.x=clamp(z.x,lo+RAD[z.s]+5,hi-RAD[z.s]-5)});balls.push(...q);fx.add(b.x,b.y,ballCol,30,260)}beep(140,300,'square')}
+    else if(d.type==='dyn'){const big=balls.filter(b=>b.s>1);for(const b of big){let q=[b];balls.splice(balls.indexOf(b),1);while(q.some(z=>z.s>1)){const z=q.find(z=>z.s>1);q.splice(q.indexOf(z),1);for(const dd of[-1,1])q.push({s:z.s-1,x:z.x+dd*(z.s*6),y:z.y,vx:dd*SPD[z.s-1],vy:-200*KV})}const[lo,hi]=region(b.x);q.forEach(z=>{z.x=clamp(z.x,lo+RAD[z.s]+5,hi-RAD[z.s]-5)});balls.push(...q);fx.add(b.x,b.y,ballCol,30,260)}beep(140,300,'square')}
     else pw[d.type]=P.dur;
   }
   function hurt(p){
@@ -1496,7 +1511,7 @@ function bubbles(root,S){
   function drawBall(b){
     const r=RAD[b.s],g=x.createRadialGradient(b.x-r*.35,b.y-r*.4,r*.1,b.x,b.y,r);
     g.addColorStop(0,'#fff');g.addColorStop(.18,ballCol);g.addColorStop(1,shade(ballCol,-.35));
-    x.fillStyle='rgba(0,0,0,.12)';x.beginPath();x.ellipse(b.x,FL+2,r*.8*(1-(FL-b.y)/500),3,0,0,7);x.fill();
+    x.fillStyle='rgba(0,0,0,.12)';x.beginPath();x.ellipse(b.x,FL+2,r*.8*(1-(FL-b.y)/(500*KV)),3,0,0,7);x.fill();
     x.fillStyle=g;x.beginPath();x.arc(b.x,b.y,r,0,7);x.fill();x.lineWidth=2;x.strokeStyle=pw.freeze>0?'#7CC8FF':'rgba(30,31,92,.85)';x.stroke();
     x.fillStyle='rgba(255,255,255,.7)';x.beginPath();x.ellipse(b.x-r*.38,b.y-r*.45,r*.28,r*.16,-.6,0,7);x.fill();
   }
@@ -1519,18 +1534,18 @@ function bubbles(root,S){
         if(dir){p.x+=dir*230*dt;if(i===0)mx=null}else if(i===0&&mx!=null){if(Math.abs(mx-p.x)>4)p.x+=Math.sign(mx-p.x)*Math.min(Math.abs(mx-p.x),230*dt);else mx=null}
         const[lo,hi]=region(ox);p.x=clamp(p.x,lo+p.w/2,hi-p.w/2);
         if(Math.abs(p.x-ox)>.1){p.face=Math.sign(p.x-ox);p.walk+=dt*14}else p.walk=0;
-        for(const sh of p.shots){if(sh.stick>0){sh.stick-=dt}else{sh.y-=560*dt;if(sh.y<=12){if(pw.sticky>0){sh.y=12;sh.stick=4}else sh.dead=true}}if(sh.stick<0)sh.dead=true}
+        for(const sh of p.shots){if(sh.stick>0){sh.stick-=dt}else{sh.y-=560*KV*dt;if(sh.y<=12){if(pw.sticky>0){sh.y=12;sh.stick=4}else sh.dead=true}}if(sh.stick<0)sh.dead=true}
         p.shots=p.shots.filter(sh=>!sh.dead);
       });
-      for(const d of drops){d.vy+=500*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;const p=alive().find(p=>Math.abs(d.x-p.x)<p.w/2+12&&d.y>FL-p.h-12);if(p){d.got=true;collect(d,p)}}
+      for(const d of drops){d.vy+=500*KV*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;const p=alive().find(p=>Math.abs(d.x-p.x)<p.w/2+12&&d.y>FL-p.h-12);if(p){d.got=true;collect(d,p)}}
       drops=drops.filter(d=>!d.got&&d.life>0);
       const bt=pw.freeze>0?0:dt;
       outer:for(const b of balls.slice()){
         if(!balls.includes(b))continue;
-        b.vy+=420*bt;b.x+=b.vx*bt;b.y+=b.vy*bt;const r=RAD[b.s];
+        b.vy+=G*bt;b.x+=b.vx*bt;b.y+=b.vy*bt;const r=RAD[b.s];
         if(b.x<r){b.x=r;b.vx=Math.abs(b.vx)}if(b.x>W-r){b.x=W-r;b.vx=-Math.abs(b.vx)}
         for(const w of walls){if(w.open)continue;if(b.x<w.x&&b.x+r>w.x-4){b.x=w.x-4-r;b.vx=-Math.abs(b.vx)}else if(b.x>w.x&&b.x-r<w.x+4){b.x=w.x+4+r;b.vx=Math.abs(b.vx)}}
-        if(b.y>FL-r){b.y=FL-r;b.vy=-Math.sqrt(2*420*BH[b.s])}
+        if(b.y>FL-r){b.y=FL-r;b.vy=-Math.sqrt(2*G*BH[b.s])}
         if(b.y<r){b.y=r;b.vy=Math.abs(b.vy)}
         for(const p of players)for(const sh of p.shots)if(!sh.dead&&Math.abs(b.x-sh.x)<r+2&&b.y+r>sh.y-12&&b.y-r<FL-p.h){sh.dead=sh.stick<=0;pop(b,p);if(state!=='play')break outer;continue outer}
         for(const p of alive()){
@@ -5085,7 +5100,7 @@ const GAMES=[
   {id:'simon',name:'Simon Says',icon:'🔴',blurb:'Repeat a pattern that grows every level.',help:'Watch the pads light up, then tap them in the same order. Sound on helps.',mount:simon,run:true,unit:'levels'},
   {id:'hangman',name:'Hangman',icon:'🔤',blurb:'Guess the word one letter at a time, solo or with a friend.',help:'Tap letters or type on your keyboard. Pick a word length at the top, or tap 2 players to type a secret word for a friend.',mount:hangman,levels:5,open:true,names:['4 letters','5 letters','6 letters','7 letters','8+ letters']},
   {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. On a phone, put your thumb anywhere on the game and slide it to steer (or switch to the wheel or arrows under the game).',mount:snake,run:true,unit:'points'},
-  {id:'pong',name:'Pong',icon:'🏓',blurb:'First to 5 against the computer. Pick how sharp it plays.',help:'Move your finger or mouse over the court, or use the up and down keys. Pick a mode at the top.',mount:pong,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Insane']},
+  {id:'pong',name:'Pong',icon:'🏓',blurb:'First to 5 against the computer. Pick how sharp it plays.',help:'Move your finger or mouse over the court, or use the arrow keys. On a phone held upright the court stands up and your paddle is at the bottom. Pick a mode at the top.',mount:pong,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Insane']},
   {id:'flappy',name:'Flappy Bird',icon:'🐦',blurb:'Flap through gaps that keep getting tighter.',help:'Tap, click, or press Space to flap.',mount:flappy,run:true,unit:'points'},
   {id:'tower',name:'Tower Block',icon:'🧱',blurb:'Drop sliding blocks to build the tallest tower.',help:'Tap, click, or press Space to drop. Line blocks up perfectly to keep them wide.',mount:tower,run:true,unit:'floors'},
   {id:'crane',name:'Sky Crane',icon:'🏗️',blurb:'Drop swinging blocks to stack a wobbly skyscraper.',help:'Tap, click, or press Space to release the block. Perfect drops steady the tower.',mount:crane,run:true,unit:'floors',isNew:true},
