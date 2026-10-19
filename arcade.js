@@ -179,9 +179,10 @@ function tictactoe(root,S){
 const MEMLV=[[3,4],[4,4],[4,5],[4,6],[5,6]];
 const EMO=['🍎','🚀','🐙','🎈','🌵','🎲','⚡','🍩','🦊','🌈','🎸','🍉','🐢','⭐','🧁'];
 function memory(root,S){
-  const [r,cN]=MEMLV[S.level-1],P=r*cN/2;
+  /* MEMLV is [rows, cols] for a wide screen; on a portrait phone the grid is turned (more rows than columns) so cards are bigger */
+  let [r,cN]=MEMLV[S.level-1];const P=r*cN/2,turn=tall(cN,r,cN*4)>cN;if(turn)[r,cN]=[cN,r];
   const st=status(root,`Find all ${P} pairs.`);
-  const g=el('div','mem',root);g.style.gridTemplateColumns=`repeat(${cN},1fr)`;g.style.setProperty('--cols',cN);g.dataset.ar=cN/r;g.dataset.max=cN*120;
+  const g=el('div','mem',root);g.style.gridTemplateColumns=`repeat(${cN},1fr)`;g.style.setProperty('--cols',cN);g.dataset.ar=cN/r;g.dataset.max=cN*(turn?160:120);
   const pick=shuffle(EMO.slice()).slice(0,P);const deck=shuffle([...pick,...pick]);
   let open=[],lock=false,moves=0,found=0;
   const cards=deck.map((e,i)=>{const b=el('button','card',g,`<span class="face back"></span><span class="face front">${e}</span>`);b.style.animationDelay=i*28+'ms';b.setAttribute('aria-label','Hidden card');S.on(b,'click',()=>flip(i));return b});
@@ -541,8 +542,10 @@ function flappy(root,S){
 }
 
 function tower(root,S){
-  const st=status(root,'');const{c,x}=canvas(root,360,540);const K=pal();const fx=sparks();
-  const W=360,H=540,BH=26,BASE=H-70,COLS=[K.c1,K.c6,K.c2,K.c3,K.c4,K.c5];
+  /* taller phones only add sky: the moving block, speeds and camera height above the base stay the same,
+     the camera just starts following later (VIS floors fit under the block instead of 11) */
+  const W=360,H=tall(360,540,800);const st=status(root,'');const{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  const BH=26,BASE=H-70,VIS=11+Math.floor((H-540)/BH),COLS=[K.c1,K.c6,K.c2,K.c3,K.c4,K.c5];
   let stack,cur,falls,rings,texts,cam,zoom,state,overT,score,lvl,combo,t=0;
   const sy=f=>BASE-(f+1)*BH+cam;
   function reset(){
@@ -585,14 +588,14 @@ function tower(root,S){
       cur.x+=cur.dir*speed()*dt;
       if(cur.dir>0&&cur.x>W-cur.w+30){cur.x=W-cur.w+30;cur.dir=-1}
       if(cur.dir<0&&cur.x<-30){cur.x=-30;cur.dir=1}
-      const tc=Math.max(0,(stack.length-11)*BH);cam+=(tc-cam)*Math.min(1,dt*6);
+      const tc=Math.max(0,(stack.length-VIS)*BH);cam+=(tc-cam)*Math.min(1,dt*6);
     }else{
       overT+=dt;const hgt=stack.length*BH+90;const tz=Math.min(1,(H-40)/hgt);
       zoom+=(tz-zoom)*Math.min(1,dt*3);cam+=(0-cam)*Math.min(1,dt*3);
     }
     x.fillStyle=K.board;x.fillRect(0,0,W,H);
     x.globalAlpha=Math.min(.28,score*.007);x.fillStyle=K.c4;x.fillRect(0,0,W,H);x.globalAlpha=1;
-    x.fillStyle=K.line;for(let i=0;i<4;i++){const cx=((i*110+t*12*(i%2?1:-1))%(W+120)+W+120)%(W+120)-60,cy=60+i*70+cam*.3%200;x.beginPath();x.arc(cx,cy,16,0,7);x.arc(cx+18,cy-7,20,0,7);x.arc(cx+38,cy,14,0,7);x.fill()}
+    x.fillStyle=K.line;for(let i=0;i<4;i++){const cx=((i*110+t*12*(i%2?1:-1))%(W+120)+W+120)%(W+120)-60,cy=60+i*70*H/540+cam*.3%200;x.beginPath();x.arc(cx,cy,16,0,7);x.arc(cx+18,cy-7,20,0,7);x.arc(cx+38,cy,14,0,7);x.fill()}
     x.save();x.translate(W/2,H-10);x.scale(zoom,zoom);x.translate(-W/2,-(H-10));
     x.fillStyle=K.edge;x.fillRect(-W,BASE,W*3,H);
     x.lineWidth=3;x.strokeStyle=K.edge;
@@ -614,8 +617,9 @@ function tower(root,S){
 }
 
 function crane(root,S){
-  const st=status(root,'');const{c,x}=canvas(root,360,540);const K=pal();const fx=sparks();
-  const W=360,H=540,BW=76,BH=44,BASE=H-46,CX=W/2,LR=150;
+  /* taller phones: the crane stays near the top (the tower top is kept at y 330), so more of the tower shows below */
+  const W=360,H=tall(360,540,800);const st=status(root,'');const{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  const BW=76,BH=44,BASE=H-46,CX=W/2,LR=150;
   const COLS=[K.c1,K.c6,K.c2,K.c3,K.c4,K.c5];
   let floors,blk,state,lives,score,lvl,combo,swayAmp,cam,t,ph,falls,texts,overT,waitT;
   const topY=()=>BASE-floors.length*BH;
@@ -1067,8 +1071,11 @@ function sudoku(root,S){
 }
 
 function bbtan(root,S){
-  const st=status(root,'');const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
-  const COLS=7,CW=W/COLS,TOP=34,ROWS=9,FLOOR=H-30,R=6;
+  /* taller phones keep the same 7x9 grid (more rows would give more rounds before the bricks land, which makes the
+     game easier): the cells get up to 20% taller (CH), any height left over becomes a gap above the floor with a
+     dashed line where the bricks land (DL), and the balls fly faster by VS so a round takes as long as before */
+  const st=status(root,'');const W=360,H=tall(360,560,760),{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  const COLS=7,CW=W/COLS,TOP=34,ROWS=9,FLOOR=H-30,VS=(FLOOR-TOP)/(530-34),CH=CW*Math.min(1.2,VS),DL=TOP+ROWS*CH,R=6;
   let bricks,items,balls,nBalls,round,launchX,state,toLaunch,launchT,firstLand,gained,flightT,ang=-Math.PI/2,aiming=false,t=0;
   function reset(){bricks=[];items=[];balls=[];nBalls=1;round=0;launchX=W/2;lvl=1;S.show(1);newRound();st('Drag to aim, let go to shoot. Keep the bricks off the floor.')}
   let lvl=1;
@@ -1082,7 +1089,7 @@ function bbtan(root,S){
     state='aim';
   }
   function over(){state='over';const nb=best('bbtan',round);S.shake();beep(150,400,'sawtooth');st(`The bricks reached the floor on round ${round}.${nb?' New best!':''} Tap to play again.`)}
-  const rect=b=>({x:b.c*CW+2,y:TOP+b.r*CW+2,w:CW-4,h:CW-4});
+  const rect=b=>({x:b.c*CW+2,y:TOP+b.r*CH+2,w:CW-4,h:CH-4});
   function hitBrick(B){for(const b of bricks){const q=rect(b),nx=clamp(B.x,q.x,q.x+q.w),ny=clamp(B.y,q.y,q.y+q.h);if((B.x-nx)**2+(B.y-ny)**2<R*R)return b}return null}
   function damage(b){
     b.hp--;b.hit=.12;beep(380+Math.min(400,b.hp*4),25);
@@ -1102,7 +1109,7 @@ function bbtan(root,S){
   S.loop(dt=>{
     t+=dt;
     if(state==='fly'){
-      flightT+=dt;const spd=540*(1+Math.min(2.5,flightT/4));
+      flightT+=dt;const spd=540*VS*(1+Math.min(2.5,flightT/4));
       launchT-=dt;while(toLaunch>0&&launchT<=0){balls.push({x:launchX,y:FLOOR-R,vx:Math.cos(ang),vy:Math.sin(ang)});toLaunch--;launchT+=.075}
       for(const B of balls){
         let d=spd*dt;
@@ -1113,7 +1120,7 @@ function bbtan(root,S){
           B.y+=B.vy*s;if(B.y<TOP+R){B.y=TOP+R;B.vy=Math.abs(B.vy)}
           h=hitBrick(B);if(h){B.y-=B.vy*s;B.vy=-B.vy;damage(h)}
           if(Math.abs(B.vy)<.1){B.vy=B.vy<0?-.1:.1;const m=Math.hypot(B.vx,B.vy);B.vx/=m;B.vy/=m}
-          for(const it of items){if(it.got)continue;const ix=it.c*CW+CW/2,iy=TOP+it.r*CW+CW/2;if((B.x-ix)**2+(B.y-iy)**2<(R+11)**2){it.got=true;gained++;fx.add(ix,iy,K.c3,10,140);beep(880,50)}}
+          for(const it of items){if(it.got)continue;const ix=it.c*CW+CW/2,iy=TOP+it.r*CH+CH/2;if((B.x-ix)**2+(B.y-iy)**2<(R+11)**2){it.got=true;gained++;fx.add(ix,iy,K.c3,10,140);beep(880,50)}}
           if(B.vy>0&&B.y>=FLOOR-R){B.y=FLOOR-R;B.done=true;if(firstLand==null)firstLand=clamp(B.x,R+4,W-R-4)}
         }
       }
@@ -1122,13 +1129,14 @@ function bbtan(root,S){
     }
     x.fillStyle=K.board;x.fillRect(0,0,W,H);
     x.fillStyle=K.line;x.fillRect(0,FLOOR,W,H-FLOOR);x.fillStyle=K.edge;x.fillRect(0,FLOOR,W,3);
-    x.globalAlpha=.5;x.fillStyle=K.line;x.fillRect(0,TOP-2,W,2);x.globalAlpha=1;
+    x.globalAlpha=.5;x.fillStyle=K.line;x.fillRect(0,TOP-2,W,2);
+    if(FLOOR-DL>45){x.strokeStyle=K.line;x.lineWidth=2;x.setLineDash([8,8]);x.beginPath();x.moveTo(0,DL);x.lineTo(W,DL);x.stroke();x.setLineDash([])}x.globalAlpha=1;
     for(const b of bricks){
       b.hit=Math.max(0,b.hit-dt);const q=rect(b),g=b.hit*14;
       x.fillStyle=col(b);rr(x,q.x-g/2,q.y-g/2,q.w+g,q.h+g,8);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
       x.fillStyle='#1E1F5C';x.font=`${b.hp>999?13:b.hp>99?15:18}px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText(b.hp,q.x+q.w/2,q.y+q.h/2+1);
     }
-    for(const it of items){const ix=it.c*CW+CW/2,iy=TOP+it.r*CW+CW/2,p=1+Math.sin(t*6)*.08;x.strokeStyle=K.c3;x.lineWidth=4;x.beginPath();x.arc(ix,iy,11*p,0,7);x.stroke();x.fillStyle=K.c3;x.font=`11px ${DISPLAY}`;x.fillText('+1',ix,iy+1)}
+    for(const it of items){const ix=it.c*CW+CW/2,iy=TOP+it.r*CH+CH/2,p=1+Math.sin(t*6)*.08;x.strokeStyle=K.c3;x.lineWidth=4;x.beginPath();x.arc(ix,iy,11*p,0,7);x.stroke();x.fillStyle=K.c3;x.font=`11px ${DISPLAY}`;x.fillText('+1',ix,iy+1)}
     if(state==='aim'){
       x.fillStyle=K.c4;for(let i=1;i<16;i++){const d=i*22;const px=launchX+Math.cos(ang)*d,py=FLOOR-R+Math.sin(ang)*d;if(py<TOP)break;x.globalAlpha=1-i/18;x.beginPath();x.arc(px,py,3,0,7);x.fill()}x.globalAlpha=1;
     }
@@ -1278,12 +1286,14 @@ function paper(root,S){
 }
 
 function taxi(root,S){
-  const st=status(root,'');const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  /* taller phones show more road ahead; every vertical speed and distance is scaled by SC so traffic still
+     takes the same time to reach the taxi and a screen holds the same amount of traffic */
+  const st=status(root,'');const W=360,H=tall(360,560,820),SC=H/560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const SW=34,RL=SW,RR=W-SW,LN=4,LW=(RR-RL)/LN,PY=H-120,CW=34,CH=60;
   const laneX=l=>RL+LW*(l+.5);
   let car,traffic,fare,dest,pax,money,timeLeft,state,scroll,spawnT,lvl,el=0,t=0,deadT=0,steerX=null,flash=0;
   function reset(){car={x:laneX(1),v:0,crash:0};traffic=[];fare=null;dest=null;pax=null;money=0;timeLeft=45;state='ready';scroll=0;spawnT=0;lvl=1;el=0;S.show(1);newPax();st('Drag or use ← → to steer. Drive past a waving passenger in the outside lane to pick them up.')}
-  function newPax(){const side=rand(2);pax={side,y:-200-rand(300),wave:0}}
+  function newPax(){const side=rand(2);pax={side,y:(-200-rand(300))*SC,wave:0}}
   reset();
   const curbLane=side=>side?LN-1:0,inCurb=side=>Math.abs(car.x-laneX(curbLane(side)))<LW*.55;
   S.on(c,'pointerdown',e=>{if(state==='over'){if(deadT>.6)reset();return}if(state==='ready')start();steerX=c.pos(e).x;try{c.setPointerCapture(e.pointerId)}catch(_){}});
@@ -1311,25 +1321,25 @@ function taxi(root,S){
     t+=dt;flash=Math.max(0,flash-dt);
     if(state==='drive'){
       el+=dt;const nl2=1+Math.floor(el/30);if(nl2>lvl){lvl=nl2;S.show(lvl);S.fx.toast(`Level ${lvl}`,lvl>=4?'Rush hour! Cars change lanes':'Heavier traffic');beep(990,200)}
-      const vmax=330+lvl*15;car.crash=Math.max(0,car.crash-dt);
-      const brake=k.ArrowDown||k.s;car.v+=((brake?120:vmax)-car.v)*Math.min(1,dt*(brake?3:.9));
+      const vmax=(330+lvl*15)*SC;car.crash=Math.max(0,car.crash-dt);
+      const brake=k.ArrowDown||k.s;car.v+=((brake?120*SC:vmax)-car.v)*Math.min(1,dt*(brake?3:.9));
       let tx=steerX;if(k.ArrowLeft||k.a)tx=car.x-80;if(k.ArrowRight||k.d)tx=car.x+80;
       if(tx!=null)car.x+=clamp(tx-car.x,-1,1)*Math.min(Math.abs(tx-car.x),420*dt);
       car.x=clamp(car.x,RL+CW/2+2,RR-CW/2-2);
       const dy=car.v*dt;scroll+=dy;
       timeLeft-=dt;if(fare)fare.left-=dt;
-      spawnT-=dt;if(spawnT<=0){const l=rand(LN),y=-CH;if(!traffic.some(o=>o.l===l&&o.y<CH*2)){traffic.push({l,x:laneX(l),y,v:Math.max(60,110+rand(110)-lvl*8),c:[K.c1,K.c4,K.c5,K.c3,K.c6][rand(5)],sw:lvl>=4&&Math.random()<Math.min(.5,(lvl-3)*.12)?1.5+Math.random()*2:0})}spawnT=Math.max(.2,1.1-lvl*.11)*(.6+Math.random()*.8)}
-      for(const o of traffic){o.y+=dy-o.v*dt;if(o.sw&&!o.hit&&o.y>0&&(o.sw-=dt)<=0){const nl3=clamp(o.l+(rand(2)?1:-1),0,LN-1);if(!traffic.some(q=>q!==o&&q.l===nl3&&Math.abs(q.y-o.y)<CH*1.6)){o.l=nl3;o.blink=.6}o.sw=0}
+      spawnT-=dt;if(spawnT<=0){const l=rand(LN),y=-CH;if(!traffic.some(o=>o.l===l&&o.y<CH*2*SC)){traffic.push({l,x:laneX(l),y,v:Math.max(60,110+rand(110)-lvl*8)*SC,c:[K.c1,K.c4,K.c5,K.c3,K.c6][rand(5)],sw:lvl>=4&&Math.random()<Math.min(.5,(lvl-3)*.12)?1.5+Math.random()*2:0})}spawnT=Math.max(.2,1.1-lvl*.11)*(.6+Math.random()*.8)}
+      for(const o of traffic){o.y+=dy-o.v*dt;if(o.sw&&!o.hit&&o.y>0&&(o.sw-=dt)<=0){const nl3=clamp(o.l+(rand(2)?1:-1),0,LN-1);if(!traffic.some(q=>q!==o&&q.l===nl3&&Math.abs(q.y-o.y)<CH*1.6*SC)){o.l=nl3;o.blink=.6}o.sw=0}
         if(!o.hit){o.blink=Math.max(0,(o.blink||0)-dt);o.x+=(laneX(o.l)-o.x)*Math.min(1,dt*3)}
         if(o.hit){o.x+=o.vx*dt;o.rot=(o.rot||0)+dt*4*Math.sign(o.vx)}
         if(!o.hit&&Math.abs(o.x-car.x)<CW-4&&Math.abs(o.y-PY)<CH-6)crash(o)}
       traffic=traffic.filter(o=>o.y<H+CH&&o.y>-CH*3&&o.x>-60&&o.x<W+60);
       if(pax){pax.y+=dy;if(!fare&&pax.y>PY-20&&pax.y<PY+30&&inCurb(pax.side)){
-          const d=900+rand(1300)+lvl*120;const ft=(d/230+5)*Math.max(.55,1-(lvl-1)*.08);fare={left:ft,max:ft};dest={side:rand(2),y:PY-d};pax=null;beep(880,120);S.fx.toast('Passenger in!','Head for the 🏁');
+          const d=900+rand(1300)+lvl*120;const ft=(d/230+5)*Math.max(.55,1-(lvl-1)*.08);fare={left:ft,max:ft};dest={side:rand(2),y:PY-d*SC};pax=null;beep(880,120);S.fx.toast('Passenger in!','Head for the 🏁');
         }else if(pax&&pax.y>H+40)newPax()}
       if(dest){dest.y+=dy;
         if(dest.y>PY-30&&dest.y<PY+40&&inCurb(dest.side)){const bonus=Math.max(3,9-lvl),pay=10+lvl*2+Math.round(fare.left*2);money+=pay;timeLeft+=bonus;fx.add(car.x,PY,K.c2,30,240);beep(1100,200);S.fx.toast(`+$${pay}`,`+${bonus} seconds`);dest=null;fare=null;S.after(400,newPax)}
-        else if(dest.y>H+80){dest.y-=1600}
+        else if(dest.y>H+80){dest.y-=1600*SC}
       }
       if(fare&&fare.left<=0){fare=null;dest=null;S.fx.toast('Passenger gave up','Too slow!');beep(200,200);S.after(400,newPax)}
       if(timeLeft<=0){timeLeft=0;state='over';deadT=0;const nb=best('taxi',money);S.shake();beep(140,400,'sawtooth');st(`Time's up! You earned $${money}.${nb?' New best!':''} Tap to drive again.`)}
@@ -1351,7 +1361,7 @@ function taxi(root,S){
     x.fillStyle=K.board;rr(x,8,8,W-16,dest?58:36,10);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
     x.fillStyle=timeLeft<10?K.c1:K.ink;x.font=`18px ${DISPLAY}`;x.textAlign='left';x.fillText(`⏱ ${Math.ceil(timeLeft)}`,18,32);
     x.fillStyle=K.ink;x.textAlign='right';x.fillText(`$${money}`,W-18,32);
-    if(dest){const m=Math.max(0,Math.round((PY-dest.y)/10));x.font=`13px ${DISPLAY}`;x.textAlign='center';x.fillStyle=fare.left<5?K.c1:K.muted;x.fillText(`🏁 ${m} m ${dest.side?'→ right':'← left'} side · ${Math.ceil(fare.left)}s`,W/2,56)}
+    if(dest){const m=Math.max(0,Math.round((PY-dest.y)/10/SC));x.font=`13px ${DISPLAY}`;x.textAlign='center';x.fillStyle=fare.left<5?K.c1:K.muted;x.fillText(`🏁 ${m} m ${dest.side?'→ right':'← left'} side · ${Math.ceil(fare.left)}s`,W/2,56)}
     else{x.font=`13px ${DISPLAY}`;x.textAlign='center';x.fillStyle=K.muted;x.fillText('Find a passenger',W/2,32)}
     if(state==='over'){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.font=`30px ${DISPLAY}`;x.textAlign='center';x.fillText("Time's up",W/2,H/2-6);x.font=`16px ${DISPLAY}`;x.fillText(`$${money}`,W/2,H/2+24)}
   });
@@ -1563,7 +1573,7 @@ function bubbles(root,S){
 
 function helix(root,S){
   const st=status(root,'Drag sideways or use ← → to spin the tower. Drop through the gaps and avoid red.');
-  const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  const W=360,H=tall(360,560,820),{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
   const CX=W/2,RX=128,RY=40,IR=24,GAPY=96,SEG=12,SA=Math.PI*2/SEG,BR=9,BRAD=(IR+RX)/2+6;
   const plats=[];let made=0,score=0,lvl=1;S.show(1);
   function addRing(){
@@ -1856,8 +1866,10 @@ const BLASTUP={guns:{ico:'➕',name:'Extra barrel',max:3,base:1},rate:{ico:'⏩'
 const BLASTPW={rapid:{ico:'⚡',name:'Rapid fire',dur:8},triple:{ico:'🔱',name:'Triple shot',dur:8},power:{ico:'💥',name:'Double power',dur:8},freeze:{ico:'❄️',name:'Freeze',dur:4},shield:{ico:'🛡️',name:'Shield',dur:0}};
 function blast(root,S){
   const st=status(root,'Touch or drag and the cannon follows your finger. It fires on its own. Break the rocks and don\'t let one touch you. It gets harder the longer you last.');
-  const W=360,H=560,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
-  const FL=H-46,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
+  /* taller phones only add sky: rocks bounce to the same heights and enter at the same height above the
+     ground (TOP is where the old 560-high field began), so dodging and timing stay the same */
+  const W=360,H=tall(360,560,800),{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  const FL=H-46,TOP=H-560,RAD=[0,13,19,27,37],BH=[0,170,215,260,300],CY=FL-6;
   let cx,balls,bullets,drops,spawnT,fireT,state,score,el,pw,shield,lastDrop,up,upT,upN,dragX=null,tx=null,hitT=0,t=0;
   function reset(){cx=W/2;balls=[];bullets=[];drops=[];spawnT=.6;fireT=0;score=0;el=0;pw={rapid:0,triple:0,power:0,freeze:0};shield=false;lastDrop=-20;tx=null;up={guns:1,rate:0,dmg:0};upT=12;upN=0;state='ready'}
   reset();
@@ -1867,7 +1879,7 @@ function blast(root,S){
   function start(){if(state==='ready'){state='play';beep(660,80);st('Keep moving! Rocks get tougher every few seconds.')}}
   function spawn(){
     const big=el>70&&Math.random()<Math.min(.45,(el-70)/200)?4:el>20&&Math.random()<.55?3:2;
-    const side=rand(2),hp=hpFor(big);balls.push({s:big,hp,max:hp,x:side?W+RAD[big]:-RAD[big],y:60+rand(70),vx:(side?-1:1)*(55+Math.random()*25+Math.min(30,el/6)),vy:0,enter:true,hit:0});
+    const side=rand(2),hp=hpFor(big);balls.push({s:big,hp,max:hp,x:side?W+RAD[big]:-RAD[big],y:TOP+60+rand(70),vx:(side?-1:1)*(55+Math.random()*25+Math.min(30,el/6)),vy:0,enter:true,hit:0});
   }
   function lose(){
     state='dead';hitT=0;bullets=[];S.shake();beep(130,400,'sawtooth');fx.add(cx,CY-20,K.c1,36,260);
@@ -1925,6 +1937,7 @@ function blast(root,S){
     }else if(state==='dead'){for(const b of balls){b.vy+=420*dt;b.y=Math.min(FL-RAD[b.s],b.y+b.vy*dt*.4)}}
     // scene
     const sky=x.createLinearGradient(0,0,0,FL);sky.addColorStop(0,K.board);sky.addColorStop(1,K.line);x.fillStyle=sky;x.fillRect(0,0,W,H);
+    if(TOP>60){x.fillStyle=K.line;x.globalAlpha=.7;const nC=Math.min(4,1+Math.floor(TOP/70));for(let i=0;i<nC;i++){const cx2=((i*130+t*8*(i%2?1:-1))%(W+120)+W+120)%(W+120)-60,cy2=100+i*(TOP+80)/nC;x.beginPath();x.arc(cx2,cy2,16,0,7);x.arc(cx2+18,cy2-7,20,0,7);x.arc(cx2+38,cy2,14,0,7);x.fill()}x.globalAlpha=1}
     if(pw.freeze>0){x.fillStyle='rgba(120,200,255,.16)';x.fillRect(0,0,W,FL)}
     x.fillStyle=K.muted;x.globalAlpha=.18;for(let i=0;i<6;i++){const mx=(i*83+20)%W;x.beginPath();x.moveTo(mx-70,FL);x.lineTo(mx,FL-90-(i%3)*30);x.lineTo(mx+70,FL);x.fill()}x.globalAlpha=1;
     x.fillStyle=K.c3;x.fillRect(0,FL,W,H-FL);x.fillStyle=K.edge;x.fillRect(0,FL,W,3);
