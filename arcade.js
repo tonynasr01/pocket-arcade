@@ -2290,7 +2290,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -4594,6 +4594,423 @@ function wordguess(root,S){
   }
 }
 
+/* ---------- Color Clash (shared engine for Color Clash + Color Clash Flip) ---------- */
+const CLASH_COL={l:['r','y','g','b'],d:['p','t','o','v']};
+const CLASH_HEX={r:'#E5343C',y:'#F5BF19',g:'#2BA84A',b:'#1E6FDE',p:'#FF4FA8',t:'#12B8AD',o:'#FF8A1F',v:'#8D52FF'};
+const CLASH_CNAME={r:'Red',y:'Yellow',g:'Green',b:'Blue',p:'Pink',t:'Teal',o:'Orange',v:'Purple'};
+const CLASH_DRAWN={D1:1,D2:2,D5:5,W2:2,W4:4};
+const CLASH_VORD=['0','1','2','3','4','5','6','7','8','9','D1','D2','D5','S','SE','R','F','W','W2','W4','WC'];
+const CLASH_other=s=>s==='l'?'d':'l';
+function CLASH_deck(flip,R){
+  const sh=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+  const side=(cols,zero,acts,wilds)=>{const f=[];for(const c of cols){if(zero)f.push({c,v:'0'});for(let k=0;k<2;k++){for(let n=1;n<=9;n++)f.push({c,v:''+n});for(const a of acts)f.push({c,v:a})}}for(const w of wilds)for(let k=0;k<4;k++)f.push({c:'w',v:w});return f};
+  if(!flip)return sh(side(CLASH_COL.l,true,['S','R','D2'],['W','W4'])).map((l,id)=>({id,l}));
+  const L=sh(side(CLASH_COL.l,false,['D1','R','S','F'],['W','W2'])),D=sh(side(CLASH_COL.d,false,['D5','R','SE','F'],['W','WC']));
+  return L.map((l,id)=>({id,l,d:D[id]}));
+}
+function CLASH_game(flip,n,R){
+  R=R||Math.random;
+  const G={flip,n,R,side:'l',dir:1,turn:0,draw:CLASH_deck(flip,R),disc:[],hands:[],color:null,winner:-1};
+  for(let p=0;p<n;p++)G.hands.push([]);
+  for(let k=0;k<7;k++)for(let p=0;p<n;p++)G.hands[p].push(G.draw.pop());
+  let i=G.draw.length-1;while(!/^\d$/.test(G.draw[i].l.v))i--;   // first number card from the top
+  G.disc.push(G.draw.splice(i,1)[0]);G.color=G.disc[0].l.c;
+  return G;
+}
+const CLASH_top=G=>G.disc[G.disc.length-1];
+const CLASH_next=(G,p,k=1)=>((p+G.dir*k)%G.n+G.n)%G.n;
+function CLASH_ok(G,c){const f=c[G.side],t=CLASH_top(G)[G.side];return f.c==='w'||f.c===G.color||(t.c!=='w'&&f.v===t.v)}
+function CLASH_needColor(G,c){const f=c[G.side];if(f.c==='w')return true;return G.flip&&f.v==='F'&&c[CLASH_other(G.side)].c==='w'}
+function CLASH_take(G,p){
+  if(!G.draw.length){
+    if(G.disc.length<2)return null;
+    const top=G.disc.pop(),a=G.disc;G.disc=[top];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(G.R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+    G.draw=a;G.reshuffled=(G.reshuffled||0)+1;
+  }
+  const c=G.draw.pop();G.hands[p].push(c);return c;
+}
+function CLASH_pass(G,p){if(G.turn!==p)throw Error('not your turn');G.turn=CLASH_next(G,p)}
+/* play card c from player p's hand; color is needed for wilds (and for a Flip whose other side is a wild) */
+function CLASH_play(G,p,c,color){
+  const h=G.hands[p],i=h.indexOf(c);
+  if(G.winner>=0||G.turn!==p||i<0||!CLASH_ok(G,c))throw Error('illegal play');
+  h.splice(i,1);G.disc.push(c);
+  const f=c[G.side],ev={p,c,face:f,side:G.side,draws:[],skipped:[]};
+  let nf=f;
+  if(G.flip&&f.v==='F'){G.side=CLASH_other(G.side);ev.flipped=true;nf=c[G.side]}
+  if(nf.c==='w'){if(!CLASH_COL[G.side].includes(color))throw Error('bad color');G.color=color}else G.color=nf.c;
+  ev.color=G.color;
+  if(!h.length){G.winner=p;ev.win=true;return ev}
+  const nx=CLASH_next(G,p);let step=1;
+  if(!ev.flipped){
+    const v=f.v;
+    if(v==='S'){step=2;ev.skipped.push(nx)}
+    else if(v==='SE'){step=0;ev.again=true;for(let q=0;q<G.n;q++)if(q!==p)ev.skipped.push(q)}
+    else if(v==='R'){if(G.n===2){step=2;ev.skipped.push(nx)}else{G.dir*=-1;ev.reverse=true}}
+    else if(CLASH_DRAWN[v]){const cards=[];for(let k=0;k<CLASH_DRAWN[v];k++){const x=CLASH_take(G,nx);if(x)cards.push(x)}ev.draws.push({p:nx,cards});ev.skipped.push(nx);step=2}
+    else if(v==='WC'){const cards=[];let x;while((x=CLASH_take(G,nx))){cards.push(x);if(x[G.side].c===G.color)break}ev.draws.push({p:nx,cards,until:G.color});ev.skipped.push(nx);step=2}
+  }
+  G.turn=step?CLASH_next(G,p,step):p;
+  return ev;
+}
+/* computer strategy */
+function CLASH_aiColor(G,p,side,skip){
+  const cnt={},cols=CLASH_COL[side];
+  for(const c of G.hands[p])if(c!==skip){const f=c[side];if(f.c!=='w')cnt[f.c]=(cnt[f.c]||0)+1+(/^\d$/.test(f.v)?0:.4)}
+  let b=cols[Math.floor(G.R()*4)],bv=0;for(const k of cols)if((cnt[k]||0)>bv){bv=cnt[k];b=k}
+  return b;
+}
+function CLASH_aiColorFor(G,p,c){
+  const f=c[G.side];if(f.c==='w')return CLASH_aiColor(G,p,G.side,c);
+  if(CLASH_needColor(G,c))return CLASH_aiColor(G,p,CLASH_other(G.side),c);
+  return null;
+}
+function CLASH_handQ(G,p,side,skip){let q=0;for(const c of G.hands[p])if(c!==skip){const f=c[side];q+=f.c==='w'?3:/^\d$/.test(f.v)?0:1.2}return q}
+function CLASH_ai(G,p){
+  const h=G.hands[p],ok=h.filter(c=>CLASH_ok(G,c));if(!ok.length)return null;
+  const nx=CLASH_next(G,p),nc=G.hands[nx].length,cnt={};
+  for(const c of h){const f=c[G.side];cnt[f.c]=(cnt[f.c]||0)+1}
+  let best=null,bs=-1e9;
+  for(const c of ok){
+    const f=c[G.side],v=f.v;let s=G.R()*.6;
+    if(f.c==='w'){s-=h.length>2?5:0;if(v!=='W')s+=nc<=2?9:nc<=4?2:.5}   // keep wilds for later
+    else{
+      s+=cnt[f.c]*.9;if(/^\d$/.test(v))s+=+v*.08;
+      if(CLASH_DRAWN[v])s+=nc<=2?7:nc<=4?2.5:1;
+      if(v==='S'||(v==='R'&&G.n===2))s+=nc<=2?5:.8;
+      if(v==='R'&&G.n>2){const pv=CLASH_next(G,p,-1);s+=(G.hands[pv].length>nc?1.5:-.5)+(nc<=2?3:0)}
+      if(v==='SE')s+=ok.length>1?3:1;
+      if(v==='F')s+=(CLASH_handQ(G,p,CLASH_other(G.side),c)-CLASH_handQ(G,p,G.side,c))*.5+(nc<=2?2:0);
+    }
+    if(s>bs){bs=s;best=c}
+  }
+  return{c:best,color:CLASH_aiColorFor(G,p,best)};
+}
+function CLASH_aiDrawn(G,p,c){
+  if(!c||!CLASH_ok(G,c))return null;
+  if(c[G.side].c==='w'&&G.hands[p].length>3&&G.R()<.6)return null;
+  return{c,color:CLASH_aiColorFor(G,p,c)};
+}
+/* card faces */
+function CLASH_name(f){
+  if(f.c==='w')return{W:'Wild',W4:'Wild +4',W2:'Wild +2',WC:'Wild Draw Color'}[f.v];
+  return CLASH_CNAME[f.c]+' '+({S:'Skip',SE:'Skip Everyone',R:'Reverse',F:'Flip',D1:'+1',D2:'+2',D5:'+5'}[f.v]||f.v);
+}
+function CLASH_html(f,side){
+  if(!f)return'<div class="clx-card clx-back"><div class="clx-in"><span class="clx-ov"></span><b class="clx-logo">CLASH</b></div></div>';
+  const v=f.v,w=f.c==='w',sk='<i class="clx-skip"></i>',dot='<i class="clx-dot"></i>';
+  let big,ix,sub='';
+  if(/^\d$/.test(v)){big=ix=(v==='6'||v==='9')?`<u>${v}</u>`:v}
+  else if(v==='S'){big=ix=sk}
+  else if(v==='SE'){big=ix=sk;sub='ALL'}
+  else if(v==='R'){big=ix='<i class="clx-sym">⇄</i>'}
+  else if(v==='F'){big=ix='<i class="clx-sym">↻</i>';sub='FLIP'}
+  else if(v==='W'){big='';ix=dot}
+  else if(v==='WC'){big='+';ix='+'+dot;sub='COLOR'}
+  else{big=ix='+'+v.slice(1)}
+  const cls=`clx-card clx-${side==='d'?'dk':'lt'}${w?' clx-w':''} clx-v${v.toLowerCase()}`;
+  return`<div class="${cls}" style="--cc:${w?'#151515':CLASH_HEX[f.c]}"><div class="clx-in"><span class="clx-ov"></span><b class="clx-big">${big}</b>${sub?`<small class="clx-sub">${sub}</small>`:''}<i class="clx-ix clx-tl">${ix}</i><i class="clx-ix clx-br">${ix}</i></div></div>`;
+}
+
+function clash(root,S){CLASH_mount(root,S,false)}
+function CLASH_mount(root,S,FLIP){
+  const N=S.level+1;
+  const st=status(root,FLIP?'Match color, number or symbol. A Flip card turns every card over to its other side!':'Match the color, number or symbol. Empty your hand first to win!');
+  const B=el('div','clx'+(FLIP?' clx-flip':''),root);B.dataset.max=1100;
+  const wait=ms=>new Promise(r=>S.after(ms,r));
+  const MS=REDUCED?.25:1;
+  const P=[{name:'You',av:'😎',c:'--c2'},{name:'Ana',av:'🦊',c:'--c6'},{name:'Bo',av:'🐼',c:'--c3'},{name:'Cy',av:'🐸',c:'--c5'}].slice(0,N);
+  let G=CLASH_game(FLIP,N),VS='l',hidden=new Set(),hideTop=0,over=false,busy=true,pend=null,pre=false,drawn=null,sel=-1,waitHuman=null,ringC=G.color,pickRes=null;
+  // ---- DOM
+  const OPP=[null];
+  for(let p=1;p<N;p++){
+    const box=el('div','clx-opp',B,`<div class="clx-oh"><span class="clx-av" style="background:var(${P[p].c})">${P[p].av}</span><span class="clx-on"><b>${P[p].name}</b><span class="clx-n">7</span></span></div><div class="clx-fan"></div><div class="clx-bub"></div>`);
+    OPP.push({box,n:$('.clx-n',box),fan:$('.clx-fan',box),bub:$('.clx-bub',box)});
+  }
+  const tbl=el('div','clx-tbl',B);
+  const dirEl=el('div','clx-dir',tbl,'<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M6 50A44 44 0 0 1 50 6M94 50A44 44 0 0 1 50 94"/><polygon points="45,-1 45,13 58,6"/><polygon points="55,87 55,101 42,94"/></svg>');
+  const drawP=el('button','clx-pile clx-drawp',tbl);drawP.setAttribute('aria-label','Draw a card');
+  const discP=el('div','clx-pile clx-discp',tbl);
+  const cntEl=el('span','clx-cnt',tbl);
+  const msgEl=el('div','clx-msg',B);
+  const you=el('div','clx-you',B,`<span class="clx-av" style="background:var(--c2)">😎</span><b>You</b><span class="clx-n"></span><div class="clx-bub"></div>`);
+  const act=el('div','clx-act',B);
+  const lastB=el('button','btn clx-last',act,'Last card!'),playB=el('button','btn clx-play',act,'Play it'),keepB=el('button','btn ghost clx-keep',act,'Keep');
+  const hand=el('div','clx-hand',B);
+  const pick=el('div','clx-pick',B);pick.hidden=true;
+  const endEl=el('div','clx-end',B);endEl.hidden=true;
+  const HC=new Map();
+  // ---- sizing
+  let W=0,H=0,cw=60,pw=70,mw=20,wide=false;
+  function setAR(){
+    const cs=getComputedStyle(root),gap=parseFloat(cs.rowGap)||0;let used=gap*2+parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom)+8;
+    for(const ch of root.children){if(ch===B||getComputedStyle(ch).display==='none')continue;used+=ch.offsetHeight+gap}
+    const ar=clamp((root.clientWidth-8)/Math.max(240,root.clientHeight-used),.46,1.8);
+    B.dataset.ar=ar;B.style.aspectRatio=ar;B.dataset.max=Math.round(Math.min(1100,(root.clientHeight-used)*ar));
+  }
+  function measure(){
+    W=B.clientWidth;H=B.clientHeight;wide=W/H>1.05;
+    cw=Math.min(W*.22,H*.16,130);pw=Math.min(W*.25,H*.18,140);mw=Math.min(W*.055,H*.042,28);
+    B.style.setProperty('--cw',cw+'px');B.style.setProperty('--pw',pw+'px');B.style.setProperty('--mw',mw+'px');
+  }
+  const rel=e=>{const b=B.getBoundingClientRect(),r=e.getBoundingClientRect();return{x:r.left-b.left-B.clientLeft,y:r.top-b.top-B.clientTop,w:r.width,h:r.height}};
+  const vis=p=>G.hands[p].filter(c=>!hidden.has(c.id));
+  const backOf=c=>FLIP?CLASH_html(c[CLASH_other(VS)],CLASH_other(VS)):CLASH_html(null);
+  const faceOf=c=>CLASH_html(c[VS],VS);
+  const rot=c=>((c.id*47)%25)-12;
+  const order=c=>{const f=c[VS];return(f.c==='w'?9:CLASH_COL[VS].indexOf(f.c))*100+CLASH_VORD.indexOf(f.v)};
+  const canNow=c=>!over&&!busy&&G.turn===0&&(drawn?c===drawn:CLASH_ok(G,c));
+  let handTop=0;
+  function render(){
+    measure();
+    // opponents
+    const seats=(wide?[[],[[.5,0]],[[.27,0],[.73,0]],[[.11,.3],[.5,0],[.89,.3]]]:[[],[[.5,0]],[[.26,0],[.74,0]],[[.17,0],[.5,0],[.83,0]]])[N-1];
+    const ow=wide?Math.min(Math.max(W*.2,150),210):Math.min(W/(N-1)-8,200);let oppBottom=60;
+    for(let p=1;p<N;p++){
+      const o=OPP[p],[sx,sy]=seats[p-1],h=vis(p);
+      o.box.style.width=ow+'px';o.box.style.left=clamp(sx*W-ow/2,6,W-ow-6)+'px';o.box.style.top=(sy*H+8)+'px';
+      o.box.classList.toggle('clx-turn',!over&&G.turn===p);o.box.classList.toggle('clx-won',G.winner===p);
+      o.n.textContent=h.length;
+      const k=Math.min(h.length,10),fw=ow-16,step=k>1?Math.min(mw*.55,(fw-mw)/(k-1)):0,x0=(fw-(mw+step*(k-1)))/2;
+      o.fan.innerHTML=h.slice(0,k).map((c,i)=>`<div class="clx-mini" style="left:${x0+i*step}px;transform:rotate(${(i-(k-1)/2)*4}deg)">${backOf(c)}</div>`).join('');
+      if(sy===0)oppBottom=Math.max(oppBottom,sy*H+8+o.box.offsetHeight);
+    }
+    // hand layout
+    const ch=cw*1.5,list=vis(0).sort((a,b)=>order(a)-order(b)),k=list.length,avail=W-30;
+    const perRow=Math.max(1,Math.floor((avail-cw)/(cw*.42))+1),rows=Math.max(1,Math.ceil(k/perRow)),per=Math.ceil(k/rows),rowOff=ch*.42;
+    handTop=H-10-ch-(rows-1)*rowOff;
+    const keep=new Set();
+    B.classList.toggle('clx-myturn',!over&&!busy&&G.turn===0);
+    list.forEach((c,idx)=>{
+      const r=Math.floor(idx/per),i=idx%per,m=Math.min(per,k-r*per);
+      const step=m>1?Math.min(cw*.8,(avail-cw)/(m-1)):0,x0=(W-(cw+step*(m-1)))/2,rl=i-(m-1)/2;
+      const x=x0+i*step,y=H-10-ch-(rows-1-r)*rowOff+(rl*rl-(m-1)*(m-1)/4)*Math.min(1.5,14/m),a=rl*Math.min(2.4,18/m);
+      let e=HC.get(c.id);
+      if(!e){e=el('div','clx-hc clx-pop',hand);e.dataset.id=c.id;HC.set(c.id,e);S.after(400,()=>e.classList.remove('clx-pop'))}
+      if(e.dataset.side!==VS){e.dataset.side=VS;e.innerHTML=faceOf(c)}
+      e.style.cssText=`--x:${x}px;--y:${y}px;--r:${a}deg;z-index:${r*100+i+1}`;
+      const ok=canNow(c);e.classList.toggle('clx-ok',ok);e.classList.toggle('clx-no',!ok);e.classList.toggle('clx-sel',idx===sel);
+      keep.add(c.id);
+    });
+    for(const[id,e]of HC)if(!keep.has(id)){e.remove();HC.delete(id)}
+    // act row + you label
+    const actTop=handTop-cw*.34-46;
+    act.style.top=actTop+'px';you.style.top=(actTop+3)+'px';
+    you.classList.toggle('clx-turn',!over&&G.turn===0);$('.clx-n',you).textContent=vis(0).length;
+    const showLast=(pend&&pend.p===0&&!pend.called)||(!over&&G.turn===0&&!busy&&vis(0).length===2&&!pre&&G.hands[0].some(c=>CLASH_ok(G,c)));
+    lastB.hidden=!showLast;playB.hidden=keepB.hidden=!(drawn&&!busy);
+    // table
+    const ph=pw*1.5,gap=pw*.5,tw=pw*2+gap,dsz=ph*1.32,top1=oppBottom+10,bot=actTop-4,need=dsz+30;
+    const ty=top1+Math.max(0,(bot-top1-need)/2)+(dsz-ph)/2;
+    tbl.style.cssText=`left:${(W-tw)/2}px;top:${ty}px;width:${tw}px;height:${ph}px`;
+    discP.style.left=(pw+gap)+'px';
+    dirEl.style.cssText=`width:${dsz}px;height:${dsz}px;left:${(tw-dsz)/2}px;top:${(ph-dsz)/2}px`;
+    dirEl.classList.toggle('clx-ccw',G.dir<0);
+    msgEl.style.top=(ty+ph+(dsz-ph)/2+4)+'px';
+    const tp=G.draw[G.draw.length-1];
+    drawP.innerHTML=tp?`<div class="clx-stack">${FLIP?CLASH_html(tp[CLASH_other(VS)],CLASH_other(VS)):CLASH_html(null)}</div>`:'<div class="clx-empty"></div>';
+    drawP.classList.toggle('clx-hint',!over&&!busy&&G.turn===0&&!drawn&&!G.hands[0].some(c=>CLASH_ok(G,c)));
+    cntEl.textContent=G.draw.length;cntEl.style.left=(pw/2)+'px';
+    const ds=G.disc.slice(0,G.disc.length-hideTop).slice(-3);
+    if(!hideTop&&VS===G.side)ringC=G.color;
+    discP.style.setProperty('--ring',ds.length?CLASH_HEX[ringC]:'transparent');
+    discP.innerHTML=ds.map(c=>`<div class="clx-dc" style="transform:rotate(${rot(c)}deg)">${faceOf(c)}</div>`).join('');
+    discP.classList.toggle('clx-none',!ds.length);
+  }
+  function setMsg(t){msgEl.textContent=t;restartAnim(msgEl,'clx-bump')}
+  function bubble(p,t){const b=p===0?$('.clx-bub',you):OPP[p].bub;b.textContent=t;restartAnim(b,'clx-show')}
+  function fly(html,from,to,ms,r=0){
+    ms*=MS;const f=el('div','clx-fly',B,html);f.style.cssText=`left:${from.x}px;top:${from.y}px;font-size:${from.w}px`;
+    const s=to.w/from.w;
+    f.animate([{transform:'translate(0,0) rotate(0deg)'},{transform:`translate(${to.x-from.x}px,${to.y-from.y}px) rotate(${r}deg) scale(${s})`}],{duration:Math.max(1,ms),easing:'cubic-bezier(.3,.75,.35,1)',fill:'forwards'});
+    return wait(ms).then(()=>f.remove());
+  }
+  function dest(p){
+    if(p===0)return{x:W/2-cw/2,y:H-10-cw*1.5,w:cw,h:cw*1.5};
+    const r=rel(OPP[p].fan);return{x:r.x+r.w/2-mw/2,y:r.y,w:mw,h:mw*1.5};
+  }
+  const pileR=()=>{const r=rel(drawP);return{x:r.x,y:r.y,w:pw,h:pw*1.5}};
+  async function animDraw(p,cards){
+    if(!cards.length)return;
+    for(const c of cards)hidden.add(c.id);render();
+    let last;
+    for(const c of cards){
+      beep(300+rand(60),50,'sine');
+      last=fly(p===0?faceOf(c):backOf(c),pileR(),dest(p),280).then(()=>{hidden.delete(c.id);render()});
+      await wait(120*MS);
+    }
+    await last;
+  }
+  async function drawCards(p,n){
+    const got=[],rs=G.reshuffled||0;
+    for(let i=0;i<n;i++){const c=CLASH_take(G,p);if(!c)break;got.push(c)}
+    if((G.reshuffled||0)>rs)setMsg('Shuffling the pile into a new deck');
+    await animDraw(p,got);return got;
+  }
+  async function resolvePending(){
+    if(!pend)return;const q=pend;pend=null;render();
+    if(q.called||over)return;
+    const t=q.p===0?'You forgot to call Last card! Draw 2.':`${P[q.p].name} forgot to call Last card! +2`;
+    setMsg(q.p===0?'Forgot Last card! +2':`${P[q.p].name} forgot! +2`);st(t);beep(180,250,'square');bubble(q.p,'Caught! +2');
+    if(q.p===0)S.shake();
+    await drawCards(q.p,2);
+  }
+  async function flipAnim(){
+    beep(330,120,'sine');S.after(110,()=>beep(660,160,'sine'));
+    const bu=el('div','clx-burst',B,'FLIP!');bu.classList.add(G.side==='d'?'clx-bd':'clx-bl');S.after(1100,()=>bu.remove());
+    B.classList.add('clx-flip1');await wait(260*MS);
+    VS=G.side;B.classList.toggle('clx-dark',VS==='d');render();
+    B.classList.remove('clx-flip1');B.classList.add('clx-flip2');await wait(300*MS);B.classList.remove('clx-flip2');
+    st(VS==='d'?'Flip! The dark side is up.':'Flip! Back to the light side.');
+  }
+  async function doPlay(p,c,col){
+    const fe=p===0?HC.get(c.id):null,from=fe?rel(fe.firstChild||fe):dest(p),old=VS,f=c[old];
+    const ev=CLASH_play(G,p,c,col);
+    hideTop=1;render();
+    beep(p===0?560:470,80);
+    const dr=rel(discP);
+    await fly(CLASH_html(f,old),from,{x:dr.x,y:dr.y,w:pw,h:pw*1.5},320,rot(c));
+    hideTop=0;render();restartAnim(discP,'clx-land');
+    const wc=f.c==='w'?` → ${CLASH_CNAME[ev.color]}`:'';
+    setMsg(`${p===0?'You':P[p].name} played ${CLASH_name(f)}${wc}`);
+    if(ev.flipped){await flipAnim();if(c[VS].c==='w')setMsg(`Wild side up → ${CLASH_CNAME[ev.color]}`)}
+    if(ev.win)return ev;
+    if(G.hands[p].length===1){
+      if(p===0)pend={p:0,called:pre};
+      else{const called=G.R()>.12;pend={p,called};if(called){bubble(p,'Last card!');beep(880,90)}}
+      render();
+    }
+    if(ev.reverse){restartAnim(dirEl,'clx-land');bubble(p,'Reverse!')}
+    for(const q of ev.skipped)if(!ev.draws.length)bubble(q,'Skipped!');
+    if(ev.draws.length)await wait(500*MS);
+    for(const d of ev.draws){
+      bubble(d.p,'+'+d.cards.length);
+      setMsg(`${d.p===0?'You draw':P[d.p].name+' draws'} ${d.cards.length}${d.until?' (until '+CLASH_CNAME[d.until]+')':''} and miss${d.p===0?'':'es'} a turn`);
+      await animDraw(d.p,d.cards);
+    }
+    if(ev.again)setMsg(`${p===0?'You go':P[p].name+' goes'} again!`);
+    render();
+    await wait(200*MS);
+    return ev;
+  }
+  // ---- human
+  function humanTurn(){
+    return new Promise(res=>{
+      waitHuman=res;busy=false;sel=-1;render();
+      const can=G.hands[0].some(c=>CLASH_ok(G,c));
+      st(can?'Your turn. Tap a glowing card.':'Your turn. No match, so tap the deck to draw.');
+      setMsg(can?'Your turn':'No match. Tap the deck to draw');
+    });
+  }
+  function finishHuman(){pre=false;busy=true;drawn=null;sel=-1;const r=waitHuman;waitHuman=null;render();if(r)r()}
+  function nope(c){beep(150,120,'square');const e=c&&HC.get(c.id);if(e)restartAnim(e,'clx-nope')}
+  function pickColor(side,title){
+    return new Promise(res=>{
+      pick.innerHTML=`<div class="clx-pk"><b>${title}</b><div class="clx-pkg">${CLASH_COL[side].map((k,i)=>`<button class="clx-pkb${side==='d'?' clx-pkd':''}" data-k="${k}" style="--cc:${CLASH_HEX[k]}"><span>${i+1}</span>${CLASH_CNAME[k]}</button>`).join('')}</div><button class="btn ghost clx-pkx">Cancel</button></div>`;
+      pick.hidden=false;pickRes=v=>{pick.hidden=true;pickRes=null;res(v)};
+    });
+  }
+  async function humanPlay(c){
+    if(busy||over||G.turn!==0||!c)return;
+    if((drawn&&c!==drawn)||!CLASH_ok(G,c)){nope(c);return}
+    busy=true;render();
+    let col=null;
+    if(CLASH_needColor(G,c)){
+      const wild=c[G.side].c==='w';
+      col=await pickColor(wild?G.side:CLASH_other(G.side),wild?'Pick a color':'The flip lands on a Wild. Pick a color');
+      if(!col){busy=false;render();return}
+    }
+    drawn=null;
+    await resolvePending();
+    await doPlay(0,c,col);
+    finishHuman();
+  }
+  async function humanDraw(){
+    if(busy||over||G.turn!==0||drawn)return;
+    busy=true;render();
+    await resolvePending();
+    const [c]=await drawCards(0,1);
+    if(c&&CLASH_ok(G,c)){drawn=c;busy=false;sel=-1;setMsg('Play the new card or keep it?');render();return}
+    setMsg(c?'No match. Turn passes':'The deck is empty. Turn passes');
+    await wait(450*MS);CLASH_pass(G,0);finishHuman();
+  }
+  function keepDrawn(){if(!drawn||busy||G.turn!==0)return;busy=true;CLASH_pass(G,0);setMsg('You keep the card');finishHuman()}
+  function callLast(){
+    if(lastB.hidden)return;
+    if(pend&&pend.p===0)pend.called=true;else pre=true;
+    bubble(0,'Last card!');beep(880,90);S.after(90,()=>beep(1180,120));render();
+  }
+  // ---- computers
+  async function aiTurn(p){
+    setMsg(`${P[p].name} is thinking…`);
+    await wait((620+rand(380))*MS+(pend&&pend.p===0&&!pend.called?1400:0));
+    await resolvePending();
+    let ch=CLASH_ai(G,p);
+    if(!ch){
+      const [c]=await drawCards(p,1);setMsg(`${P[p].name} draws a card`);
+      ch=CLASH_aiDrawn(G,p,c);
+      if(!ch){await wait(300*MS);CLASH_pass(G,p);return}
+      await wait(350*MS);
+    }
+    await doPlay(p,ch.c,ch.color);
+  }
+  async function deal(){
+    for(const h of G.hands)for(const c of h)hidden.add(c.id);hideTop=1;render();
+    await wait(300);
+    let last;
+    for(let r=0;r<7;r++)for(let p=0;p<N;p++){
+      const c=G.hands[p][r];
+      last=fly(p===0?faceOf(c):backOf(c),pileR(),dest(p),260).then(()=>{hidden.delete(c.id);render()});
+      if(p===0)beep(400+r*40,40,'sine');
+      await wait(55*MS);
+    }
+    await last;await wait(200);
+    const dr=rel(discP);
+    await fly(CLASH_html(G.disc[0].l,'l'),pileR(),{x:dr.x,y:dr.y,w:pw,h:pw*1.5},320,rot(G.disc[0]));
+    hideTop=0;render();restartAnim(discP,'clx-land');beep(620,90);
+  }
+  function finish(w){
+    over=true;busy=true;pend=null;render();
+    endEl.innerHTML=`<div class="clx-pk"><span class="clx-eav">${P[w].av}</span><b>${w===0?'You win!':P[w].name+' wins!'}</b><p>${w===0?'Your hand is empty. Nice playing!':'You had '+vis(0).length+' card'+(vis(0).length===1?'':'s')+' left.'}</p><button class="btn clx-again">Play again</button></div>`;
+    S.after(2000,()=>{endEl.hidden=false});
+    if(w===0){st('You win! Press ↻ to play again.');setMsg('You win!');S.next()}
+    else{st(`${P[w].name} wins this round. Press ↻ to play again.`);setMsg(`${P[w].name} wins!`);S.shake();S.fx.banner(`${P[w].name} wins!`,'Better luck next time');beep(200,300,'sawtooth')}
+  }
+  async function run(){
+    await deal();
+    while(!over){
+      if(G.turn===0)await humanTurn();else await aiTurn(G.turn);
+      if(G.winner>=0){finish(G.winner);return}
+    }
+  }
+  // ---- input
+  S.on(hand,'click',e=>{const h=e.target.closest('.clx-hc');if(!h)return;const c=G.hands[0].find(x=>x.id===+h.dataset.id);if(c)humanPlay(c)});
+  S.on(drawP,'click',humanDraw);
+  S.on(lastB,'click',callLast);
+  S.on(playB,'click',()=>humanPlay(drawn));
+  S.on(keepB,'click',keepDrawn);
+  S.on(pick,'click',e=>{if(!pickRes)return;const b=e.target.closest('.clx-pkb');if(b)pickRes(b.dataset.k);else if(e.target.closest('.clx-pkx')||e.target===pick)pickRes(null)});
+  S.on(endEl,'click',e=>{if(e.target.closest('.clx-again'))S.restart()});
+  S.on(window,'keydown',e=>{
+    if(!B.isConnected)return;const k=e.key;
+    if(pickRes){if(k>='1'&&k<='4'){const b=pick.querySelectorAll('.clx-pkb')[k-1];if(b)pickRes(b.dataset.k)}else if(k==='Escape')pickRes(null);return}
+    if(k==='l'||k==='L'){callLast();return}
+    if(over||busy||G.turn!==0)return;
+    const list=vis(0).sort((a,b)=>order(a)-order(b));
+    if(k==='ArrowLeft'||k==='ArrowRight'){e.preventDefault();sel=sel<0?(k==='ArrowLeft'?list.length-1:0):clamp(sel+(k==='ArrowLeft'?-1:1),0,list.length-1);render()}
+    else if(k==='Enter'||k===' '){e.preventDefault();if(drawn)humanPlay(drawn);else if(sel>=0)humanPlay(list[sel])}
+    else if(k==='d'||k==='D')humanDraw();
+    else if((k==='k'||k==='K')&&drawn)keepDrawn();
+  });
+  S.on(window,'resize',()=>S.after(60,()=>{setAR();if(typeof fit==='function')fit();render()}));
+  setAR();
+  S.after(40,()=>{if(typeof fit==='function')fit();render();run()});
+  render();
+}
+
+function clashflip(root,S){CLASH_mount(root,S,true)}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -4632,11 +5049,13 @@ const GAMES=[
   {id:'water',name:'Water Sort',icon:'🧪',blurb:'Pour colored water between tubes until each holds one color.',help:'Tap a tube to lift it, then tap another tube to pour. You can only pour onto the same color or into an empty tube. Undo as often as you like, and add one extra tube per puzzle. Keyboard: 1–9 and 0 pick tubes, Z undoes.',mount:watersort,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true},
   {id:'woodblocks',name:'Wood Blocks',icon:'🪵',blurb:'Drag wooden pieces onto the board and clear rows, columns and boxes.',help:'Drag a piece from the tray onto the board. On a computer you can also press 1, 2 or 3 to pick a piece, move it with the arrow keys and press Enter to place it.',mount:woodblocks,run:true,names:['Endless'],unit:'points',isNew:true},
   {id:'wordfind',name:'Word Finder',icon:'🔎',blurb:'Find every hidden word in a themed letter grid.',help:'Drag from the first letter of a word to the last, in a straight line. You can also tap the first letter, then the last. Easy uses across and down, Medium adds diagonals, Hard hides words in all 8 directions.',mount:wordfind,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true},
-  {id:'wordguess',name:'Word Guess',icon:'🟩',blurb:'Crack the hidden word in six tries with color clues.',help:'Type or tap letters, then press Enter. Green means right spot, yellow means the letter is in the word somewhere else, grey means it isn\'t in the word. Pick 4, 5 or 6 letters at the top.',mount:wordguess,levels:3,open:true,names:['4 letters','5 letters','6 letters'],isNew:true}
+  {id:'wordguess',name:'Word Guess',icon:'🟩',blurb:'Crack the hidden word in six tries with color clues.',help:'Type or tap letters, then press Enter. Green means right spot, yellow means the letter is in the word somewhere else, grey means it isn\'t in the word. Pick 4, 5 or 6 letters at the top.',mount:wordguess,levels:3,open:true,names:['4 letters','5 letters','6 letters'],isNew:true},
+  {id:'clash',name:'Color Clash',icon:'🎴',blurb:'Match colors and numbers and empty your hand before the bots.',help:'Tap a glowing card to play it or tap the deck to draw. Wild cards ask for a color, and Wild +4 can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clash,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true},
+  {id:'clashflip',name:'Color Clash Flip',icon:'🔄',blurb:'Two-sided cards: flip the whole game to the wild dark side.',help:'Tap a glowing card to play it or tap the deck to draw. A Flip card turns every card over. Wild cards ask for a color and can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clashflip,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card'};
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
