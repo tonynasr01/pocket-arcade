@@ -846,12 +846,12 @@ function breakout(root,S){
   const st=status(root,'Move to steer. Tap or press Space to launch.');
   /* portrait phones get a taller field (bricks stay at the top, more room above the paddle); the ball
      speeds up by the square root of the extra height so it neither crawls nor races across the screen */
-  const W=480,H=tall(480,360,1000,4),cols=8,gap=6,m=12,bw=(W-2*m-gap*(cols-1))/cols,bh=14,BASE=(280+25*(L-1))*Math.sqrt(H/360);
+  const W=480,H=tall(480,360,1000,4),cols=8,gap=6,m=12,bw=(W-2*m-gap*(cols-1))/cols,BS=Math.min(2,H/360),bh=14*BS,BASE=(280+25*(L-1))*Math.sqrt(H/360);
   const{c,x}=canvas(root,W,H);const K=pal();const k=held(S);const fx=sparks();
   const RC=[K.c1,K.c6,K.c2,K.c3,K.c4,K.c5,K.c1];const HPC=[null,null,K.c5,K.c4];
   let pad,ball,bricks,lives,score,stuck,over,trail=[];
   pad={x:W/2,w:Math.max(64,90-L*4),h:10,y:H-26};ball={x:0,y:0,vx:0,vy:0,r:6};bricks=[];
-  for(let r=0;r<7;r++)for(let q=0;q<cols;q++){const hp=brickHP(L,r,q);if(hp)bricks.push({x:m+q*(bw+gap),y:40+r*(bh+gap),c:RC[r],hp,hit:0})}
+  for(let r=0;r<7;r++)for(let q=0;q<cols;q++){const hp=brickHP(L,r,q);if(hp)bricks.push({x:m+q*(bw+gap),y:40*BS+r*(bh+gap*BS),c:RC[r],hp,hit:0})}
   lives=3;score=0;stuck=true;over=false;
   function launch(){if(over||!stuck)return;stuck=false;const a=(Math.random()-.5)*.8;ball.vx=BASE*Math.sin(a);ball.vy=-BASE*Math.cos(a)}
   S.on(c,'pointerdown',e=>{pad.x=c.pos(e).x;launch()});S.on(c,'pointermove',e=>{pad.x=c.pos(e).x});
