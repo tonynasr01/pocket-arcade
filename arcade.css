@@ -820,3 +820,13 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .clx-again{font-size:1.05rem}
 @media (max-width:420px){.clx-on b{font-size:.85rem}.clx-av{width:28px;height:28px;font-size:16px}.clx-msg{font-size:.85rem}.clx-pkb{min-width:96px}}
 .clx-dark.clx-myturn .clx-hc.clx-no{filter:brightness(.72) saturate(.5)}
+
+/* whole-screen touch zones */
+.ctl.touch .ctl-body{display:none}
+.tz-on .bfire,.tz-on .fjbtns{display:none}
+.bpad.tz-on{justify-content:center}
+.tz-layer{position:fixed;inset:0;pointer-events:none;z-index:12}
+.tz-ring{position:fixed;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;border:3px solid rgba(255,255,255,.75);background:rgba(30,31,92,.18);box-shadow:0 0 0 3px rgba(30,31,92,.35)}
+.tz-ring i{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--c2);border:3px solid var(--edge);opacity:.9}
+.tz-hint{position:fixed;transform:translateX(-50%);font:800 .85rem var(--body);color:#fff;background:rgba(30,31,92,.62);padding:6px 12px;border-radius:999px;white-space:nowrap;transition:opacity .6s}
+.tz-hint.gone{opacity:0}

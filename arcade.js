@@ -46,6 +46,7 @@ function makeScope(){
     every(ms,f){const id=setInterval(f,ms);fns.push(()=>clearInterval(id));return id},
     after(ms,f){const id=setTimeout(f,ms);fns.push(()=>clearTimeout(id));return id},
     loop(f){let id,last=performance.now();const s=t=>{const dt=Math.min(.05,(t-last)/1000);last=t;f(dt);id=requestAnimationFrame(s)};id=requestAnimationFrame(s);fns.push(()=>cancelAnimationFrame(id))},
+    cleanup(f){fns.push(f)},
     dispose(){fns.splice(0).forEach(f=>f())}
   };
 }
@@ -344,16 +345,58 @@ function arrows(parent,S,{axis='xy',onDir,onMove}){
     ['pointerup','pointerleave','pointercancel'].forEach(ev=>S.on(b,ev,()=>{onMove&&onMove(0)}));
   });
 }
-/* touch controls with a remembered choice between the joystick wheel and arrow buttons */
+/* screen-wide touch zones: no visible controls, the whole game area is the controller.
+   4-way games: put a thumb down anywhere and slide it, like a wheel that appears under the finger.
+   left/right games: slide on the left half to move, touch the right half for the main button
+   (.bfire in the control row), and slide down on the right half for .fjdown when the game has one. */
+function zones(parent,S,opts){
+  const stage=$('#stage'),xOnly=opts.axis==='x',P=new Map();
+  const layer=el('div','tz-layer',stage);S.cleanup(()=>layer.remove());
+  const ring=el('div','tz-ring',layer,'<i></i>');ring.hidden=true;const dot=$('i',ring);
+  const hints=xOnly?[el('div','tz-hint tz-l',layer,'◀ slide ▶'),el('div','tz-hint tz-r',layer,'tap to fire')]:[el('div','tz-hint tz-c',layer,'slide anywhere to steer')];
+  const placeHints=()=>{if(xOnly&&btn('.fjdown'))hints[1].textContent='tap ⤒ · swipe down ⤓';const r=(gameEl.querySelector('[data-ar]')||gameEl).getBoundingClientRect(),y=r.bottom-48;hints.forEach(h=>{h.style.top=y+'px'});if(xOnly){hints[0].style.left=(r.left+r.width*.25)+'px';hints[1].style.left=(r.left+r.width*.75)+'px'}else hints[0].style.left=(r.left+r.width/2)+'px'};
+  S.after(60,placeHints);S.after(3200,()=>hints.forEach(h=>h.classList.add('gone')));
+  const btn=sel=>parent.closest('#game')?.querySelector(sel);
+  const send=(b,type,e)=>{if(b)b.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:e.pointerId,pointerType:e.pointerType,clientX:e.clientX,clientY:e.clientY}))};
+  const showRing=(x,y)=>{ring.hidden=false;ring.style.left=x+'px';ring.style.top=y+'px';dot.style.transform=''};
+  S.on(stage,'pointerdown',e=>{
+    if(!e.isTrusted)return;const t=e.target;if(!gameEl.contains(t)||t.closest('button,a,input,.ctl-tg'))return;
+    e.stopPropagation();e.preventDefault();const r=gameEl.getBoundingClientRect();
+    if(xOnly&&e.clientX>r.left+r.width/2){const b=btn('.bfire');P.set(e.pointerId,{k:'act',b,y0:e.clientY});send(b,'pointerdown',e);return}
+    P.set(e.pointerId,{k:'move',ox:e.clientX,oy:e.clientY,last:null});showRing(e.clientX,e.clientY);
+  },true);
+  S.on(stage,'pointermove',e=>{
+    const p=P.get(e.pointerId);if(!p||!e.isTrusted)return;e.stopPropagation();
+    if(p.k==='act'){const d=btn('.fjdown');if(d&&e.clientY-p.y0>28){send(p.b,'pointerup',e);p.k='drop';p.b=d;send(d,'pointerdown',e)}return}
+    if(p.k!=='move')return;
+    let dx=e.clientX-p.ox,dy=xOnly?0:e.clientY-p.oy;const MAX=xOnly?54:46,d=Math.hypot(dx,dy);
+    if(d>MAX){p.ox+=dx*(1-MAX/d);p.oy+=dy*(1-MAX/d);dx=e.clientX-p.ox;dy=xOnly?0:e.clientY-p.oy;ring.style.left=p.ox+'px';ring.style.top=p.oy+'px'}
+    dot.style.transform=`translate(${dx}px,${dy}px)`;
+    if(xOnly){opts.onMove&&opts.onMove(Math.abs(dx)<7?0:clamp(dx/(MAX*.75),-1,1));return}
+    if(Math.hypot(dx,dy)<14)return;
+    const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up');
+    if(dir!==p.last){p.last=dir;if(navigator.vibrate)navigator.vibrate(8);opts.onDir&&opts.onDir(dir)}
+  },true);
+  const up=e=>{const p=P.get(e.pointerId);if(!p||!e.isTrusted)return;P.delete(e.pointerId);e.stopPropagation();if(e.pointerType!=='mouse'&&!fsOff&&!isFS())enterFS();
+    if(p.k==='move'){ring.hidden=true;opts.onMove&&opts.onMove(0)}else send(p.b,'pointerup',e)};
+  S.on(stage,'pointerup',up,true);S.on(stage,'pointercancel',up,true);
+}
+/* touch controls with a remembered choice: whole-screen touch zones (default on touch screens),
+   the joystick wheel, or arrow buttons */
+const TOUCHDEV=matchMedia('(pointer:coarse)').matches;
 function controls(parent,S,opts){
   const w=el('div','ctl',parent),body=el('div','ctl-body',w);
-  const tg=el('div','ctl-tg',w,'<button data-m="wheel">🕹️ Wheel</button><button data-m="arrows">✛ Arrows</button>');tg.setAttribute('role','group');tg.setAttribute('aria-label','Touch controls');
+  const tg=el('div','ctl-tg',w,'<button data-m="touch">👆 Touch</button><button data-m="wheel">🕹️ Wheel</button><button data-m="arrows">✛ Arrows</button>');tg.setAttribute('role','group');tg.setAttribute('aria-label','Touch controls');
+  let zs=null;
   function draw(){
-    const m=store.get('ctl')==='arrows'?'arrows':'wheel';body.innerHTML='';opts.onMove&&opts.onMove(0);
-    (m==='wheel'?stick:arrows)(body,S,opts);
+    const saved=store.get('ctl2'),m=saved||(TOUCHDEV?'touch':'wheel');body.innerHTML='';opts.onMove&&opts.onMove(0);
+    if(zs){zs.dispose();zs=null}
+    w.classList.toggle('touch',m==='touch');parent.classList.toggle('tz-on',m==='touch');
+    if(m==='touch'){zs=makeScope();zones(parent,zs,opts)}else(m==='wheel'?stick:arrows)(body,S,opts);
     tg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));
   }
-  tg.querySelectorAll('button').forEach(b=>S.on(b,'click',()=>{store.set('ctl',b.dataset.m);draw();requestAnimationFrame(fit)}));
+  S.cleanup(()=>{if(zs)zs.dispose()});
+  tg.querySelectorAll('button').forEach(b=>S.on(b,'click',()=>{store.set('ctl2',b.dataset.m);draw();requestAnimationFrame(fit)}));
   draw();
 }
 function dpad(root,S,cb){const w=el('div','dpad',root);controls(w,S,{onDir:cb})}
@@ -5017,25 +5060,25 @@ const GAMES=[
   {id:'whack',name:'Whack-a-Mole',icon:'🔨',blurb:'Whack moles as they speed up. Miss 3 and you\'re out.',help:'Tap moles before they hide. Missing a mole or hitting a bomb costs a life. ⭐ is worth 3 points.',mount:whack,run:true,unit:'moles'},
   {id:'simon',name:'Simon Says',icon:'🔴',blurb:'Repeat a pattern that grows every level.',help:'Watch the pads light up, then tap them in the same order. Sound on helps.',mount:simon,run:true,unit:'levels'},
   {id:'hangman',name:'Hangman',icon:'🔤',blurb:'Guess the word one letter at a time, solo or with a friend.',help:'Tap letters or type on your keyboard. Pick a word length at the top, or tap 2 players to type a secret word for a friend.',mount:hangman,levels:5,open:true,names:['4 letters','5 letters','6 letters','7 letters','8+ letters']},
-  {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone.',mount:snake,run:true,unit:'points'},
+  {id:'snake',name:'Snake',icon:'🐍',blurb:'Eat, grow, and dodge blocks as it speeds up.',help:'Arrow keys or WASD on a computer. On a phone, put your thumb anywhere on the game and slide it to steer (or switch to the wheel or arrows under the game).',mount:snake,run:true,unit:'points'},
   {id:'pong',name:'Pong',icon:'🏓',blurb:'First to 5 against the computer. Pick how sharp it plays.',help:'Move your finger or mouse over the court, or use the up and down keys. Pick a mode at the top.',mount:pong,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Insane']},
   {id:'flappy',name:'Flappy Bird',icon:'🐦',blurb:'Flap through gaps that keep getting tighter.',help:'Tap, click, or press Space to flap.',mount:flappy,run:true,unit:'points'},
   {id:'tower',name:'Tower Block',icon:'🧱',blurb:'Drop sliding blocks to build the tallest tower.',help:'Tap, click, or press Space to drop. Line blocks up perfectly to keep them wide.',mount:tower,run:true,unit:'floors'},
   {id:'crane',name:'Sky Crane',icon:'🏗️',blurb:'Drop swinging blocks to stack a wobbly skyscraper.',help:'Tap, click, or press Space to release the block. Perfect drops steady the tower.',mount:crane,run:true,unit:'floors',isNew:true},
-  {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. Swipe, or use the wheel or arrows on a phone. Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
+  {id:'blobmaze',name:'Blob Maze',icon:'🟢',blurb:'Eat every dot and dodge the spikers.',help:'Arrow keys or WASD on a computer. On a phone, put your thumb anywhere on the game and slide it to steer (or switch to the wheel or arrows). Gems let you eat the spikers.',mount:blobmaze,run:true,unit:'points',isNew:true},
   {id:'breakout',name:'Breakout',icon:'🟦',blurb:'Break every brick. Tough bricks take more hits.',help:'Move your finger or mouse to steer, or use the left and right keys. Pick a brick layout at the top.',mount:breakout,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Master'],unit:'points'},
   {id:'2048',name:'2048',icon:'🧮',blurb:'Merge tiles to hit bigger and bigger goals.',help:'Swipe on the board or use the arrow keys.',mount:g2048,run:true,unit:'points'},
   {id:'mines',name:'Minesweeper',icon:'💣',blurb:'Clear the field without setting off a mine.',help:'Pick a board size at the top. Tap to dig. Long-press, right-click, or switch to 🚩 to flag. Tap a number to clear around it.',mount:mines,levels:5,open:true,names:['Tiny','Easy','Medium','Hard','Expert'],isNew:true},
   {id:'sudoku',name:'Sudoku',icon:'🔢',blurb:'Fill the grid so every row, column and box has 1 to 9.',help:'Pick a difficulty at the top. Tap a square, then a number. Turn on ✏️ Notes to pencil in options. Keyboard: arrows, 1–9, Backspace, N.',mount:sudoku,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],isNew:true},
   {id:'bbtan',name:'Brick Balls',icon:'🔵',blurb:'Aim, shoot, and smash numbered bricks before they land.',help:'Drag to aim and let go to shoot, or use ← → and Space. Grab +1 rings for extra balls.',mount:bbtan,run:true,unit:'rounds',isNew:true},
-  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys, WASD, swipe, or the wheel or arrows. Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Master'],isNew:true},
+  {id:'paper',name:'Land Grab',icon:'🗺️',blurb:'Loop out of your land to claim the map. Don\'t get cut!',help:'Arrow keys or WASD, or on a phone slide your thumb anywhere on the game to steer (or use the wheel or arrows). Leave your land and loop back to claim the area inside. Cross a rival\'s trail to knock them out.',mount:paper,levels:5,open:true,names:['Easy','Normal','Hard','Expert','Master'],isNew:true},
   {id:'taxi',name:'Rush Taxi',icon:'🚕',blurb:'Pick up passengers and race the clock.',help:'Drag or use ← → to steer and ↓ to brake. Drive past a waving passenger in the outside lane, then reach the 🏁 on the same side.',mount:taxi,run:true,unit:'dollars',isNew:true},
   {id:'solitaire',name:'Solitaire',icon:'♠️',blurb:'Classic Klondike. Build each suit from Ace to King.',help:'Tap a card to move it to the best spot. Tap the deck to draw. Pick Draw 1 or Draw 3 at the top.',mount:solitaire,levels:2,open:true,names:['Draw 1','Draw 3'],isNew:true},
   {id:'helix',name:'Helix Drop',icon:'🌀',blurb:'Spin the tower and drop forever. How deep can you go?',help:'Drag sideways or use ← → to spin the tower. Avoid red. Chain drops for a combo, and fall through 3 rings in a row to smash the next one.',mount:helix,run:true,unit:'points',isNew:true},
-  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, the wheel, or the arrows, and shoot with Space or 🔱. Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
+  {id:'bubbles',name:'Bubble Pop',icon:'🎈',blurb:'Shoot bouncing bubbles and split them until they pop.',help:'Move with ← →, and shoot with Space. On a phone, slide on the left half of the game to move and tap the right half to shoot (or switch to the wheel or arrows). Pop every bubble before the time bar runs out. On a computer you can turn on mouse control or 2 players under the game.',mount:bubbles,run:true,unit:'points',isNew:true},
   {id:'blast',name:'Cannon Blast',icon:'🎯',blurb:'Blast numbered rocks that split as you shoot. How long can you last?',help:'Touch or drag anywhere and the cannon follows your finger, or use ← →. The cannon fires on its own. Rocks split in two when they hit zero, and get tougher the longer you last. About every 20 seconds a broken rock drops a gold UPGRADE that keeps your cannon stronger for the whole run: ➕ extra barrel, ⏩ faster fire or 💪 stronger shots. Also grab rare power-ups: ⚡ rapid fire, 🔱 triple shot, 💥 double power, ❄️ freeze, 🛡️ shield.',mount:blast,run:true,unit:'points',names:['Endless'],isNew:true},
   {id:'pinball',name:'Pinball',icon:'🕹️',blurb:'Flip, bump, spin and sink the saucer for multiball and jackpots.',help:'Hold Space or ↓ (or touch) to pull the plunger and let go to launch. Flippers: ← → or Z and M on a keyboard, or tap the left and right side of the table. Sink the saucer 3 times for multiball, light both side lanes for super bumpers, and light the top lanes to raise your multiplier.',mount:pinball,run:true,unit:'points',names:['Classic'],isNew:true},
-  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → (or the wheel or arrows) and jump with ↑, Space or the jump button. Hold jump to leap higher, tap it again mid-jump to stop rising, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
+  {id:'fuse',name:'Fuse Jumper',icon:'💥',blurb:'Leap, glide and grab every bomb. Lit fuses score double.',help:'Move with ← → and jump with ↑ or Space. On a phone, slide on the left half of the game to move, touch the right half to jump and swipe down there to drop (or switch to the wheel or arrows). Hold jump to leap higher, tap it again mid-jump to stop rising, and hold it while falling to glide. Press ↓ or the ⤓ button to fall fast or drop through a platform. Grab the glowing lit bomb for double points, avoid the enemies, take the P ball to turn them into coins, B to raise your multiplier, and ❤ for an extra life (up to 3).',mount:fuse,run:true,unit:'points',isNew:true},
   {id:'chess',name:'Chess',icon:'♟️',blurb:'Play the computer or a friend on one device.',help:'Tap a piece, then a highlighted square. Pick Easy, Medium, Hard, or 2 Players at the top. Pawns promote to queens automatically.',mount:chess,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'backgammon',name:'Backgammon',icon:'🎲',blurb:'Roll, race and hit. Bear off all 15 checkers first.',help:'Tap Roll, then tap a checker and a highlighted spot to move it. Use both dice, Undo to take a move back, and Done to end your turn. Pick Easy, Hard or 2 Players at the top.',mount:backgammon,levels:3,open:true,names:['Easy','Hard','2 Players'],isNew:true},
   {id:'blockfill',name:'Block Fill',icon:'🟧',blurb:'Fill every tile in one stroke without going back.',help:'Start on the glowing tile and drag (or tap the next tile, or use the arrow keys) to draw one path through every open tile. Drag back over your path to undo it. Pick a difficulty at the top.',mount:blockfill,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'puzzles',isNew:true},
