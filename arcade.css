@@ -292,7 +292,8 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(-
 @keyframes popmsg{0%{opacity:0;transform:translate(-50%,-8px)}8%,85%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-6px)}}
 @media (max-width:600px),(max-height:500px){
   #game>.status,#ghelp,.bar h2{display:none}
-  #stage{padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px)}
+  #stage{padding:calc(env(safe-area-inset-top,0px) + 6px) 4px calc(env(safe-area-inset-bottom,0px) + 6px)}
+  .bar{padding:0 4px}
   #game{gap:10px;padding:6px 0}
   .bar{gap:5px;flex-wrap:nowrap}.bar .ibtn{width:38px;height:38px;font-size:1.05rem}.bar .lvl{height:38px;padding:0 2px}.bar .lvl span{padding:0 2px;font-size:.85rem}.bar .lvl button{width:22px}
 }

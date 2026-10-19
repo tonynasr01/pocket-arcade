@@ -57,6 +57,17 @@ function canvas(root,w,h){
   c.pos=e=>{const b=c.getBoundingClientRect();return{x:(e.clientX-b.left)*w/b.width,y:(e.clientY-b.top)*h/b.height}};
   return{c,x};
 }
+/* Phones held upright have much more height than width, so a fixed-shape game leaves the bottom of the
+   screen empty. A game that can use a taller playfield asks tall(w,h,max,reserve) for its logical height:
+   on a portrait phone it returns the height that fills the free space (reserve = px of other rows the
+   game adds under/over its board), never less than h and never more than max; elsewhere it returns h. */
+function tall(w,h,max,reserve=0){
+  if(!COMPACT.matches)return h;
+  const g=document.querySelector('#game');if(!g)return h;
+  const aw=g.clientWidth-2,ah=g.clientHeight-24-reserve;
+  if(aw<=0||ah<=aw)return h;
+  return Math.round(clamp(w*ah/aw,h,max||h));
+}
 function held(S){
   const k={};
   S.on(window,'keydown',e=>{k[e.key]=true;if(e.key.startsWith('Arrow')||e.key===' ')e.preventDefault()});
@@ -5133,7 +5144,7 @@ function fit(){
   const gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=0,n=0;
   for(const ch of gameEl.children){if(ch===f||getComputedStyle(ch).display==='none')continue;used+=ch.offsetHeight;n++}
   used+=gap*n+20;
-  const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-8;
+  const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-(COMPACT.matches?2:8);
   f.style.width=Math.max(180,Math.min(aw,ah*(+f.dataset.ar),+(f.dataset.max||900)))+'px';
 }
 addEventListener('resize',fit);
