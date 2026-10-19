@@ -414,13 +414,15 @@ function controls(parent,S,opts){
 function dpad(root,S,cb){const w=el('div','dpad',root);controls(w,S,{onDir:cb})}
 
 function snake(root,S){
-  const st=status(root,'');const{c,x}=canvas(root,400,400);const K=pal();const fx=sparks();
-  const N=20,C=20,DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+  /* portrait phones get extra rows (same 20px cells and speed) so the board fills the screen */
+  const N=20,C=20,NY=Math.floor(tall(400,400,800,40)/C),H=NY*C;
+  const st=status(root,'');const{c,x}=canvas(root,400,H);const K=pal();const fx=sparks();
+  const DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
   let sn,dir,next,food,score,alive,started,acc,lvl,obs,t=0;
   const taken=(p)=>sn.some(s=>s.x===p.x&&s.y===p.y)||obs.some(o=>o.x===p.x&&o.y===p.y)||(food&&food.x===p.x&&food.y===p.y);
-  function place(){let p;do{p={x:rand(N),y:rand(N)}}while(taken(p));return p}
-  function addObs(n){for(let k=0;k<n;k++){let p,tries=0;do{p={x:rand(N),y:rand(N)};tries++}while((taken(p)||Math.abs(p.x-sn[0].x)+Math.abs(p.y-sn[0].y)<5)&&tries<200);obs.push(p)}}
-  function reset(){sn=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];obs=[];food=null;dir=DIRS.right;next=[];food=place();score=0;lvl=1;S.show(1);alive=true;started=false;acc=0;st('Press an arrow key, swipe, or use the wheel or arrows to start.')}
+  function place(){let p;do{p={x:rand(N),y:rand(NY)}}while(taken(p));return p}
+  function addObs(n){for(let k=0;k<n;k++){let p,tries=0;do{p={x:rand(N),y:rand(NY)};tries++}while((taken(p)||Math.abs(p.x-sn[0].x)+Math.abs(p.y-sn[0].y)<5)&&tries<200);obs.push(p)}}
+  function reset(){const my=NY>>1;sn=[{x:10,y:my},{x:9,y:my},{x:8,y:my}];obs=[];food=null;dir=DIRS.right;next=[];food=place();score=0;lvl=1;S.show(1);alive=true;started=false;acc=0;st('Press an arrow key, swipe, or use the wheel or arrows to start.')}
   reset();
   function turn(d){
     if(!alive)reset();const D=DIRS[d];const last=next.length?next[next.length-1]:dir;
@@ -431,7 +433,7 @@ function snake(root,S){
   function step(){
     if(next.length)dir=next.shift();
     const h={x:sn[0].x+dir.x,y:sn[0].y+dir.y};
-    if(h.x<0||h.y<0||h.x>=N||h.y>=N||sn.slice(0,-1).some(s=>s.x===h.x&&s.y===h.y)||obs.some(o=>o.x===h.x&&o.y===h.y)){
+    if(h.x<0||h.y<0||h.x>=N||h.y>=NY||sn.slice(0,-1).some(s=>s.x===h.x&&s.y===h.y)||obs.some(o=>o.x===h.x&&o.y===h.y)){
       alive=false;started=false;fx.add(sn[0].x*C+C/2,sn[0].y*C+C/2,K.c4,40,260);S.shake();beep(110,400,'sawtooth');
       const nb=best('snake',score);st(`Game over at level ${lvl} with ${score} points.${nb?' New best!':''} Press a direction to play again.`);return;
     }
@@ -439,7 +441,7 @@ function snake(root,S){
     if(h.x===food.x&&h.y===food.y){
       score++;fx.add(food.x*C+C/2,food.y*C+C/2,K.c1,16);beep(600+score*8,70);food=place();
       const nl=1+Math.floor(score/5);
-      if(nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,lvl>=3?'Watch out for blocks':'Faster!');beep(990,200);if(lvl>=3)addObs(lvl>=6?4:3)}
+      if(nl>lvl){lvl=nl;S.show(lvl);S.fx.toast(`Level ${lvl}`,lvl>=3?'Watch out for blocks':'Faster!');beep(990,200);if(lvl>=3)addObs(Math.round((lvl>=6?4:3)*NY/N))}
       st(`Score ${score}. Level ${lvl}.`);
     }else sn.pop();
   }
@@ -448,8 +450,8 @@ function snake(root,S){
   S.loop(dt=>{
     t+=dt;
     if(started&&alive){acc+=dt;const sp=Math.max(.055,.13-(lvl-1)*.012);while(acc>sp){acc-=sp;step();if(!alive)break}}
-    x.fillStyle=K.board;x.fillRect(0,0,400,400);
-    x.fillStyle=K.line;x.globalAlpha=.35;for(let i=0;i<N;i++)for(let j=0;j<N;j++)if((i+j)%2)x.fillRect(i*C,j*C,C,C);x.globalAlpha=1;
+    x.fillStyle=K.board;x.fillRect(0,0,400,H);
+    x.fillStyle=K.line;x.globalAlpha=.35;for(let i=0;i<N;i++)for(let j=0;j<NY;j++)if((i+j)%2)x.fillRect(i*C,j*C,C,C);x.globalAlpha=1;
     x.fillStyle=K.muted;for(const o of obs){rr(x,o.x*C+1,o.y*C+1,C-2,C-2,4);x.fill()}
     const pr=(C/2-3)*(1+.15*Math.sin(t*7));x.fillStyle=K.c1;x.beginPath();x.arc(food.x*C+C/2,food.y*C+C/2,pr,0,Math.PI*2);x.fill();
     sn.forEach((s,i)=>{x.fillStyle=i?K.c3:K.c4;x.globalAlpha=i?Math.max(.45,1-i*.02):1;rr(x,s.x*C+1,s.y*C+1,C-2,C-2,6);x.fill()});x.globalAlpha=1;
@@ -502,12 +504,16 @@ function pong(root,S){
 }
 
 function flappy(root,S){
-  const st=status(root,'');const{c,x}=canvas(root,360,480);const K=pal();const fx=sparks();
-  const W=360,H=480,PWd=56,GR=24;
-  let bird,pipes,state,score,spawn,deadT,lvl,t=0;
-  const clouds=[...Array(5)].map(()=>({x:Math.random()*W,y:30+Math.random()*250,s:.6+Math.random()*.8}));
+  /* portrait phones get a taller sky; gaps roam the whole height, but each gap is picked in a window
+     around the previous one (never further than the classic sky allows), so the climbs and drops between
+     pipes average out and peak the same as on the classic 480px sky */
+  const W=360,H=tall(360,480,820),PWd=56,GR=24,H0=480;
+  const st=status(root,'');const{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  let bird,pipes,state,score,spawn,deadT,lvl,lastGy,t=0;
+  const cloudY=()=>30+Math.random()*(H-230);
+  const clouds=[...Array(Math.round(5*H/H0))].map(()=>({x:Math.random()*W,y:cloudY(),s:.6+Math.random()*.8}));
   const gapFor=l=>Math.max(108,150-(l-1)*9),speedFor=l=>150+(l-1)*14;
-  function reset(){bird={x:90,y:H/2,vy:0,r:13};pipes=[];state='ready';score=0;spawn=0;deadT=0;lvl=1;S.show(1);st('Tap, click, or press Space to flap. Every 8 pipes is a new level.')}
+  function reset(){bird={x:90,y:H/2,vy:0,r:13};pipes=[];lastGy=null;state='ready';score=0;spawn=0;deadT=0;lvl=1;S.show(1);st('Tap, click, or press Space to flap. Every 8 pipes is a new level.')}
   reset();
   function flap(){if(state==='dead'){if(deadT>.5)reset();return}if(state==='ready'){state='play';st('Keep going!')}bird.vy=-320;fx.add(bird.x-8,bird.y+4,K.c2,5,90);beep(520,50)}
   function die(){if(state==='dead')return;state='dead';deadT=0;fx.add(bird.x,bird.y,K.c2,30,240);S.shake();beep(120,350,'sawtooth');const nb=best('flappy',score);st(`Crashed at level ${lvl} with ${score} points.${nb?' New best!':''} Tap to try again.`)}
@@ -515,11 +521,13 @@ function flappy(root,S){
   S.on(window,'keydown',e=>{if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();if(!e.repeat)flap()}});
   S.loop(dt=>{
     t+=dt;const sp=speedFor(lvl);
-    if(state!=='dead')clouds.forEach(cl=>{cl.x-=25*cl.s*dt;if(cl.x<-60){cl.x=W+60;cl.y=30+Math.random()*250}});
+    if(state!=='dead')clouds.forEach(cl=>{cl.x-=25*cl.s*dt;if(cl.x<-60){cl.x=W+60;cl.y=cloudY()}});
     if(state==='ready')bird.y=H/2+Math.sin(t*3)*8;
     else if(state==='play'){
       bird.vy+=1100*dt;bird.y+=bird.vy*dt;spawn-=dt;
-      if(spawn<=0){const G=gapFor(lvl);spawn=1.5*150/sp+.15;pipes.push({x:W,gy:50+Math.random()*(H-GR-100-G),G,passed:false})}
+      if(spawn<=0){const G=gapFor(lvl),R=H0-GR-100-G,hi=H-GR-50-G;let gy=50+Math.random()*R;
+        if(H>H0){const c0=lastGy==null?bird.y-G/2:lastGy,w=Math.min(R*1.2,hi-50),lo=clamp(c0-w/2,50,hi-w);gy=clamp(lo+Math.random()*w,c0-R,c0+R)}
+        lastGy=gy;spawn=1.5*150/sp+.15;pipes.push({x:W,gy,G,passed:false})}
       for(const p of pipes){
         p.x-=sp*dt;
         if(!p.passed&&p.x+PWd<bird.x){
@@ -712,19 +720,29 @@ function crane(root,S){
   });
 }
 
-const BLOB_MAZE=[["########","#"],["#o......","#"],["#.##.##.","#"],["#.......","."],["#.##.#.#","#"],["#....#..","."],["####.###","."],["####....","."],["#####.##","-"],["     .#G","G"],["#####.##","#"],["####....","."],["####.###","#"],["#.......","."],["#.##.##.","#"],["#o.#....","."],["##.#.#.#","#"],["#.......","."],["########","#"]].map(([l,c])=>l+c+l.split('').reverse().join(''));
+const BLOB_HALF=[["########","#"],["#o......","#"],["#.##.##.","#"],["#.......","."],["#.##.#.#","#"],["#....#..","."],["####.###","."],["####....","."],["#####.##","-"],["     .#G","G"],["#####.##","#"],["####....","."],["####.###","#"],["#.......","."],["#.##.##.","#"],["#o.#....","."],["##.#.#.#","#"],["#.......","."],["########","#"]];
+/* portrait phones: the maze grows by pairs of hand-made rows (a pillar row + a corridor row) slotted in
+   after the open corridors at rows 3, 13 and 17, so cells stay square and the layout keeps its style.
+   blobMaze(p) returns the rows and R(), which maps a classic row number to the grown maze. */
+const BLOB_ADD={3:[["#.#.##.#","#"],["#.#.....","."],["#.##.#.#","#"],["#....#..","."]],13:[["#.##.#.#","#"],["#.......","."],["#.#.##.#","#"],["#.#..#..","."]],17:[["#.##.#.#","#"],["#.......","."]]};
+function blobMaze(p){
+  const n={3:Math.min(2,Math.ceil(p/2)),13:Math.min(2,Math.floor(p/2)),17:Math.max(0,p-4)},rows=[],at=[];
+  BLOB_HALF.forEach((r,i)=>{at.push(rows.length);rows.push(r);if(n[i])rows.push(...BLOB_ADD[i].slice(0,n[i]*2))});
+  return{rows:rows.map(([l,c])=>l+c+l.split('').reverse().join('')),R:r=>at[r]};
+}
 function blobmaze(root,S){
-  const st=status(root,'');const T=20,NX=17,NY=19,OY=26,W=NX*T,H=NY*T+OY;const{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
-  const M=BLOB_MAZE,cell=(cx,cy)=>cy<0||cy>=NY?null:M[cy][(cx%NX+NX)%NX];
+  const T=20,NX=17,OY=26,EX=clamp(Math.floor(((tall(340,406,606,40)-OY)/T-19)/2),0,5),{rows:M,R}=blobMaze(EX),NY=M.length,W=NX*T,H=NY*T+OY;
+  const st=status(root,'');const{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  const cell=(cx,cy)=>cy<0||cy>=NY?null:M[cy][(cx%NX+NX)%NX];
   const D={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},DL=[[0,-1],[-1,0],[0,1],[1,0]];
-  const ECOL=[K.c1,K.c5,K.c6,K.c4],CORN=[[16,0],[0,0],[16,18],[0,18]];
+  const ECOL=[K.c1,K.c5,K.c6,K.c4],CORN=[[16,0],[0,0],[16,NY-1],[0,NY-1]],PEN=R(9),EXIT=R(7),START=R(15);
   let dots,pl,en,score,lives,lvl,state,stT,fr,chain,modeT,scatter,want,t=0,jit=[0,0];
   const key=(a,b)=>a+','+b;
-  function fill(){dots=new Map();M.forEach((r,yy)=>r.split('').forEach((ch,xx)=>{if(ch==='.'||ch==='o')dots.set(key(xx,yy),ch)}));dots.delete(key(8,15))}
+  function fill(){dots=new Map();M.forEach((r,yy)=>r.split('').forEach((ch,xx)=>{if(ch==='.'||ch==='o')dots.set(key(xx,yy),ch)}));dots.delete(key(8,START))}
   function place(){
-    pl={tx:8,ty:15,dx:0,dy:0,t:0,door:false};want=null;fr=0;chain=0;modeT=0;scatter=true;
+    pl={tx:8,ty:START,dx:0,dy:0,t:0,door:false};want=null;fr=0;chain=0;modeT=0;scatter=true;
     const n=Math.min(4,1+lvl);
-    en=[[8,7],[7,9],[9,9],[8,9]].slice(0,n).map(([a,b],i)=>({tx:a,ty:b,dx:0,dy:0,t:0,i,state:i?'pen':'roam',wait:i*3.5,door:false}));
+    en=[[8,EXIT],[7,PEN],[9,PEN],[8,PEN]].slice(0,n).map(([a,b],i)=>({tx:a,ty:b,dx:0,dy:0,t:0,i,state:i?'pen':'roam',wait:i*3.5,door:false}));
   }
   function reset(){score=0;lives=3;lvl=1;S.show(1);fill();place();state='ready';stT=0;st('Arrow keys, swipe, or the wheel or arrows to move. Eat every dot!')}
   const canGo=(e,dx,dy)=>{const ch=cell(e.tx+dx,e.ty+dy);if(ch==null||ch==='#')return false;if(ch==='-')return e.door;if(ch==='G')return e!==pl;return true};
@@ -746,7 +764,7 @@ function blobmaze(root,S){
     if(!dots.size){state='clear';stT=0;lvl++;S.show(lvl);S.fx.confetti(90);S.fx.toast(`Level ${lvl}`,'Faster spikers');beep(990,250)}
   }
   function target(e){
-    if(e.state==='leave')return[8,7];
+    if(e.state==='leave')return[8,EXIT];
     if(scatter)return CORN[e.i];
     const p=pl;
     if(e.i===0)return[p.tx,p.ty];
@@ -755,7 +773,7 @@ function blobmaze(root,S){
     return Math.hypot(p.tx-e.tx,p.ty-e.ty)>7?[p.tx,p.ty]:CORN[3];
   }
   function chooseEn(e){
-    if(e.state==='leave'&&e.tx===8&&e.ty===7){e.state='roam';e.door=false}
+    if(e.state==='leave'&&e.tx===8&&e.ty===EXIT){e.state='roam';e.door=false}
     let opts=DL.filter(([a,b])=>canGo(e,a,b)&&!(a===-e.dx&&b===-e.dy&&(e.dx||e.dy)));
     if(!opts.length)opts=DL.filter(([a,b])=>canGo(e,a,b));if(!opts.length){e.dx=e.dy=0;return}
     let pick;
@@ -780,7 +798,7 @@ function blobmaze(root,S){
       advance(pl,Math.min(8.5,6.2+.3*(lvl-1)),dt,choosePl);
       for(const e of en){
         if(e.state==='pen'){e.wait-=dt;if(e.wait<=0){e.state='leave';e.door=true}continue}
-        if(e.state==='dead'){e.wait-=dt;if(e.wait<=0){e.tx=8;e.ty=9;e.dx=e.dy=0;e.t=0;e.state='leave';e.door=true}continue}
+        if(e.state==='dead'){e.wait-=dt;if(e.wait<=0){e.tx=8;e.ty=PEN;e.dx=e.dy=0;e.t=0;e.state='leave';e.door=true}continue}
         const sp=e.state==='leave'?4:fr>0?3.4:Math.min(8,5.2+.45*(lvl-1));advance(e,sp,dt,chooseEn);
         const a=pos(e),b=pos(pl);let dx=Math.abs(a.x-b.x);dx=Math.min(dx,NX-dx);
         if(dx+Math.abs(a.y-b.y)<.75&&e.state==='roam'){
@@ -801,7 +819,7 @@ function blobmaze(root,S){
     for(let yy=0;yy<NY;yy++)for(let xx=0;xx<NX;xx++)if(isW(xx,yy)){const X=xx*T,Y=yy*T+OY;
       if(!isW(xx,yy-1)){x.moveTo(X,Y+1.5);x.lineTo(X+T,Y+1.5)}if(!isW(xx,yy+1)){x.moveTo(X,Y+T-1.5);x.lineTo(X+T,Y+T-1.5)}
       if(!isW(xx-1,yy)&&xx>0){x.moveTo(X+1.5,Y);x.lineTo(X+1.5,Y+T)}if(!isW(xx+1,yy)&&xx<NX-1){x.moveTo(X+T-1.5,Y);x.lineTo(X+T-1.5,Y+T)}}
-    x.stroke();x.fillStyle=K.c2;x.fillRect(8*T+2,8*T+OY+T/2-2,T-4,4);
+    x.stroke();x.fillStyle=K.c2;x.fillRect(8*T+2,R(8)*T+OY+T/2-2,T-4,4);
     for(const[k,ch]of dots){const[xx,yy]=k.split(',').map(Number);const cx=xx*T+T/2,cy=yy*T+T/2+OY;
       if(ch==='.'){x.fillStyle=K.muted;x.beginPath();x.arc(cx,cy,2.4,0,7);x.fill()}
       else{const s=6+Math.sin(t*6)*1.5;x.save();x.translate(cx,cy);x.rotate(t*2);x.fillStyle=K.c2;x.beginPath();x.moveTo(0,-s);x.lineTo(s*.7,0);x.lineTo(0,s);x.lineTo(-s*.7,0);x.closePath();x.fill();x.restore()}}
@@ -1165,17 +1183,19 @@ const PAPERNAMES=['You','Bolt','Pip','Mango','Zed','Kiwi'];
 function paper(root,S){
   const [GOAL,NB]=PAPERLV[S.level-1];
   const st=status(root,'Swipe, use the arrow keys, or the wheel or arrows to start. Leave your land and loop back to claim more.');
-  const N=36,T=22,W=360,H=520,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
+  /* portrait phones: a taller view and a map with extra rows (N columns × NY rows), so the view shows the
+     same share of the map as the classic 36×36 map in a 360×520 view; goals are shares of the whole map */
+  const N=36,T=22,W=360,H=tall(360,520,760,40),NY=Math.round(N*H/520),A=N*NY,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();
   const COL=[null,K.c4,K.c1,K.c6,K.c5,K.c3];let camX=0,camY=0,camInit=false;
   const shade=(hex,amt)=>{const m=hex.match(/\w\w/g);if(!m)return hex;const f=v=>{v=parseInt(v,16);return Math.round(amt<0?v*(1+amt):v+(255-v)*amt)};return`rgb(${f(m[0])},${f(m[1])},${f(m[2])})`};
   const LIGHT=COL.map(cl=>cl&&shade(cl,.45)),SIDE=COL.map(cl=>cl&&shade(cl,-.25)),TRL=COL.map(cl=>cl&&shade(cl,.15));
   const D={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},OPP={up:'down',down:'up',left:'right',right:'left'};
-  const own=new Int8Array(N*N),trail=new Int8Array(N*N);
+  const own=new Int8Array(A),trail=new Int8Array(A);
   const units=[];let started=false,over=false,acc=0,t=0;
-  const at=(x0,y0)=>y0*N+x0,inB=(x0,y0)=>x0>=0&&y0>=0&&x0<N&&y0<N;
+  const at=(x0,y0)=>y0*N+x0,inB=(x0,y0)=>x0>=0&&y0>=0&&x0<N&&y0<NY;
   function spawn(u,r){
     for(let k=0;k<400;k++){
-      const lo=u.bot?r+1:Math.floor(N*.35),span=u.bot?N-2*r-2:Math.ceil(N*.3),cx=lo+rand(span),cy=lo+rand(span);let ok=true;
+      const pick=n=>(u.bot?r+1:Math.floor(n*.35))+rand(u.bot?n-2*r-2:Math.ceil(n*.3)),cx=pick(N),cy=pick(NY);let ok=true;
       for(let y0=cy-r-1;y0<=cy+r+1&&ok;y0++)for(let x0=cx-r-1;x0<=cx+r+1;x0++)if(!inB(x0,y0)||own[at(x0,y0)]||trail[at(x0,y0)]||units.some(v=>v.alive&&v!==u&&v.x===x0&&v.y===y0)){ok=false;break}
       if(!ok&&k<380)continue;
       for(let y0=cy-r;y0<=cy+r;y0++)for(let x0=cx-r;x0<=cx+r;x0++)own[at(x0,y0)]=u.id;
@@ -1184,20 +1204,21 @@ function paper(root,S){
   }
   const me={id:1,bot:false};units.push(me);spawn(me,2);me.dir='right';
   for(let i=0;i<NB;i++){const b={id:i+2,bot:true};units.push(b);spawn(b,1)}
-  function share(id){let n=0;for(let i=0;i<N*N;i++)if(own[i]===id)n++;return n/(N*N)*100}
+  function share(id){let n=0;for(let i=0;i<A;i++)if(own[i]===id)n++;return n/(A)*100}
   function kill(u){
     if(!u.alive)return;u.alive=false;
-    for(let i=0;i<N*N;i++){if(trail[i]===u.id)trail[i]=0;if(u.bot&&own[i]===u.id)own[i]=0}
+    for(let i=0;i<A;i++){if(trail[i]===u.id)trail[i]=0;if(u.bot&&own[i]===u.id)own[i]=0}
     fx.add(u.x*T+T/2,u.y*T+T/2,COL[u.id],26,220);
     if(u.bot){u.wait=2.5;beep(880,120);S.fx.toast('Cut!','Rival knocked out')}
     else{over=true;S.shake();beep(140,400,'sawtooth');st(`You were knocked out with ${share(1).toFixed(0)}% of the map. Press ↻ or turn to try again.`)}
   }
   function capture(u){
-    for(let i=0;i<N*N;i++)if(trail[i]===u.id){trail[i]=0;own[i]=u.id}
-    const out=new Uint8Array(N*N),q=[];
-    for(let i=0;i<N;i++)for(const p of [at(i,0),at(i,N-1),at(0,i),at(N-1,i)])if(own[p]!==u.id&&!out[p]){out[p]=1;q.push(p)}
+    for(let i=0;i<A;i++)if(trail[i]===u.id){trail[i]=0;own[i]=u.id}
+    const out=new Uint8Array(A),q=[];
+    const edge=[];for(let i=0;i<N;i++)edge.push(at(i,0),at(i,NY-1));for(let i=0;i<NY;i++)edge.push(at(0,i),at(N-1,i));
+    for(const p of edge)if(own[p]!==u.id&&!out[p]){out[p]=1;q.push(p)}
     while(q.length){const p=q.pop(),px=p%N,py=p/N|0;for(const[dx,dy]of Object.values(D)){const nx=px+dx,ny=py+dy;if(!inB(nx,ny))continue;const n=at(nx,ny);if(!out[n]&&own[n]!==u.id){out[n]=1;q.push(n)}}}
-    for(let i=0;i<N*N;i++)if(!out[i]&&own[i]!==u.id){own[i]=u.id;if(trail[i]&&trail[i]!==u.id){const v=units.find(w=>w.id===trail[i]);if(v)kill(v)}}
+    for(let i=0;i<A;i++)if(!out[i]&&own[i]!==u.id){own[i]=u.id;if(trail[i]&&trail[i]!==u.id){const v=units.find(w=>w.id===trail[i]);if(v)kill(v)}}
     for(const v of units)if(v.alive&&v.bot&&v!==u&&!own.includes(v.id))kill(v);
     if(!u.bot)beep(660,90);
   }
@@ -1211,7 +1232,7 @@ function paper(root,S){
     if(own[n]!==u.id){trail[n]=u.id}
     else if(hasTrail(u))capture(u);
   }
-  const hasTrail=u=>{for(let i=0;i<N*N;i++)if(trail[i]===u.id)return true;return false};
+  const hasTrail=u=>{for(let i=0;i<A;i++)if(trail[i]===u.id)return true;return false};
   function botThink(u){
     const home=own[at(u.x,u.y)]===u.id;
     if(u.plan.length&&own.includes(u.id)){const d=u.plan[0];const[dx,dy]=D[d];const nx=u.x+dx,ny=u.y+dy;if(inB(nx,ny)&&trail[at(nx,ny)]!==u.id&&d!==OPP[u.dir]){u.dir=u.plan.shift();return}u.plan=[]}
@@ -1225,7 +1246,7 @@ function paper(root,S){
     }
     // head home: step that gets closest to own land without hitting own trail or walls
     let best=null,bd=1e9;
-    const cells=[];for(let i=0;i<N*N;i++)if(own[i]===u.id)cells.push(i);
+    const cells=[];for(let i=0;i<A;i++)if(own[i]===u.id)cells.push(i);
     if(!cells.length){kill(u);return}
     for(const d of Object.keys(D)){
       if(d===OPP[u.dir])continue;const[dx,dy]=D[d],nx=u.x+dx,ny=u.y+dy;if(!inB(nx,ny)||trail[at(nx,ny)]===u.id)continue;
@@ -1263,11 +1284,11 @@ function paper(root,S){
     x.fillStyle=K.line;x.fillRect(0,0,W,H);x.strokeStyle=K.board;x.globalAlpha=.5;x.lineWidth=6;
     const so=((camX+camY)%24+24)%24;for(let d=-H;d<W+H;d+=24){x.beginPath();x.moveTo(d-so,0);x.lineTo(d-so+H,H);x.stroke()}x.globalAlpha=1;
     x.save();x.translate(Math.round(W/2-camX),Math.round(H/2-camY));
-    x.fillStyle=K.board;x.fillRect(0,0,N*T,N*T);x.lineWidth=4;x.strokeStyle=K.edge;x.strokeRect(-2,-2,N*T+4,N*T+4);
-    const i0=Math.max(0,Math.floor((camX-W/2)/T)-1),i1=Math.min(N-1,Math.ceil((camX+W/2)/T)+1),j0=Math.max(0,Math.floor((camY-H/2)/T)-1),j1=Math.min(N-1,Math.ceil((camY+H/2)/T)+1);
+    x.fillStyle=K.board;x.fillRect(0,0,N*T,NY*T);x.lineWidth=4;x.strokeStyle=K.edge;x.strokeRect(-2,-2,N*T+4,NY*T+4);
+    const i0=Math.max(0,Math.floor((camX-W/2)/T)-1),i1=Math.min(N-1,Math.ceil((camX+W/2)/T)+1),j0=Math.max(0,Math.floor((camY-H/2)/T)-1),j1=Math.min(NY-1,Math.ceil((camY+H/2)/T)+1);
     x.fillStyle=K.line;x.globalAlpha=.45;for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)if((i+j)&1)x.fillRect(i*T,j*T,T,T);x.globalAlpha=1;
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const o=own[j*N+i];if(!o)continue;
-      if(j+1>=N||own[(j+1)*N+i]!==o){x.fillStyle=SIDE[o];x.fillRect(i*T,j*T+T,T,6)}}
+      if(j+1>=NY||own[(j+1)*N+i]!==o){x.fillStyle=SIDE[o];x.fillRect(i*T,j*T+T,T,6)}}
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const o=own[j*N+i];if(o){x.fillStyle=LIGHT[o];x.fillRect(i*T,j*T,T+.5,T+.5)}}
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const tr=trail[j*N+i];if(tr){x.fillStyle=TRL[tr];x.globalAlpha=.75;x.fillRect(i*T+3,j*T+3,T-6,T-6);x.globalAlpha=1}}
     for(const u of units){
@@ -1281,15 +1302,15 @@ function paper(root,S){
     }
     fx.draw(x,dt);x.restore();
     // HUD: progress, leaderboard, minimap
-    const cnt=new Array(7).fill(0);for(let i=0;i<N*N;i++)cnt[own[i]]++;const pct=id=>cnt[id]/(N*N)*100,p=pct(1);
+    const cnt=new Array(7).fill(0);for(let i=0;i<A;i++)cnt[own[i]]++;const pct=id=>cnt[id]/(A)*100,p=pct(1);
     x.fillStyle=K.board;rr(x,10,10,170,34,10);x.fill();x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
     x.fillStyle=K.line;rr(x,18,30,154,8,4);x.fill();x.fillStyle=K.c4;rr(x,18,30,Math.max(8,154*Math.min(1,p/GOAL)),8,4);x.fill();
     x.fillStyle=K.ink;x.font=`12px ${DISPLAY}`;x.textAlign='left';x.fillText(`${p.toFixed(1)}%  ·  goal ${GOAL}%`,18,25);
     const rows=units.map(u=>({u,v:pct(u.id)})).sort((a2,b2)=>b2.v-a2.v);
     const lh=16,lw=104,lx0=W-lw-10;x.fillStyle=K.board;x.globalAlpha=.92;rr(x,lx0,10,lw,10+rows.length*lh,10);x.fill();x.globalAlpha=1;x.lineWidth=2.5;x.strokeStyle=K.edge;x.stroke();
     rows.forEach((r,i)=>{const y=24+i*lh;x.globalAlpha=r.u.alive?1:.4;x.fillStyle=COL[r.u.id];x.beginPath();x.arc(lx0+12,y-4,5,0,7);x.fill();x.fillStyle=K.ink;x.font=`11px ${DISPLAY}`;x.textAlign='left';x.fillText(PAPERNAMES[r.u.id-1],lx0+22,y);x.textAlign='right';x.fillText(r.v.toFixed(0)+'%',lx0+lw-8,y);x.globalAlpha=1});
-    const M=78,mx2=10,my2=H-M-10,cs=M/N;x.fillStyle=K.board;x.globalAlpha=.92;rr(x,mx2-3,my2-3,M+6,M+6,8);x.fill();x.globalAlpha=1;x.lineWidth=2;x.strokeStyle=K.edge;x.stroke();
-    for(let i=0;i<N*N;i++){const o=own[i]||trail[i];if(o){x.fillStyle=COL[o];x.fillRect(mx2+(i%N)*cs,my2+(i/N|0)*cs,cs+.3,cs+.3)}}
+    const M=78,cs=M/N,MH=NY*cs,mx2=10,my2=H-MH-10;x.fillStyle=K.board;x.globalAlpha=.92;rr(x,mx2-3,my2-3,M+6,MH+6,8);x.fill();x.globalAlpha=1;x.lineWidth=2;x.strokeStyle=K.edge;x.stroke();
+    for(let i=0;i<A;i++){const o=own[i]||trail[i];if(o){x.fillStyle=COL[o];x.fillRect(mx2+(i%N)*cs,my2+(i/N|0)*cs,cs+.3,cs+.3)}}
     x.strokeStyle=K.ink;x.lineWidth=1;x.strokeRect(mx2+(camX-W/2)/T*cs,my2+(camY-H/2)/T*cs,W/T*cs,H/T*cs);
     if(!started&&!over){x.fillStyle='rgba(0,0,0,.28)';x.fillRect(0,H/2+60,W,64);x.fillStyle='#fff';x.textAlign='center';x.font=`20px ${DISPLAY}`;x.fillText('Pick a direction to start',W/2,H/2+88);x.font=`12px ${DISPLAY}`;x.fillText('Loop back to your land to claim it',W/2,H/2+110)}
   });
@@ -2186,23 +2207,26 @@ const FJLAY=[
 ];
 function fuse(root,S){
   const st=status(root,'Collect every bomb. Grab the glowing lit bomb for double points. Catch ❤ for an extra life and avoid the enemies!');
-  const W=400,H=480,{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
-  const GY=452,PW=16,PH=24;
+  /* portrait phones: a taller scene with the hand-made layouts stretched vertically by SY (at most 1.4).
+     A held jump rises ~212px; the largest climb in any layout (122px) becomes at most 171px, so every
+     platform stays reachable, and bombs are never placed higher than a jump from the top platform reaches. */
+  const W=400,H=tall(400,480,800,52),SY=Math.min(1.4,(H-62)/418),{c,x}=canvas(root,W,H);const K=pal();const fx=sparks();const k=held(S);
+  const GY=Math.round(34+418*SY),PW=16,PH=24;let bTop=40;
   let lvl=1,score=0,lives=3,mult=1,lay,plats,bombs,litI,litCount,en,me,power=0,pball,bball,spawnT,state,t=0,deadT=0,clearT=0,collected,lball=null,sched=[],levelT=0,gapT=0,lifeAt=8,moveDir=0,jumpHeld=false,downHeld=false,dropT=0,eaten=0;
-  const stars=[...Array(40)].map(()=>({x:rand(W),y:rand(260),s:Math.random()}));
+  const stars=[...Array(Math.round(40*SY))].map(()=>({x:rand(W),y:rand(260*SY),s:Math.random()}));
   const bombTotal=()=>Math.min(40,24+Math.floor((lvl-1)/2)*2);
   function makeBombs(){
     const N=bombTotal();
     const out=[],tries=[];
-    const free=(bx,by)=>by<GY-14&&by>40&&bx>18&&bx<W-18&&!plats.some(p=>bx>p.x-14&&bx<p.x+p.w+14&&by>p.y-18&&by<p.y+22)&&!out.some(b=>Math.hypot(b.x-bx,b.y-by)<30);
+    const free=(bx,by)=>by<GY-14&&by>bTop&&bx>18&&bx<W-18&&!plats.some(p=>bx>p.x-14&&bx<p.x+p.w+14&&by>p.y-18&&by<p.y+22)&&!out.some(b=>Math.hypot(b.x-bx,b.y-by)<30);
     const shapes=[(cx,cy,i)=>[cx+i*30-45,cy],(cx,cy,i)=>[cx,cy+i*30-45],(cx,cy,i)=>[cx+Math.cos(i*1.57)*34,cy+Math.sin(i*1.57)*34]];
     let guard=0;
-    while(out.length<N&&guard<6000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=70+rand(GY-140);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<N)out.push({x:bx,y:by,got:false})}
-    for(let g2=0;out.length<N&&g2<20000;g2++){const bx=30+rand(W-60),by=60+rand(GY-110);if(free(bx,by))out.push({x:bx,y:by,got:false})}
+    while(out.length<N&&guard<6000){guard++;const sh=shapes[rand(3)],cx=60+rand(W-120),cy=bTop+30+rand(GY-100-bTop);const grp=[0,1,2,3].map(i=>sh(cx,cy,i));if(grp.every(([bx,by])=>free(bx,by)))for(const[bx,by]of grp)if(out.length<N)out.push({x:bx,y:by,got:false})}
+    for(let g2=0;out.length<N&&g2<20000;g2++){const bx=30+rand(W-60),by=bTop+20+rand(GY-70-bTop);if(free(bx,by))out.push({x:bx,y:by,got:false})}
     return out;
   }
   function startLevel(){
-    lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:py,w}));
+    lay=FJLAY[(lvl-1)%FJLAY.length];const mir=Math.floor((lvl-1)/FJLAY.length)%2===1;plats=lay.p.map(([px,py,w])=>({x:mir?W-px-w:px,y:Math.round(34+(py-34)*SY),w}));bTop=Math.max(40,Math.min(...plats.map(p=>p.y))-225);
     lball=null;levelT=0;gapT=0;sched=[{k:'P',at:5+rand(8)},{k:'B',at:6+rand(13)}];if(Math.random()<.5)sched.push({k:'P',at:15+rand(7)});if(Math.random()<.5)sched.push({k:'L',at:8+rand(12)});sched.sort((p,q)=>p.at-q.at);bombs=makeBombs();litI=rand(bombs.length);litCount=0;collected=0;en=[];pball=null;bball=null;power=0;spawnT=1.5;
     me={x:W/2,y:GY-PH,vx:0,vy:0,ground:true,face:1,jT:0,inv:2,walk:0};state='ready';S.show(lvl);
   }
@@ -2317,13 +2341,15 @@ function fuse(root,S){
     sky.addColorStop(0,cols[0]);sky.addColorStop(1,cols[1]);x.fillStyle=sky;x.fillRect(0,0,W,H);
     for(const s of stars){x.fillStyle=`rgba(255,255,255,${.3+.5*Math.abs(Math.sin(t*1.5+s.s*9))})`;x.fillRect(s.x,s.y,1.6,1.6)}
     x.fillStyle='#FFF4C2';x.shadowColor='#FFF4C2';x.shadowBlur=24;x.beginPath();x.arc(330,80,22,0,7);x.fill();x.shadowBlur=0;
-    x.fillStyle='rgba(0,0,0,.28)';
+    x.fillStyle='rgba(0,0,0,.28)';x.save();x.translate(0,GY);x.scale(1,SY);x.translate(0,-GY);
     if(kind==='pyramids'){for(const[px,pw,ph]of[[60,220,150],[230,170,110],[330,120,80]]){x.beginPath();x.moveTo(px-pw/2,GY);x.lineTo(px,GY-ph);x.lineTo(px+pw/2,GY);x.fill()}}
     else if(kind==='city'){for(let i=0;i<12;i++){const bw=24+(i*13)%22,bh=60+(i*47)%130;x.fillRect(i*34,GY-bh,bw,bh)}x.fillStyle='rgba(255,221,120,.25)';for(let i=0;i<12;i++)for(let j=0;j<8;j++)if((i*7+j*3)%4)x.fillRect(i*34+5,GY-20-j*16,4,6)}
     else if(kind==='castle'){x.fillRect(80,GY-140,240,140);for(let i=0;i<8;i++)x.fillRect(80+i*30,GY-156,16,16);x.fillRect(60,GY-190,50,190);x.fillRect(290,GY-190,50,190)}
     else{for(let i=0;i<6;i++){x.fillRect(40+i*60,GY-160,14,160)}x.fillRect(30,GY-176,340,18);x.beginPath();x.moveTo(30,GY-176);x.lineTo(200,GY-230);x.lineTo(370,GY-176);x.fill()}
+    x.restore();
     // ground and platforms
     x.fillStyle='#5B3A29';x.fillRect(0,GY,W,H-GY);x.fillStyle='#8B5E3C';x.fillRect(0,GY,W,5);
+    if(H-GY>50){x.fillStyle='rgba(0,0,0,.18)';for(let i=0;i<14;i++){x.beginPath();x.ellipse((i*97+31)%W,GY+18+(i*53)%(H-GY-26),5+i%3*3,3+i%2*2,0,0,7);x.fill()}}
     for(const p of plats){x.fillStyle='#E85D4A';rr(x,p.x,p.y,p.w,10,3);x.fill();x.strokeStyle='#7A2418';x.lineWidth=1.5;for(let bx=p.x+12;bx<p.x+p.w;bx+=12){x.beginPath();x.moveTo(bx,p.y+1);x.lineTo(bx,p.y+9);x.stroke()}x.fillStyle='rgba(255,255,255,.35)';x.fillRect(p.x+2,p.y+1,p.w-4,2)}
     // bombs
     bombs.forEach((b,i)=>{if(b.got)return;const lit=i===litI;
