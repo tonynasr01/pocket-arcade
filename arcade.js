@@ -6727,22 +6727,42 @@ const WRL={
     for(const i of[r-1,r])for(const j of[c-1,c]){add(0,i,j);add(1,i,j)}
     return out;
   },
-  cands(s,k,steps){
-    const a=WRL.moves(s,k).map(m=>({m}));
-    if(s.w[k]>0)for(const w of WRL.wallCands(s,1-k,steps))a.push(w);
+  /* walls worth trying for player k: those that lengthen the opponent's shortest path, best first */
+  wallsFor(s,k,all){
+    const op=1-k,base=WRL.dist(s,op)[s.p[op]],mine=WRL.dist(s,k)[s.p[k]],P=WRL.path(s,op),seen=new Set(),out=[];
+    const add=(o,i,j)=>{
+      if(i<0||j<0||i>7||j>7)return;const key=o*64+i*8+j;if(seen.has(key))return;seen.add(key);
+      if(!WRL.fits(s,o,i,j))return;const a=o?s.v:s.h,x=i*8+j;a[x]=1;
+      const d1=WRL.dist(s,op)[s.p[op]],d0=WRL.dist(s,k)[s.p[k]];a[x]=0;
+      if(d1>=99||d0>=99)return;const g=(d1-base)-(d0-mine);
+      if(g>0||all)out.push({o,i,j,g});
+    };
+    for(let n=0;n<P.length-1;n++){
+      const a=P[n],b=P[n+1],r=(a/9)|0,c=a%9;
+      if(b-a===9||a-b===9){const i=b>a?r:r-1;add(0,i,c);add(0,i,c-1)}
+      else{const j=b>a?c:c-1;add(1,r,j);add(1,r-1,j)}
+    }
+    out.sort((x,y)=>y.g-x.g);return out;
+  },
+  cands(s,k){
+    const d=WRL.dist(s,k),a=WRL.moves(s,k).sort((x,y)=>d[x]-d[y]).map(m=>({m}));
+    if(s.w[k]>0)for(const w of WRL.wallsFor(s,k).slice(0,14))a.push(w);
     return a;
   },
-  /* score from player k's side: opponent's distance minus mine, walls in hand worth a little */
-  score(s,k,ww=.3){
-    const dm=WRL.dist(s,k)[s.p[k]],dop=WRL.dist(s,1-k)[s.p[1-k]];
-    return dop-dm+ww*(s.w[k]-s.w[1-k])+(s.w[1-k]===0?.5*(dop-dm):0);
+  /* position value for player k when player t is to move */
+  score(s,k,t){
+    const dm=WRL.dist(s,k)[s.p[k]],dop=WRL.dist(s,1-k)[s.p[1-k]],wm=s.w[k],wo=s.w[1-k];
+    if(!wm&&!wo){const win=t===k?dm<=dop:dm<dop;return(win?100:-100)+(dop-dm)}
+    let v=dop-dm+(t===k?.6:-.6);
+    v+=.35*(wm-wo);
+    if(!wo&&wm)v+=1.5;else if(!wm&&wo)v-=1.5;
+    return v;
   },
-  /* negamax with alpha-beta over pruned candidates, iterative deepening to depth 3 within a time budget */
   neg(s,k,depth,al,be,ctx){
-    if(depth===0)return WRL.score(s,k,WRL.HW);
-    if((++ctx.n&63)===0&&performance.now()>ctx.end)ctx.stop=true;
+    if((++ctx.n&31)===0&&performance.now()>ctx.end)ctx.stop=true;
     if(ctx.stop)return 0;
-    const A=WRL.cands(s,k,6);let best=-1e9;
+    if(depth===0)return WRL.score(s,k,k);
+    const A=WRL.cands(s,k);let best=-1e9;
     for(const a of A){
       const from=s.p[k];WRL.apply(s,k,a);
       const v=WRL.won(s,k)?1000+depth:-WRL.neg(s,1-k,depth-1,-be,-al,ctx);
@@ -6752,21 +6772,24 @@ const WRL={
     }
     return best;
   },
-  HW:.4,
-  search(s,k,end){
-    const ctx={n:0,stop:false,end};let A=WRL.cands(s,k,8),bestA=null;
-    for(let d=1;d<=3;d++){
+  /* iterative deepening alpha-beta at the root within the time budget */
+  search(s,k,ms,maxD,noise){
+    const ctx={n:0,stop:false,end:performance.now()+ms};let A=WRL.cands(s,k);
+    if(s.w[k]>0){const seen=new Set(A.filter(a=>a.m==null).map(a=>a.o*64+a.i*8+a.j));for(const w of WRL.wallsFor(s,k,true))if(!seen.has(w.o*64+w.i*8+w.j))A.push(w)}
+    A=A.filter(a=>a.m!=null||WRL.legal(s,a.o,a.i,a.j));
+    let bestA=A[0];
+    for(let d=1;d<=maxD;d++){
       let al=-1e9,cur=null;const sc=[];
       for(const a of A){
         const from=s.p[k];WRL.apply(s,k,a);
-        let v=WRL.won(s,k)?2000:-WRL.neg(s,1-k,d-1,-1e9,-al+.001,ctx);
+        let v=WRL.won(s,k)?5000:-WRL.neg(s,1-k,d-1,-1e9,-al+(noise||.001),ctx);
         WRL.undo(s,k,a,from);if(ctx.stop)break;
-        if(a.m==null)v-=.05;v+=Math.random()*.02;sc.push([v,a]);
+        if(a.m==null)v-=.05;v+=Math.random()*(noise||.01);sc.push([v,a]);
         if(v>al){al=v;cur=a}
       }
-      if(ctx.stop)break;
-      bestA=cur;sc.sort((x,y)=>y[0]-x[0]);A=sc.map(x=>x[1]);   /* best first for the next pass */
-      if(al>900)break;
+      if(ctx.stop&&d>1)break;
+      if(cur)bestA=cur;sc.sort((x,y)=>y[0]-x[0]);A=sc.map(x=>x[1]).concat(A.slice(sc.length));
+      if(al>900||ctx.stop)break;
     }
     return bestA;
   },
@@ -6780,16 +6803,8 @@ const WRL={
       if(s.w[k]&&Math.random()<.2){const c=WRL.wallCands(s,1-k,3);if(c.length)return c[rand(c.length)]}
       return step();
     }
-    if(level===3)return WRL.search(s,k,performance.now()+260)||step();
-    const A=WRL.cands(s,k,4);let best=-1e9,pick=[];
-    for(const a of A){
-      const from=s.p[k];WRL.apply(s,k,a);
-      let v=WRL.score(s,k)+Math.random()*.6;
-      WRL.undo(s,k,a,from);
-      if(a.m==null)v-=.05;
-      if(v>best){best=v;pick=[a]}
-    }
-    return pick[0]||step();
+    if(level===3)return WRL.search(s,k,280,8)||step();
+    return WRL.search(s,k,120,2,.35)||step();
   }
 };
 
