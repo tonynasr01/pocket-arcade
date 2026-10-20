@@ -7199,7 +7199,7 @@ function renderShelf(){
     if(g.open)chips.push(`${g.levels} modes`);
     if(g.isNew)chips.unshift('New!');
     if(b!=null&&g.unit)chips.push(`Best ${b} ${g.unit}`);
-    a.innerHTML=`<span class="ico" aria-hidden="true">${g.icon}</span><b>${g.name}</b><span class="d">${g.blurb}</span><span class="meta">${chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>${favBtn(g)}`;
+    a.innerHTML=`<span class="ico" aria-hidden="true">${g.icon}</span><b>${g.name}</b><span class="d">${g.blurb}</span><span class="meta">${chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>${favBtn(g)}${HOWS[g.id]?`<button class="howb" aria-label="How to play ${g.name}" aria-expanded="false">?</button><span class="how">${HOWS[g.id]}<span class="how-x">Tap to close</span></span>`:''}`;
   };
   let cat=store.get('cat');if(!CAT_LIST.some(c=>c[0]===cat))cat='all';const inCat=g=>cat==='all'||(cat==='2p'?(g.names||[]).some(n=>/2 players/i.test(n)):CATS[g.id]===cat);
   document.querySelectorAll('.cats [data-cat]').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.cat===cat);const r=b.parentNode;if(b.dataset.cat===cat&&(b.offsetLeft<r.scrollLeft||b.offsetLeft+b.offsetWidth>r.scrollLeft+r.clientWidth))r.scrollLeft=b.offsetLeft-16});
@@ -7221,12 +7221,20 @@ function toggleFav(id){
   if(curGame&&curGame.id===id)paintFav();
 }
 const qIn=$('#q');
+const HOWS={};document.querySelectorAll('#shelf .tile[data-id] .how').forEach(h=>HOWS[h.closest('.tile').dataset.id]=h.innerHTML);
 if(qIn){
   const cb=el('div','cats',null,CAT_LIST.map(([k,n,ic])=>`<button class="cat" data-cat="${k}" aria-pressed="false"><span aria-hidden="true">${ic}</span>${n}</button>`).join(''));cb.setAttribute('role','toolbar');cb.setAttribute('aria-label','Game categories');
   qIn.closest('.search').after(cb);
   cb.addEventListener('click',e=>{const b=e.target.closest('[data-cat]');if(!b)return;store.set('cat',b.dataset.cat);beep(660,40);renderShelf()});
   qIn.addEventListener('input',renderShelf);addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==qIn&&!document.body.classList.contains('playing')){e.preventDefault();qIn.focus()}})}
 document.querySelectorAll('.tile[data-id]').forEach(t=>{const g=GAMES.find(x=>x.id===t.dataset.id);if(g&&!t.closest('#shelf'))t.insertAdjacentHTML('beforeend',favBtn(g))});
+function closeHow(x){document.querySelectorAll('.tile.open').forEach(t=>{if(t!==x){t.classList.remove('open');const b=$('.howb',t);if(b)b.setAttribute('aria-expanded','false')}})}
+document.addEventListener('click',e=>{
+  const hb=e.target.closest('.howb'),ho=e.target.closest('.tile.open .how');
+  if(hb||ho){e.preventDefault();e.stopPropagation();const t=(hb||ho).closest('.tile'),on=!!hb&&!t.classList.contains('open');closeHow(t);t.classList.toggle('open',on);$('.howb',t).setAttribute('aria-expanded',on);if(on)beep(700,40);return}
+  if(!e.target.closest('.tile'))closeHow();
+},true);
+addEventListener('keydown',e=>{if(e.key==='Escape')closeHow()});
 document.addEventListener('click',e=>{const f=e.target.closest('.fav');if(!f)return;e.preventDefault();e.stopPropagation();toggleFav(f.dataset.fav)},true);
 const stFav=el('button','btn ghost ibtn fav-stage',null,'♥');$('#back').after(stFav);
 const infoBtn=el('button','btn ghost ibtn info-btn',null,'<span aria-hidden="true">i</span>');infoBtn.setAttribute('aria-label','How to play');stFav.after(infoBtn);
