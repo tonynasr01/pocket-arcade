@@ -5164,6 +5164,8 @@ const GAMES=[
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
 const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card'};
+const CATS={'snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
+const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
@@ -5266,7 +5268,12 @@ function renderShelf(){
     if(b!=null&&g.unit)chips.push(`Best ${b} ${g.unit}`);
     a.innerHTML=`<span class="ico" aria-hidden="true">${g.icon}</span><b>${g.name}</b><span class="d">${g.blurb}</span><span class="meta">${chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>${favBtn(g)}`;
   };
-  if(q){
+  let cat=store.get('cat');if(!CAT_LIST.some(c=>c[0]===cat))cat='all';const inCat=g=>cat==='all'||(cat==='2p'?(g.names||[]).some(n=>/2 players/i.test(n)):CATS[g.id]===cat);
+  document.querySelectorAll('.cats [data-cat]').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.cat===cat);const r=b.parentNode;if(b.dataset.cat===cat&&(b.offsetLeft<r.scrollLeft||b.offsetLeft+b.offsetWidth>r.scrollLeft+r.clientWidth))r.scrollLeft=b.offsetLeft-16});
+  if(cat!=='all'){
+    const m=GAMES.filter(g=>inCat(g)&&(!q||(g.name+' '+g.blurb+' '+g.help+' '+(TAGS[g.id]||'')).toLowerCase().includes(q))).sort((a,b)=>F.includes(b.id)-F.includes(a.id));
+    m.forEach(tile);if(!m.length)el('p','none',shelf).textContent=q?`No ${CAT_LIST.find(c=>c[0]===cat)[1].toLowerCase()} games match "${qIn.value.trim()}".`:'No games here yet.';
+  }else if(q){
     const m=GAMES.filter(g=>(g.name+' '+g.blurb+' '+g.help+' '+(TAGS[g.id]||'')).toLowerCase().includes(q)).sort((a,b)=>F.includes(b.id)-F.includes(a.id));
     m.forEach(tile);if(!m.length)el('p','none',shelf).textContent=`No games match "${qIn.value.trim()}".`;
   }else if(F.length){
@@ -5281,7 +5288,11 @@ function toggleFav(id){
   if(curGame&&curGame.id===id)paintFav();
 }
 const qIn=$('#q');
-if(qIn){qIn.addEventListener('input',renderShelf);addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==qIn&&!document.body.classList.contains('playing')){e.preventDefault();qIn.focus()}})}
+if(qIn){
+  const cb=el('div','cats',null,CAT_LIST.map(([k,n,ic])=>`<button class="cat" data-cat="${k}" aria-pressed="false"><span aria-hidden="true">${ic}</span>${n}</button>`).join(''));cb.setAttribute('role','toolbar');cb.setAttribute('aria-label','Game categories');
+  qIn.closest('.search').after(cb);
+  cb.addEventListener('click',e=>{const b=e.target.closest('[data-cat]');if(!b)return;store.set('cat',b.dataset.cat);beep(660,40);renderShelf()});
+  qIn.addEventListener('input',renderShelf);addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==qIn&&!document.body.classList.contains('playing')){e.preventDefault();qIn.focus()}})}
 document.querySelectorAll('.tile[data-id]').forEach(t=>{const g=GAMES.find(x=>x.id===t.dataset.id);if(g&&!t.closest('#shelf'))t.insertAdjacentHTML('beforeend',favBtn(g))});
 document.addEventListener('click',e=>{const f=e.target.closest('.fav');if(!f)return;e.preventDefault();e.stopPropagation();toggleFav(f.dataset.fav)},true);
 const stFav=el('button','btn ghost ibtn fav-stage',null,'♥');$('#back').after(stFav);
