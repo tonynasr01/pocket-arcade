@@ -2398,7 +2398,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -5461,6 +5461,1196 @@ function rugmarket(root,S){
   startTurn();
 }
 
+/* Four Alike: 4x4 board, 16 pieces. Piece bits: 1 tall, 2 dark, 4 square, 8 hollow (0 = short, light, round, solid).
+   Board b[16] holds a piece number or -1. The player to move places the piece in hand, then gives one to the opponent. */
+const QUAD=(()=>{
+  const LINES=[],LOF=[...Array(16)].map(()=>[]);
+  for(let i=0;i<4;i++){LINES.push([0,1,2,3].map(k=>i*4+k));LINES.push([0,1,2,3].map(k=>k*4+i))}
+  LINES.push([0,5,10,15],[3,6,9,12]);
+  for(const l of LINES)for(const i of l)LOF[i].push(l);
+  const WIN=1000;
+  /* shared traits of a full line: {and: bits all set, nor: bits all clear}, or null */
+  function share(b,l){const a=b[l[0]],x=b[l[1]],y=b[l[2]],z=b[l[3]];if(a<0||x<0||y<0||z<0)return null;const and=a&x&y&z,nor=~(a|x|y|z)&15;return and|nor?{and,nor}:null}
+  function lineFull(b,l){const a=b[l[0]],x=b[l[1]],y=b[l[2]],z=b[l[3]];if(a<0||x<0||y<0||z<0)return false;return((a&x&y&z)|(~(a|x|y|z)&15))!==0}
+  function winAt(b,c){for(const l of LOF[c])if(lineFull(b,l))return l;return null}
+  /* cell where piece p wins at once, or -1 */
+  function winCell(b,p){
+    for(let c=0;c<16;c++){if(b[c]>=0)continue;b[c]=p;const w=winAt(b,c);b[c]=-1;if(w)return c}
+    return -1;
+  }
+  function nm(b,p,av,depth,alpha,beta,ply,ctx){
+    if((++ctx.nodes&255)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+    if(ctx.stop)return 0;
+    if(winCell(b,p)>=0)return WIN-ply;
+    if(!av.length||depth===0)return 0;
+    let best=-Infinity;
+    for(let c=0;c<16;c++){
+      if(b[c]>=0)continue;b[c]=p;let any=false;
+      for(let k=0;k<av.length;k++){
+        const q=av[k];if(winCell(b,q)>=0)continue;any=true;
+        const rest=av.slice(0,k).concat(av.slice(k+1));
+        const v=-nm(b,q,rest,depth-1,-beta,-alpha,ply+1,ctx);
+        if(ctx.stop){b[c]=-1;return 0}
+        if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta){b[c]=-1;return best}
+      }
+      if(!any){const v=-(WIN-ply-1);if(v>best)best=v;if(v>alpha)alpha=v}
+      b[c]=-1;if(alpha>=beta)break;
+    }
+    return best;
+  }
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  /* AI: place piece p (av = pieces left to give afterwards), returns {cell, give} (give -1 when none left) */
+  function ai(b,p,av,level,ms){
+    b=b.slice();
+    const empties=[...Array(16).keys()].filter(c=>b[c]<0);
+    const giveFor=(c,safeOnly)=>{b[c]=p;const safe=av.filter(q=>winCell(b,q)<0);b[c]=-1;return safeOnly?safe:(safe.length?safe:av)};
+    const w=winCell(b,p);
+    if(level===1){
+      if(w>=0&&Math.random()<.6)return{cell:w,give:pick(av.length?av:[-1])};
+      const c=pick(empties);if(!av.length)return{cell:c,give:-1};
+      return{cell:c,give:Math.random()<.5?pick(giveFor(c)):pick(av)};
+    }
+    if(w>=0)return{cell:w,give:av.length?av[0]:-1};
+    if(!av.length)return{cell:empties[0],give:-1};
+    /* pairs that do not hand over a win */
+    let pairs=[];for(const c of empties)for(const q of giveFor(c,true))pairs.push([c,q]);
+    if(!pairs.length)return{cell:pick(empties),give:pick(av)};
+    if(level===2)return((m)=>({cell:m[0],give:m[1]}))(pick(pairs));
+    /* Hard: iterative deepening over (cell, give) pairs */
+    const ctx={nodes:0,stop:false,deadline:performance.now()+(ms||230)};
+    shuffle4(pairs);let bestP=pairs[0];
+    for(let d=1;d<=av.length;d++){
+      let a=-Infinity,sc=[];
+      for(const pr of pairs){
+        const[c,q]=pr;b[c]=p;const rest=av.filter(x=>x!==q);
+        const v=-nm(b,q,rest,d-1,-Infinity,-a+1,1,ctx);b[c]=-1;
+        if(ctx.stop)break;sc.push([v,pr]);if(v>a)a=v;
+      }
+      if(ctx.stop)break;
+      const top=sc.filter(x=>x[0]===a).map(x=>x[1]);bestP=pick(top);
+      pairs=[bestP,...pairs.filter(x=>x!==bestP)];
+      if(a>=WIN-50||a<=-(WIN-50)){
+        /* when every pair loses, keep the one that loses latest */
+        if(a<=-(WIN-50))bestP=sc.reduce((m,x)=>x[0]>m[0]?x:m)[1];
+        break;
+      }
+    }
+    return{cell:bestP[0],give:bestP[1]};
+  }
+  function shuffle4(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+  const TRAIT=[['short','tall'],['light','dark'],['round','square'],['solid','hollow']];
+  const traits=p=>TRAIT.map((t,i)=>t[(p>>i)&1]);
+  /* piece drawing, viewBox 0 0 100 100 */
+  function svg(p){
+    const T=p&1,D=p&2,Q=p&4,Hh=p&8,bot=Q?86:84,top=bot-(T?58:30),k=D?'dk':'lt';
+    let s=`<svg viewBox="14 10 72 88" class="qa-pc ${k}" aria-hidden="true">`;
+    if(Q){
+      s+=`<polygon class="sd" points="70,${top} 82,${top-10} 82,${bot-10} 70,${bot}"/>`+
+        `<rect class="fr" x="18" y="${top}" width="52" height="${bot-top}"/>`+
+        `<rect class="hl" x="24" y="${top+4}" width="7" height="${bot-top-8}" rx="3"/>`+
+        `<polygon class="tp" points="18,${top} 30,${top-10} 82,${top-10} 70,${top}"/>`+
+        (Hh?`<ellipse class="ho" cx="50" cy="${top-5}" rx="15" ry="4.4"/>`:'');
+    }else{
+      s+=`<path class="fr" d="M20,${top} L20,${bot} A30,10 0 0 0 80,${bot} L80,${top} Z"/>`+
+        `<rect class="hl" x="27" y="${top+5}" width="7" height="${bot-top-2}" rx="3"/>`+
+        `<ellipse class="tp" cx="50" cy="${top}" rx="30" ry="10"/>`+
+        (Hh?`<ellipse class="ho" cx="50" cy="${top}" rx="16" ry="5.4"/>`:'');
+    }
+    return s+'</svg>';
+  }
+  return{LINES,LOF,WIN,share,winAt,winCell,ai,traits,svg,nm};
+})();
+
+function quadgame(root,S){
+  const L=S.level,TWO=L===4,Q=QUAD;
+  const NM=TWO?['Player 1','Player 2']:['You','Computer'];
+  const st=status(root,TWO?'Player 1 picks a piece for Player 2. Place the piece you are given, then pick one for your rival. Four in a line that share a trait wins.':'Pick a piece for the computer, then place the piece it gives you. Four in a line that share a trait (tall, dark, square or hollow, or the opposite) wins.');
+  const bar=el('div','qa-bar',root);
+  const chips=NM.map((n,k)=>{const e=el('div','qa-who p'+k,bar,'<i></i><b></b>');e.querySelector('b').textContent=n;return e});
+  const gm=document.querySelector('#game'),WIDE=!!gm&&gm.clientWidth>gm.clientHeight*1.25,PC=WIDE?4:8;
+  const w=el('div','qa-wrap'+(WIDE?' wide':''),root);w.dataset.ar=WIDE?1.72:1/1.58;w.dataset.max=WIDE?820:500;
+  const bd=el('div','qa-board',w);
+  const cells=[...Array(16)].map((_,i)=>{const e=el('button','qa-cell',bd);e.style.animationDelay=i*25+'ms';e.setAttribute('aria-label','Square '+(i+1));S.on(e,'click',()=>tapCell(i));return e});
+  const side=WIDE?el('div','qa-side',w):w;
+  const hand=el('div','qa-hand',side);
+  const slot=el('div','qa-slot',hand),txt=el('div','qa-txt',hand,'<b></b><small></small>');
+  const giveB=el('button','btn qa-give',hand,'Give');S.on(giveB,'click',()=>{if(sel>=0&&canAct()&&phase==='pick')give(sel)});
+  const pool=el('div','qa-pool',side);
+  /* pool order: light pieces on the top row, dark on the bottom */
+  const qk=p=>(p&2?8:0)+(p&4?4:0)+(p&8?2:0)+(p&1),ORDER=[...Array(16).keys()].sort((a,c)=>qk(a)-qk(c));
+  const pbtn={};
+  ORDER.forEach((p,k)=>{const e=el('button','qa-pp',pool,Q.svg(p));e.style.animationDelay=(k*25+200)+'ms';e.setAttribute('aria-label',Q.traits(p).join(' '));S.on(e,'click',()=>tapPool(p));pbtn[p]=e});
+  const b=Array(16).fill(-1),used=Array(16).fill(false);
+  let cur=-1,sel=-1,turn=0,phase='pick',over=false,busy=false,kb=false,kArea='pool',kc=0;
+  const canAct=()=>!over&&!busy&&(TWO||turn===0);
+  const avail=()=>ORDER.filter(p=>!used[p]&&p!==cur);
+  const traitTxt=p=>Q.traits(p).map(t=>t[0].toUpperCase()+t.slice(1)).join(' · ');
+  function say(){
+    if(over)return;
+    if(TWO)st(`Your turn, ${NM[turn]}: ${phase==='place'?'place the piece':'pick a piece for '+NM[turn^1]}.`);
+    else if(turn===0)st(phase==='place'?'Your turn: place the piece.':'Your turn: pick a piece for the computer.');
+    else st('Computer is thinking…');
+  }
+  function paint(){
+    const act=canAct();
+    chips.forEach((e,k)=>e.classList.toggle('on',!over&&turn===k));
+    cells.forEach((e,i)=>{e.classList.toggle('can',act&&phase==='place'&&b[i]<0);e.classList.toggle('kb',kb&&act&&kArea==='board'&&kc===i)});
+    for(const p of ORDER){const e=pbtn[p];e.classList.toggle('gone',used[p]||p===cur);e.classList.toggle('can',act&&phase==='pick'&&!used[p]);e.classList.toggle('sel',p===sel);e.classList.toggle('kb',kb&&act&&kArea==='pool'&&ORDER[kc]===p)}
+    const show=phase==='place'?cur:sel;
+    if(slot.dataset.p!=String(show)){slot.dataset.p=show;slot.innerHTML=show>=0?Q.svg(show):'';if(show>=0)restartAnim(slot,'pop')}
+    hand.classList.toggle('placing',phase==='place'&&!over);
+    const B=txt.querySelector('b'),sm=txt.querySelector('small');
+    if(over){B.textContent=over.title;sm.textContent=over.sub}
+    else if(phase==='place'){B.textContent=act?'Place this piece':TWO?`${NM[turn]} places`:'Computer places it';sm.textContent=traitTxt(cur)}
+    else if(act){B.textContent=`Pick a piece for ${TWO?NM[turn^1]:'the computer'}`;sm.textContent=sel>=0?traitTxt(sel):'Tap a piece below'}
+    else{B.textContent='Computer is picking…';sm.textContent=sel>=0?traitTxt(sel):''}
+    giveB.hidden=!(act&&phase==='pick'&&sel>=0);
+  }
+  function tapPool(p){
+    if(!canAct()||phase!=='pick'||used[p])return;
+    kArea='pool';kc=ORDER.indexOf(p);
+    if(sel===p){give(p);return}
+    sel=p;beep(620,40);paint();
+  }
+  function tapCell(i){
+    if(!canAct()||phase!=='place')return;
+    if(b[i]>=0){restartAnim(cells[i],'nope');beep(140,80,'sawtooth');return}
+    kArea='board';kc=i;place(i);
+  }
+  function place(i){
+    b[i]=cur;used[cur]=true;const p=cur;cur=-1;
+    cells[i].innerHTML=Q.svg(p);cells[i].classList.add('full');beep(p&1?300:380,90);
+    const l=Q.winAt(b,i);
+    if(l){finish(turn,l);return true}
+    if(used.every(x=>x)){over={title:'Draw',sub:'No line of four alike'};st("Board full with no match. It's a draw! Press ↻ to play again.");paint();return true}
+    phase='pick';sel=-1;kArea='pool';kc=Math.max(0,ORDER.findIndex(q=>!used[q]));
+    say();paint();return false;
+  }
+  function give(p){
+    cur=p;sel=-1;turn^=1;phase='place';beep(520,60);beep(780,60);
+    kArea='board';kc=Math.max(0,b.indexOf(-1));
+    say();paint();
+    if(!TWO&&turn===1)aiTurn();
+  }
+  function aiTurn(){
+    busy=true;paint();
+    S.after(520,()=>{
+      const m=Q.ai(b,cur,avail(),L);
+      if(place(m.cell))return;
+      sel=m.give;paint();
+      S.after(650,()=>{busy=false;give(m.give)});
+    });
+  }
+  function finish(who,l){
+    const sh=Q.share(b,l),names=[];
+    for(let i=0;i<4;i++){if(sh.and>>i&1)names.push(Q.traits(15)[i]);if(sh.nor>>i&1)names.push(Q.traits(0)[i])}
+    const what=names.join(', ');
+    over={title:`${TWO?NM[who]+' wins':who===0?'You win':'Computer wins'}!`,sub:`Four ${what} pieces in a line`};
+    S.after(250,()=>{bd.classList.add('done');l.forEach((j,k)=>{cells[j].classList.add('win');cells[j].style.animationDelay=k*90+'ms'})});
+    if(TWO){st(`Four ${what} pieces! ${NM[who]} wins! Press ↻ for a rematch.`);S.after(600,()=>{S.fx.confetti();S.fx.banner(`${NM[who]} wins!`);beep(990,300)})}
+    else if(who===0){st(`Four ${what} pieces in a line! You win!`);S.after(800,S.next)}
+    else{st(`The computer lined up four ${what} pieces. Press ↻ to try again.`);S.after(600,()=>{S.shake();beep(150,400,'sawtooth')})}
+    paint();
+  }
+  S.on(window,'keydown',e=>{
+    const k=e.key,D={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[k];
+    if(D){
+      e.preventDefault();kb=true;
+      if(phase==='place'){kArea='board';kc=clamp(kc%4+D[0],0,3)+4*clamp((kc>>2)+D[1],0,3)}
+      else{kArea='pool';kc=clamp(kc%PC+D[0],0,PC-1)+PC*clamp(Math.floor(kc/PC)+D[1],0,16/PC-1)}
+      beep(600,15);paint();
+    }else if(k==='Enter'||k===' '){
+      e.preventDefault();kb=true;if(!canAct())return;
+      if(phase==='place')tapCell(kc);
+      else if(kArea==='pool')tapPool(ORDER[kc]);
+    }
+  });
+  say();paint();
+}
+
+/* Cube Push: 5x5 cubes, cell r*5+c, value 0 blank, 1 = X, -1 = O.
+   A move takes border cube f (blank or own) and pushes it back in at end e of its row or column (e != f). */
+const CUBEP=(()=>{
+  const LINES=[];
+  for(let i=0;i<5;i++){LINES.push([0,1,2,3,4].map(k=>i*5+k));LINES.push([0,1,2,3,4].map(k=>k*5+i))}
+  LINES.push([0,6,12,18,24],[4,8,12,16,20]);
+  const BORDER=[];for(let i=0;i<25;i++){const r=i/5|0,c=i%5;if(r===0||r===4||c===0||c===4)BORDER.push(i)}
+  /* MV[f] = list of moves {f,e,path,dir}: path runs from f to e; dir = push direction (where the line moves) */
+  const MV={};
+  for(const f of BORDER){
+    const r=f/5|0,c=f%5,out=[];
+    for(const[e,dir]of[[r*5,'right'],[r*5+4,'left'],[c,'down'],[20+c,'up']]){
+      if(e===f||out.some(m=>m.e===e))continue;
+      const er=e/5|0,ec=e%5,path=[];
+      if(er===r){const s=ec>c?1:-1;for(let k=c;k!==ec+s;k+=s)path.push(r*5+k)}
+      else{const s=er>r?1:-1;for(let k=r;k!==er+s;k+=s)path.push(k*5+c)}
+      out.push({f,e,path,dir});
+    }
+    MV[f]=out;
+  }
+  const ALL=BORDER.flatMap(f=>MV[f]);
+  const moves=(b,p)=>ALL.filter(m=>b[m.f]===0||b[m.f]===p);
+  function apply(b,m,p){const P=m.path,old=b[P[0]];for(let k=0;k<P.length-1;k++)b[P[k]]=b[P[k+1]];b[P[P.length-1]]=p;return old}
+  function undo(b,m,old){const P=m.path;for(let k=P.length-1;k>0;k--)b[P[k]]=b[P[k-1]];b[P[0]]=old}
+  function five(b,p){for(const l of LINES)if(b[l[0]]===p&&b[l[1]]===p&&b[l[2]]===p&&b[l[3]]===p&&b[l[4]]===p)return l;return null}
+  /* winner after side p moved: opponent's line beats the mover's */
+  function result(b,p){if(five(b,-p))return -p;if(five(b,p))return p;return 0}
+  const WT=[0,1,4,12,40,0],WIN=1e5;
+  function evalB(b,p){
+    let v=0;
+    for(const l of LINES){let a=0,o=0;for(const i of l){const q=b[i];if(q===p)a++;else if(q===-p)o++}v+=WT[a]-WT[o]}
+    return v;
+  }
+  function nega(b,p,depth,alpha,beta,ply,ctx){
+    if((++ctx.nodes&255)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+    if(ctx.stop)return 0;
+    const ms=moves(b,p);let best=-Infinity;
+    for(const m of ms){
+      const old=apply(b,m,p),r=result(b,p);let v;
+      if(r===p)v=WIN-ply;else if(r===-p)v=-(WIN-ply);
+      else v=depth<=1?evalB(b,p):-nega(b,-p,depth-1,-beta,-alpha,ply+1,ctx);
+      undo(b,m,old);
+      if(ctx.stop)return 0;
+      if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+    }
+    return best;
+  }
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  function best(b0,p,level,ms){
+    const b=b0.slice(),all=moves(b,p);
+    const out=m=>{const old=apply(b,m,p),r=result(b,p);undo(b,m,old);return r};
+    const wins=all.filter(m=>out(m)===p),safe=all.filter(m=>out(m)!==-p);
+    if(level===1){
+      if(wins.length&&Math.random()<.6)return pick(wins);
+      return pick(safe.length&&Math.random()<.75?safe:all);
+    }
+    if(wins.length)return pick(wins);
+    const ctx={nodes:0,stop:false,deadline:performance.now()+(ms||(level===2?120:240))};
+    let order=all.slice();for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+    let bestM=safe.length?pick(safe):order[0];
+    const maxD=level===2?2:5;
+    for(let d=1;d<=maxD;d++){
+      let a=-Infinity,sc=[];
+      for(const m of order){
+        const old=apply(b,m,p),r=result(b,p);let v;
+        if(r===p)v=WIN;else if(r===-p)v=-WIN;
+        else v=d===1?evalB(b,p):-nega(b,-p,d-1,-Infinity,-a+1,1,ctx);
+        undo(b,m,old);if(ctx.stop)break;
+        if(level===2)v+=Math.random()*3;
+        sc.push([v,m]);if(v>a)a=v;
+      }
+      if(ctx.stop)break;
+      sc.sort((x,y)=>y[0]-x[0]);bestM=sc[0][1];
+      order=sc.map(x=>x[1]).concat(order.filter(m=>!sc.some(x=>x[1]===m)));
+      if(a>=WIN-50)break;
+    }
+    return bestM;
+  }
+  return{LINES,BORDER,MV,ALL,moves,apply,undo,five,result,best,evalB};
+})();
+
+function cubepush(root,S){
+  const L=S.level,TWO=L===4,C=CUBEP;
+  const NM={1:TWO?'X':'You','-1':TWO?'O':'Computer'};
+  const st=status(root,TWO?'X goes first. Tap a border cube (blank or yours), then an arrow to push it back in. Five in a row wins.':'You are X. Tap a border cube that is blank or yours, then tap an arrow to push it back into the line. Get five X in a row.');
+  const bar=el('div','cp-bar',root);
+  const chips=[1,-1].map(p=>{const e=el('div','cp-who '+(p>0?'x':'o'),bar,`<i>${p>0?'X':'O'}</i><b></b>`);e.querySelector('b').textContent=NM[p];return e});
+  const w=el('div','cp-wrap',root);w.dataset.ar=1/1.03;w.dataset.max=540;
+  el('div','cp-plate',w);
+  const SYM={1:'<svg viewBox="0 0 40 40" class="sx"><path d="M10 10L30 30M30 10L10 30"/></svg>','-1':'<svg viewBox="0 0 40 40" class="so"><circle cx="20" cy="20" r="11"/></svg>',0:''};
+  const b=new Array(25).fill(0),node=[];
+  const pos=(e,r,c)=>{e.style.setProperty('--r',r);e.style.setProperty('--c',c)};
+  for(let i=0;i<25;i++){const e=el('div','cp-cube',w,'<span></span>');pos(e,i/5|0,i%5);e.style.animationDelay=i*18+'ms';node[i]=e;S.on(e,'click',()=>tap(node.indexOf(e)))}
+  const arrows=[];
+  let turn=1,sel=-1,over=false,busy=false,kb=false,kc=0,plies=0;const seen={};
+  const human=()=>!over&&!busy&&(TWO||turn===1);
+  const can=i=>!!C.MV[i]&&(b[i]===0||b[i]===turn);
+  /* margin spot just outside end e for push direction dir */
+  const outside=(e,dir)=>{const r=e/5|0,c=e%5;return dir==='right'?[r,-1]:dir==='left'?[r,5]:dir==='down'?[-1,c]:[5,c]};
+  const ARW={right:'▶',left:'◀',down:'▼',up:'▲'};
+  function say(){
+    if(over)return;
+    if(TWO)st(`Your turn, ${NM[turn]}: ${sel<0?'pick a border cube':'tap an arrow to push it in'}.`);
+    else if(turn===1)st(sel<0?'Your turn: pick a border cube.':'Your turn: tap an arrow to push it in.');
+    else st('Computer is thinking…');
+  }
+  function paint(){
+    const act=human();
+    chips.forEach((e,k)=>e.classList.toggle('on',!over&&turn===(k?-1:1)));
+    const tg=sel>=0?C.MV[sel].map(m=>m.e):[];
+    node.forEach((e,i)=>{e.classList.toggle('can',act&&sel<0&&can(i));e.classList.toggle('sel',i===sel);e.classList.toggle('tgt',act&&tg.includes(i)&&i!==sel);e.classList.toggle('kb',kb&&act&&i===kc)});
+    arrows.splice(0).forEach(a=>a.remove());
+    if(sel>=0&&act)for(const m of C.MV[sel]){
+      const [r,c]=outside(m.e,m.dir),a=el('button','cp-arr '+m.dir,w,`<span>${ARW[m.dir]}</span>`);pos(a,r,c);a.setAttribute('aria-label','Push '+m.dir);
+      S.on(a,'click',()=>doMove(m));arrows.push(a);
+    }
+  }
+  function tap(i){
+    if(!human())return;
+    if(sel>=0){
+      if(i===sel){sel=-1;beep(300,40);say();paint();return}
+      const m=C.MV[sel].find(m=>m.e===i);if(m){doMove(m);return}
+    }
+    if(!C.MV[i]){restartAnim(node[i],'nope');beep(140,80,'sawtooth');return}
+    if(!can(i)){restartAnim(node[i],'nope');beep(140,80,'sawtooth');st(`You can't take ${b[i]===1?'an X':'an O'} cube.`);return}
+    sel=i;kc=i;beep(620,40);say();paint();
+  }
+  function doMove(m){
+    const p=turn,mv=node[m.f];sel=-1;busy=true;paint();
+    C.apply(b,m,p);plies++;
+    /* lift the cube out to the margin, turn it to the mover's symbol, then push the line */
+    const P=m.path;for(let k=0;k<P.length-1;k++)node[P[k]]=node[P[k+1]];node[P[P.length-1]]=mv;
+    mv.classList.add('fly');const[or,oc]=outside(m.e,m.dir);pos(mv,or,oc);mv.querySelector('span').innerHTML=SYM[p];mv.dataset.p=p;beep(440,50);
+    S.after(230,()=>{
+      for(const i of P)pos(node[i],i/5|0,i%5);beep(p>0?520:360,80);
+      S.after(260,()=>{mv.classList.remove('fly');busy=false;after(p)});
+    });
+  }
+  function after(p){
+    const r=C.result(b,p);
+    if(r){finish(r,p);return}
+    const key=b.join('')+turn;seen[key]=(seen[key]||0)+1;
+    if(seen[key]>=3||plies>=300){over=true;st('The same position came up three times. Draw! Press ↻ to play again.');paint();return}
+    turn=-turn;say();paint();
+    if(!TWO&&turn===-1){
+      busy=true;paint();
+      S.after(380,()=>{const m=C.best(b,-1,L);sel=m.f;node[m.f].classList.add('sel');S.after(420,()=>{node[m.f].classList.remove('sel');sel=-1;busy=false;turn=-1;doMove(m)})});
+    }
+  }
+  function finish(win,mover){
+    over=true;const l=C.five(b,win);
+    S.after(150,()=>{w.classList.add('done');l.forEach((i,k)=>{node[i].classList.add('win');node[i].style.animationDelay=k*80+'ms'})});
+    const gift=win!==mover;
+    if(TWO){st(`${gift?NM[mover]+' made five '+NM[win]+'! ':''}${NM[win]} wins! Press ↻ for a rematch.`);S.after(500,()=>{S.fx.confetti();S.fx.banner(`${NM[win]} wins!`);beep(990,300)})}
+    else if(win===1){st(gift?'The computer pushed five X in a row. You win!':'Five in a row! You win!');S.after(700,S.next)}
+    else{st(gift?'Oops, you made five O in a row. The computer wins. Press ↻ to try again.':'The computer got five in a row. Press ↻ to try again.');S.after(500,()=>{S.shake();beep(150,400,'sawtooth')})}
+    paint();
+  }
+  S.on(window,'keydown',e=>{
+    const k=e.key,dir=KEYDIR[k];
+    if(dir&&k.startsWith('Arrow')){
+      e.preventDefault();kb=true;if(!human())return;
+      if(sel>=0){const m=C.MV[sel].find(m=>m.dir===dir);if(m)doMove(m);else beep(140,60,'sawtooth');return}
+      const D={left:[0,-1],right:[0,1],up:[-1,0],down:[1,0]}[dir];
+      kc=clamp((kc/5|0)+D[0],0,4)*5+clamp(kc%5+D[1],0,4);beep(600,15);paint();
+    }else if(k==='Enter'||k===' '){e.preventDefault();kb=true;tap(kc)}
+    else if(k==='Escape'&&sel>=0){sel=-1;say();paint()}
+  });
+  say();paint();
+}
+
+/* Ball Pyramid: 30 spots in 4 levels (4x4, 3x3, 2x2, 1). Board value 0 empty, 1 = player 0, 2 = player 1. */
+const PYRM=(()=>{
+  const N=30,LV=[],RR=[],CC=[],BEL=[],ABV=[],IDX={};
+  let k=0;for(let l=0;l<4;l++){const n=4-l;for(let r=0;r<n;r++)for(let c=0;c<n;c++){LV[k]=l;RR[k]=r;CC[k]=c;IDX[l+','+r+','+c]=k;k++}}
+  const at=(l,r,c)=>IDX[l+','+r+','+c];
+  for(let i=0;i<N;i++){const l=LV[i],r=RR[i],c=CC[i];BEL[i]=l?[at(l-1,r,c),at(l-1,r,c+1),at(l-1,r+1,c),at(l-1,r+1,c+1)]:[];ABV[i]=[]}
+  for(let i=0;i<N;i++)for(const j of BEL[i])ABV[j].push(i);
+  const TOP=29,WIN=1e5;
+  const P={N,LV,RR,CC,BEL,ABV,TOP,WIN,
+    make(){return{b:new Int8Array(N),res:[15,15]}},
+    clone(s){return{b:s.b.slice(),res:s.res.slice()}},
+    avail(b,i){if(b[i])return false;for(const j of BEL[i])if(!b[j])return false;return true},
+    free(b,i){if(!b[i])return false;for(const j of ABV[i])if(b[j])return false;return true},
+    /* spots ball f (own, free) may be raised to */
+    raises(b,f){const o=[];if(!P.free(b,f)||LV[f]>2)return o;for(let t=16;t<N;t++)if(LV[t]>LV[f]&&P.avail(b,t)&&!BEL[t].includes(f))o.push(t);return o},
+    /* does the ball at t complete a 2x2 of color col? */
+    square(b,t,col){for(const a of ABV[t]){let ok=true;for(const j of BEL[a])if(b[j]!==col){ok=false;break}if(ok)return true}return false},
+    ownFree(b,col){const o=[];for(let i=0;i<TOP;i++)if(b[i]===col&&P.free(b,i))o.push(i);return o},
+    bases(s,p){
+      const b=s.b,out=[],av=[];for(let i=0;i<N;i++)if(P.avail(b,i))av.push(i);
+      if(s.res[p]>0)for(const t of av)out.push([-1,t]);
+      for(let f=0;f<25;f++)if(b[f]===p+1&&P.free(b,f))for(const t of av)if(LV[t]>LV[f]&&!BEL[t].includes(f))out.push([f,t]);
+      return out;
+    },
+    removals(b,col){
+      const F1=P.ownFree(b,col),pairs=[];
+      for(const a of F1){b[a]=0;for(const c of P.ownFree(b,col))if(c!==a&&(c>a||!F1.includes(c)))pairs.push([a,c]);b[a]=col}
+      return pairs.length?pairs:F1.map(a=>[a]);
+    },
+    moves(s,p){
+      const out=[],b=s.b,col=p+1;
+      for(const[f,t]of P.bases(s,p)){
+        if(f>=0)b[f]=0;b[t]=col;
+        if(LV[t]<3&&P.square(b,t,col))for(const rm of P.removals(b,col))out.push({f,t,rm});
+        else out.push({f,t,rm:[]});
+        b[t]=0;if(f>=0)b[f]=col;
+      }
+      return out;
+    },
+    apply(s,p,m){const b=s.b;if(m.f<0)s.res[p]--;else b[m.f]=0;b[m.t]=p+1;for(const r of m.rm){b[r]=0;s.res[p]++}},
+    undo(s,p,m){const b=s.b;for(let k=m.rm.length-1;k>=0;k--){b[m.rm[k]]=p+1;s.res[p]--}b[m.t]=0;if(m.f<0)s.res[p]++;else b[m.f]=p+1},
+    legal(s,p,m){return P.moves(s,p).some(x=>x.f===m.f&&x.t===m.t&&x.rm.length===m.rm.length&&x.rm.every((r,k)=>r===m.rm[k]))},
+    evalS(s,p){
+      const b=s.b,me=p+1;let v=(s.res[p]-s.res[1-p])*20;
+      for(let a=16;a<N;a++){
+        let m=0,o=0,e=-1;for(const j of BEL[a]){const q=b[j];if(!q)e=j;else if(q===me)m++;else o++}
+        if(m===3&&!o)v+=P.avail(b,e)?7:2;else if(o===3&&!m)v-=P.avail(b,e)?6:2;
+        else if(m===2&&!o)v+=.5;else if(o===2&&!m)v-=.5;
+      }
+      for(let i=16;i<TOP;i++)if(b[i])v+=b[i]===me?1:-1;
+      return v;
+    },
+    nega(s,p,depth,alpha,beta,ply,ctx){
+      if((++ctx.nodes&63)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+      if(ctx.stop)return 0;
+      if(s.b[TOP])return -(WIN-ply);
+      if(s.res[p]<=0)return -(WIN-ply);
+      if(depth<=0)return P.evalS(s,p);
+      const ms=P.moves(s,p);
+      ms.sort((a,b)=>(b.rm.length-a.rm.length)||(b.f>=0)-(a.f>=0));
+      let best=-Infinity;
+      for(const m of ms){
+        P.apply(s,p,m);const v=-P.nega(s,1-p,depth-1,-beta,-alpha,ply+1,ctx);P.undo(s,p,m);
+        if(ctx.stop)return 0;
+        if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+      }
+      return best;
+    },
+    best(s,p,level,timeMs){
+      const s2=P.clone(s);let ms=P.moves(s2,p);
+      if(ms.length===1)return ms[0];
+      /* winning move at once */
+      const w=ms.find(m=>m.t===TOP);if(w)return w;
+      if(level===1&&Math.random()<.35)return ms[rand(ms.length)];
+      const maxD=level===1?1:level===2?2:8;
+      const ctx={nodes:0,stop:false,deadline:performance.now()+(timeMs||(level===3?250:180))};
+      ms.sort((a,b)=>(b.rm.length-a.rm.length)||(b.f>=0)-(a.f>=0));
+      let bestM=ms[0];
+      for(let d=1;d<=maxD;d++){
+        let a=-Infinity,sc=[];
+        for(const m of ms){
+          P.apply(s2,p,m);const v=-P.nega(s2,1-p,d-1,-Infinity,-a+1e-6,1,ctx);P.undo(s2,p,m);
+          if(ctx.stop)break;sc.push([v,m]);if(v>a)a=v;
+        }
+        if(ctx.stop&&d>1)break;
+        if(!sc.length)break;
+        const top=sc.filter(x=>x[0]>=a-1e-9).map(x=>x[1]);
+        bestM=level<3?top[rand(top.length)]:top[0];
+        ms=[bestM,...ms.filter(m=>m!==bestM)];
+        if(ctx.stop||Math.abs(a)>WIN-100)break;
+      }
+      return bestM;
+    }
+  };
+  return P;
+})();
+const PYR_COL=[['#FFC9D1','#FF5D73','#B3243B'],['#C9CFFF','#5B6CFF','#2A35A6']];
+
+function pyramid(root,S){
+  const L=S.level,TWO=L===4,P=PYRM;
+  const NM=TWO?['Red','Blue']:['You','Computer'];
+  const st=status(root,TWO?'Red starts. Take turns placing balls. A 2×2 of your color lets you take 1 or 2 back. Whoever places the top ball wins.':'You are Red. Place balls, raise them, and make 2×2 squares of your color to take balls back. Place the top ball to win.');
+  const bar=el('div','pyr-bar',root);
+  const pills=[0,1].map(p=>{const e=el('div','pyr-who p'+p,bar,'<i></i><span><b></b><em>15</em></span>');e.querySelector('b').textContent=NM[p];return e});
+  const mid=el('div','pyr-mid',bar);bar.insertBefore(mid,pills[1]);
+  const done=el('button','btn pyr-done',mid,'Done');done.style.visibility='hidden';
+  const W=360,H=360,{c,x}=canvas(root,W,H);c.dataset.max=600;c.classList.add('pyr-cv');
+  const M=22,CS=(W-2*M)/4,R=CS*.485,LIFT=5;
+  const X=i=>M+CS*(P.CC[i]+.5+P.LV[i]*.5),Y=i=>M+CS*(P.RR[i]+.5+P.LV[i]*.5)-P.LV[i]*LIFT;
+  const s=P.make();let turn=0,mode='play',sel=-1,taken=0,last=-1,hover=-1,over=false,T=0;
+  const anims=[];/* {i,fx,fy,t,dur} flying in; {ghost:true,x,y,p,t,dur} flying out */
+  const flying=new Set();
+  const human=()=>TWO||turn===0;
+  function paint(){
+    pills.forEach((e,p)=>{e.querySelector('em').textContent=s.res[p];e.classList.toggle('on',!over&&turn===p)});
+    done.style.visibility=mode==='remove'?'visible':'hidden';
+    done.textContent=taken?'Done':'Keep all';
+  }
+  function ball(px,py,p,l,a){
+    x.globalAlpha=a==null?1:a;
+    x.fillStyle='rgba(40,20,0,.28)';x.beginPath();x.ellipse(px+2.5,py+4.5,R*.98,R*.9,0,0,7);x.fill();
+    const C=PYR_COL[p],g=x.createRadialGradient(px-R*.35,py-R*.42,R*.08,px,py,R*1.05);
+    g.addColorStop(0,C[0]);g.addColorStop(.45,C[1]);g.addColorStop(1,C[2]);
+    x.fillStyle=g;x.beginPath();x.arc(px,py,R,0,7);x.fill();
+    const dk=[.14,.07,.02,0][l];if(dk){x.fillStyle=`rgba(0,0,0,${dk})`;x.fill()}
+    x.lineWidth=2;x.strokeStyle='#1E1F5C';x.stroke();
+    x.fillStyle='rgba(255,255,255,.55)';x.beginPath();x.ellipse(px-R*.36,py-R*.44,R*.2,R*.12,-.6,0,7);x.fill();
+    x.globalAlpha=1;
+  }
+  function ring(px,py,col,w,dash){x.save();x.lineWidth=w;x.strokeStyle=col;if(dash)x.setLineDash(dash);x.beginPath();x.arc(px,py,R*.86,0,7);x.stroke();x.restore()}
+  const targets=()=>sel>=0?P.raises(s.b,sel):[];
+  function hints(){/* spots worth marking */
+    if(over||mode!=='play'||!human())return{av:[],tg:[]};
+    const av=[];for(let i=0;i<P.N;i++)if(P.avail(s.b,i))av.push(i);
+    return{av:s.res[turn]>0?av:[],tg:targets()};
+  }
+  function canRaise(i){return s.b[i]===turn+1&&P.raises(s.b,i).length>0}
+  function draw(dt){
+    T+=dt;const pl=pal();x.clearRect(0,0,W,H);
+    /* wooden plate */
+    const wg=x.createLinearGradient(0,0,W,H);wg.addColorStop(0,'#F2C98A');wg.addColorStop(1,'#D9A262');x.fillStyle=wg;x.fillRect(0,0,W,H);
+    rr(x,M-6,M-6,W-2*M+12,H-2*M+12,18);x.fillStyle='rgba(120,66,20,.16)';x.fill();
+    for(let i=0;i<16;i++){x.fillStyle='rgba(110,60,15,.32)';x.beginPath();x.arc(X(i),Y(i),R*.62,0,7);x.fill();x.fillStyle='rgba(255,240,210,.25)';x.beginPath();x.arc(X(i)+1.5,Y(i)+2,R*.5,0,7);x.fill()}
+    const h=hints(),pulse=.5+.5*Math.sin(T*6);
+    const rem=mode==='remove'&&human()?P.ownFree(s.b,turn+1):[];
+    for(let l=0;l<4;l++){
+      for(let i=0;i<P.N;i++){
+        if(P.LV[i]!==l)continue;
+        if(s.b[i]&&!flying.has(i)){
+          ball(X(i),Y(i),s.b[i]-1,l);
+          if(i===last)x.fillStyle='rgba(255,255,255,.9)',x.beginPath(),x.arc(X(i),Y(i),3.2,0,7),x.fill();
+          if(i===sel)ring(X(i),Y(i),'#FFC53D',5);
+          else if(rem.includes(i))ring(X(i),Y(i),`rgba(255,255,255,${.5+.5*pulse})`,4,[6,5]);
+          else if(i===hover&&mode==='play'&&human()&&canRaise(i))ring(X(i),Y(i),'rgba(255,255,255,.8)',3);
+        }else if(!s.b[i]){
+          const tg=h.tg.includes(i),av=h.av.includes(i);
+          if(tg){x.fillStyle=`rgba(255,197,61,${.45+.3*pulse})`;x.beginPath();x.arc(X(i),Y(i),R*.8,0,7);x.fill();ring(X(i),Y(i),'#1E1F5C',2.5,[5,4])}
+          else if(av){
+            x.fillStyle=l?'rgba(255,255,255,.42)':'rgba(255,255,255,.2)';x.beginPath();x.arc(X(i),Y(i),R*(l?.8:.55),0,7);x.fill();
+            ring(X(i),Y(i),i===hover?'#1E1F5C':'rgba(30,31,92,.55)',i===hover?3:2,[5,5]);
+            if(i===hover)ball(X(i),Y(i),turn,l,.45);
+          }
+        }
+      }
+    }
+    for(let k=anims.length-1;k>=0;k--){
+      const a=anims[k];a.t+=dt;const u=Math.min(1,a.t/a.dur),e=1-Math.pow(1-u,3);
+      if(a.ghost){ball(a.x+(a.tx-a.x)*e,a.y+(a.ty-a.y)*e-Math.sin(u*Math.PI)*40,a.p,3,1-u*.8)}
+      else{const tx=X(a.i),ty=Y(a.i);ball(a.fx+(tx-a.fx)*e,a.fy+(ty-a.fy)*e-Math.sin(u*Math.PI)*46,s.b[a.i]?s.b[a.i]-1:a.p,P.LV[a.i])}
+      if(u>=1){anims.splice(k,1);if(!a.ghost)flying.delete(a.i)}
+    }
+  }
+  /* reserve pill position in canvas coords, for fly-in/out */
+  function pillPt(p){const r=pills[p].getBoundingClientRect(),b=c.getBoundingClientRect();return{x:(r.left+r.width/2-b.left)*W/b.width,y:(r.top+r.height/2-b.top)*H/b.height}}
+  function fly(i,from){const q=from>=0?{x:X(from),y:Y(from)}:pillPt(turn);flying.add(i);anims.push({i,fx:q.x,fy:q.y,t:0,dur:.36,p:turn})}
+  function ghost(i,p){const q=pillPt(p);anims.push({ghost:true,x:X(i),y:Y(i),tx:q.x,ty:q.y,p,t:0,dur:.4})}
+  function hit(pt){
+    for(let i=P.N-1;i>=0;i--){
+      const d=Math.hypot(pt.x-X(i),pt.y-Y(i));if(d>R*.95)continue;
+      if(s.b[i]||P.avail(s.b,i))return i;
+    }
+    return -1;
+  }
+  function place(f,t){
+    const p=turn;P.apply(s,p,{f,t,rm:[]});fly(t,f);last=t;sel=-1;
+    beep(f<0?420+P.LV[t]*90:560,90);S.after(330,()=>beep(260+P.LV[t]*60,60,'square'));
+    if(t===P.TOP)return finish(p);
+    if(P.square(s.b,t,p+1)){
+      if(human()){mode='remove';taken=0;st(TWO?`${NM[p]} made a square! Tap 1 or 2 of your balls to take back.`:'Square! Tap 1 or 2 of your balls to take back.');S.after(250,()=>S.fx.toast('Square!','take back 1 or 2'));paint();return}
+    }
+    endTurn();
+  }
+  function takeBack(i){
+    const p=turn;s.b[i]=0;s.res[p]++;ghost(i,p);taken++;beep(700+taken*120,90);if(last===i)last=-1;
+    paint();
+    if(taken>=2||!P.ownFree(s.b,p+1).length)S.after(250,endTurn);
+  }
+  function endTurn(){
+    if(over)return;
+    mode='play';sel=-1;const p=turn;turn=1-turn;
+    if(s.res[turn]<=0){paint();return finish(p,true)}
+    paint();
+    if(!TWO&&turn===1){mode='ai';st('Computer is thinking…');S.after(420,aiMove)}
+    else st(TWO?`${NM[turn]}'s turn.`:'Your turn.');
+  }
+  function aiMove(){
+    if(over)return;
+    const m=P.best(s,1,L);const rm=m.rm;
+    place2(m.f,m.t);
+    if(m.t===P.TOP)return;
+    if(rm.length){
+      S.after(520,()=>{S.fx.toast('Computer made a square!',`takes back ${rm.length}`);rm.forEach((r,k)=>S.after(k*380,()=>{s.b[r]=0;s.res[1]++;ghost(r,1);if(last===r)last=-1;beep(500,80);paint()}))});
+      S.after(560+rm.length*380+150,endTurn);
+    }else S.after(380,endTurn);
+  }
+  function place2(f,t){const p=turn;P.apply(s,p,{f,t,rm:[]});fly(t,f);last=t;beep(380,90);S.after(330,()=>beep(260+P.LV[t]*60,60,'square'));if(t===P.TOP)finish(p)}
+  function finish(p,noBalls){
+    over=true;mode='over';sel=-1;paint();
+    const why=noBalls?`${NM[1-p]} ran out of balls.`:'Top ball placed.';
+    if(TWO){st(`${NM[p]} wins! ${why} Press ↻ for a rematch.`);S.after(500,()=>{S.fx.confetti();S.fx.banner(`${NM[p]} wins!`,why);beep(990,300)})}
+    else if(p===0){st(`You win! ${noBalls?'The computer ran out of balls.':'You placed the top ball.'}`);S.after(600,S.next)}
+    else{st(noBalls?'You ran out of balls. Press ↻ to try again.':'The computer placed the top ball. Press ↻ to try again.');S.after(500,()=>{S.shake();beep(150,400,'sawtooth')})}
+  }
+  S.on(c,'click',e=>{
+    if(over||!human())return;
+    const i=hit(c.pos(e));
+    if(mode==='remove'){
+      if(i>=0&&s.b[i]===turn+1&&P.free(s.b,i))takeBack(i);
+      else if(i>=0&&s.b[i]===turn+1){beep(140,90,'sawtooth');st('That ball holds others up. Pick a free one.')}
+      return;
+    }
+    if(mode!=='play')return;
+    if(i<0){sel=-1;return}
+    if(!s.b[i]){
+      if(sel>=0&&targets().includes(i))return place(sel,i);
+      if(s.res[turn]>0)return place(-1,i);
+      return;
+    }
+    if(s.b[i]===turn+1){
+      if(sel===i){sel=-1;beep(300,40);return}
+      if(canRaise(i)){sel=i;beep(620,50);st('Tap a gold spot to move this ball up.');return}
+      beep(140,90,'sawtooth');st(P.free(s.b,i)?'No higher spot for that ball yet.':'That ball holds others up.');return;
+    }
+    sel=-1;
+  });
+  S.on(c,'pointermove',e=>{hover=hit(c.pos(e))});
+  S.on(c,'pointerleave',()=>{hover=-1});
+  S.on(done,'click',()=>{if(mode==='remove'){beep(500,60);endTurn()}});
+  S.on(window,'keydown',e=>{
+    if(e.key==='Escape'){sel=-1}
+    else if(e.key==='Enter'&&mode==='remove'){e.preventDefault();endTurn()}
+  });
+  S.loop(draw);paint();
+}
+
+/* Shuttle Race: 7x7 board, 5 lanes per player crossing in the middle 5x5.
+   Player 0 starts on the bottom edge (lane i = column i+1) and travels up, then back down.
+   Player 1 starts on the left edge (lane j = row j+1) and travels right, then back left.
+   Progress d: 0..6 outward (position = d), 6..12 return (position = 12-d), 12 = home. */
+const SQDR=(()=>{
+  const SP=[[[1,3,2,3,1],[3,1,2,1,3]],[[3,1,2,1,3],[1,3,2,3,1]]];/* SP[player][leg][lane] */
+  const WIN=1e5,posOf=d=>d<=6?d:12-d;
+  /* lane of the opponent piece sitting on the crossing that piece (p,i) would occupy at position q, or -1 */
+  function occ(d,p,i,q){
+    if(q<1||q>5)return -1;
+    let o,op;if(p===0){o=5-q;op=i+1}else{o=q-1;op=5-i}
+    const od=d[(1-p)*5+o];return od<12&&posOf(od)===op?o:-1;
+  }
+  const Q={SP,WIN,posOf,occ,
+    make(){return new Int8Array(10)},
+    home(d,p){let n=0;for(let i=0;i<5;i++)if(d[p*5+i]>=12)n++;return n},
+    can(d,p,i){return d[p*5+i]<12},
+    speed(d,p,i){const v=d[p*5+i];return v>=12?0:SP[p][v<6?0:1][i]},
+    /* move piece (p,i) in place. returns {from,to,jumped:[[lane,oldD,newD]...]} */
+    move(d,p,i){
+      let v=d[p*5+i];const from=v,leg=v<6?0:1,end=leg?12:6;let sp=SP[p][leg][i];const jumped=[];
+      while(sp>0&&v<end){
+        let nv=v+1,o=occ(d,p,i,posOf(nv));
+        if(o>=0){
+          while(o>=0){const k=(1-p)*5+o,od=d[k],nd=od<6?0:6;jumped.push([o,od,nd]);d[k]=nd;nv++;o=occ(d,p,i,posOf(nv))}
+          v=nv;break;
+        }
+        v=nv;sp--;
+      }
+      d[p*5+i]=v;return{from,to:v,jumped};
+    },
+    turnsLeft(v,p,i){if(v>=12)return 0;const so=SP[p][0][i],sb=SP[p][1][i];return v<6?Math.ceil((6-v)/so)+Math.ceil(6/sb):Math.ceil((12-v)/sb)},
+    score(d,p){const t=[];for(let i=0;i<5;i++)t.push(Q.turnsLeft(d[p*5+i],p,i));t.sort((a,b)=>a-b);return t[0]+t[1]+t[2]+t[3]},
+    evalS(d,p){
+      let v=(Q.score(d,1-p)-Q.score(d,p))*10;
+      for(let i=0;i<5;i++){v+=d[p*5+i]*.3-d[(1-p)*5+i]*.3}
+      return v+3;/* tempo */
+    },
+    nega(d,p,depth,alpha,beta,ply,ctx){
+      if((++ctx.nodes&255)===0&&performance.now()>ctx.deadline)ctx.stop=true;
+      if(ctx.stop)return 0;
+      if(Q.home(d,1-p)>=4)return -(WIN-ply);
+      if(depth<=0)return Q.evalS(d,p);
+      let best=-Infinity;
+      for(let i=0;i<5;i++){
+        if(d[p*5+i]>=12)continue;
+        const c=d.slice();Q.move(c,p,i);
+        const v=-Q.nega(c,1-p,depth-1,-beta,-alpha,ply+1,ctx);
+        if(ctx.stop)return 0;
+        if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+      }
+      return best;
+    },
+    best(d,p,level,timeMs){
+      let ms=[0,1,2,3,4].filter(i=>d[p*5+i]<12);
+      if(ms.length===1)return ms[0];
+      if(level===1&&Math.random()<.4)return ms[rand(ms.length)];
+      const maxD=level===1?1:level===2?3:30;
+      const ctx={nodes:0,stop:false,deadline:performance.now()+(timeMs||(level===3?250:150))};
+      let bestI=ms[0];
+      for(let dep=1;dep<=maxD;dep++){
+        let a=-Infinity;const sc=[];
+        for(const i of ms){const c=d.slice();Q.move(c,p,i);const v=-Q.nega(c,1-p,dep-1,-Infinity,-a+1e-6,1,ctx);if(ctx.stop)break;sc.push([v,i]);if(v>a)a=v}
+        if(ctx.stop&&dep>1)break;
+        if(!sc.length)break;
+        const top=sc.filter(x=>x[0]>=a-1e-9).map(x=>x[1]);
+        bestI=level<3?top[rand(top.length)]:top[0];
+        ms=[bestI,...ms.filter(i=>i!==bestI)];
+        if(ctx.stop||Math.abs(a)>WIN-200)break;
+      }
+      return bestI;
+    }
+  };
+  return Q;
+})();
+const SQD_COL=[['#FF8A99','#FF5D73','#C93A52'],['#FFE08A','#FFC53D','#D99A12']];
+
+function squadro(root,S){
+  const L=S.level,TWO=L===4,Q=SQDR;
+  const NM=TWO?['Red','Yellow']:['You','Computer'];
+  const st=status(root,TWO?'Red starts. Tap a piece to move it. Each piece crosses and comes back. First to bring 4 home wins.':'You are Red, moving up. Tap a piece to move it across and back. Bring 4 of 5 home first to win.');
+  const bar=el('div','sqd-bar',root);
+  const pills=[0,1].map(p=>{const e=el('div','sqd-who p'+p,bar,'<i></i><span><b></b><em>0/4</em></span>');e.querySelector('b').textContent=NM[p];return e});
+  const W=360,H=360,{c,x}=canvas(root,W,H);c.dataset.max=600;c.classList.add('sqd-cv');
+  const M=24,CS=(W-2*M)/7;
+  const cx=col=>M+CS*(col+.5),cy=row=>M+CS*(row+.5);
+  const d=Q.make(),vd=Array.from(d);let turn=0,busy=false,over=false,T=0,hover=-1,kb=-1,last=-1;
+  const tw=[];/* {k,from,to,t,dur,delay,lift} */
+  const human=()=>TWO||turn===0;
+  function xy(p,i,v){const q=v<=6?v:12-v;return p===0?[cx(i+1),cy(6-q)]:[cx(q),cy(i+1)]}
+  function paint(){pills.forEach((e,p)=>{e.querySelector('em').textContent=Q.home(d,p)+'/4';e.classList.toggle('on',!over&&turn===p)})}
+  function pips(px,py,n,col,vert){
+    for(let k=0;k<n;k++){const o=(k-(n-1)/2)*8;x.beginPath();x.arc(vert?px:px+o,vert?py+o:py,3,0,7);x.fillStyle=col;x.fill();x.lineWidth=1.5;x.strokeStyle='#1E1F5C';x.stroke()}
+  }
+  function piece(p,i,v,lift,a){
+    const[px,py0]=xy(p,i,v),py=py0-lift*6,back=v>=6,C=SQD_COL[p],s=1+lift*.15;
+    const vert=p===0;/* travels vertically */
+    const lw=CS*.78*s,sw=CS*.46*s,w=vert?lw:sw,h=vert?sw:lw;
+    x.globalAlpha=a;
+    x.fillStyle='rgba(0,0,0,.22)';rr(x,px-w/2+2,py0-h/2+4+lift*3,w,h,7);x.fill();
+    /* nose pointing the way it travels */
+    const dir=vert?(back?[0,1]:[0,-1]):(back?[-1,0]:[1,0]);
+    x.beginPath();const nx=px+dir[0]*(vert?0:w/2),ny=py+dir[1]*(vert?h/2:0),bw=CS*.17;
+    x.moveTo(nx+dir[0]*CS*.13,ny+dir[1]*CS*.13);x.lineTo(nx+dir[1]*bw,ny+dir[0]*bw);x.lineTo(nx-dir[1]*bw,ny-dir[0]*bw);x.closePath();
+    x.fillStyle=C[2];x.fill();x.lineWidth=2;x.strokeStyle='#1E1F5C';x.stroke();
+    const g=x.createLinearGradient(px-w/2,py-h/2,px+w/2,py+h/2);g.addColorStop(0,C[0]);g.addColorStop(.5,C[1]);g.addColorStop(1,C[2]);
+    rr(x,px-w/2,py-h/2,w,h,7);x.fillStyle=g;x.fill();x.lineWidth=2.2;x.strokeStyle='#1E1F5C';x.stroke();
+    const n=v>=12?0:Q.SP[p][back?1:0][i];
+    if(n)pips(px,py,n,'#fff',!vert);
+    else{x.strokeStyle='#1E1F5C';x.lineWidth=2.5;x.beginPath();x.moveTo(px-5,py);x.lineTo(px-1,py+4);x.lineTo(px+6,py-4);x.stroke()}
+    x.globalAlpha=1;
+  }
+  function draw(dt){
+    T+=dt;const pl=pal();x.clearRect(0,0,W,H);
+    x.fillStyle=pl.board;x.fillRect(0,0,W,H);
+    /* edge slots */
+    for(let k=1;k<=5;k++){
+      for(const[col,row,p]of[[k,6,0],[k,0,0],[0,k,1],[6,k,1]]){rr(x,cx(col)-CS*.44,cy(row)-CS*.44,CS*.88,CS*.88,9);x.fillStyle=SQD_COL[p][1]+'30';x.fill()}
+    }
+    /* center field */
+    rr(x,cx(1)-CS*.5,cy(1)-CS*.5,CS*5,CS*5,10);x.fillStyle=pl.line+'88';x.fill();
+    x.lineWidth=3;x.lineCap='round';
+    for(let k=1;k<=5;k++){
+      x.strokeStyle=SQD_COL[0][1]+'99';x.beginPath();x.moveTo(cx(k),cy(0));x.lineTo(cx(k),cy(6));x.stroke();
+      x.strokeStyle=SQD_COL[1][2]+'99';x.beginPath();x.moveTo(cx(0),cy(k));x.lineTo(cx(6),cy(k));x.stroke();
+    }
+    for(let r=1;r<=5;r++)for(let k=1;k<=5;k++){x.fillStyle=pl.edge;x.beginPath();x.arc(cx(k),cy(r),2.6,0,7);x.fill()}
+    /* speed pips in the margins: outward at the start edge, return at the far edge */
+    for(let i=0;i<5;i++){
+      pips(cx(i+1),H-M/2-1,Q.SP[0][0][i],SQD_COL[0][1],false);pips(cx(i+1),M/2+1,Q.SP[0][1][i],SQD_COL[0][1],false);
+      pips(M/2+1,cy(i+1),Q.SP[1][0][i],SQD_COL[1][1],true);pips(W-M/2-1,cy(i+1),Q.SP[1][1][i],SQD_COL[1][1],true);
+    }
+    /* tweens */
+    const lift=new Array(10).fill(0);
+    for(let k=tw.length-1;k>=0;k--){
+      const a=tw[k];a.t+=dt;if(a.t<a.delay)continue;const u=Math.min(1,(a.t-a.delay)/a.dur),e=a.ease?1-Math.pow(1-u,2):u;
+      vd[a.k]=a.from+(a.to-a.from)*e;if(a.lift)lift[a.k]=Math.sin(u*Math.PI)*a.lift;
+      if(u>=1){vd[a.k]=a.to;tw.splice(k,1)}
+    }
+    const pulse=.5+.5*Math.sin(T*5);
+    const showMov=!over&&!busy&&human()&&!tw.length;
+    /* preview ghost */
+    const pv=kb>=0?kb:hover;
+    if(showMov&&pv>=0&&d[turn*5+pv]<12){const c2=d.slice();const r=Q.move(c2,turn,pv);piece(turn,pv,r.to,0,.3)}
+    const order=[...Array(10).keys()].sort((a,b)=>lift[a]-lift[b]);
+    for(const k of order){
+      const p=k<5?0:1,i=k%5;
+      if(showMov&&p===turn&&d[k]<12){const[px,py]=xy(p,i,vd[k]);x.beginPath();x.arc(px,py,CS*.5,0,7);x.fillStyle=SQD_COL[p][1]+(pulse>.5?'55':'33');x.fill();
+        if(i===pv){x.lineWidth=3;x.strokeStyle=pl.ink;x.stroke()}}
+      piece(p,i,vd[k],lift[k],d[k]>=12&&!tw.length?.55:1);
+      if(k===last&&!tw.length){const[px,py]=xy(p,i,vd[k]);x.fillStyle=pl.ink;x.beginPath();x.arc(px+CS*.36,py-CS*.36,3,0,7);x.fill()}
+    }
+  }
+  function pick(pt){
+    let bi=-1,bd=CS*.75;
+    for(let i=0;i<5;i++){if(d[turn*5+i]>=12)continue;const[px,py]=xy(turn,i,d[turn*5+i]);const dd=Math.hypot(pt.x-px,pt.y-py);if(dd<bd){bd=dd;bi=i}}
+    if(bi<0){/* tap anywhere along the lane */
+      for(let i=0;i<5;i++){if(d[turn*5+i]>=12)continue;const off=turn===0?Math.abs(pt.x-cx(i+1)):Math.abs(pt.y-cy(i+1));if(off<CS*.45)return i}
+    }
+    return bi;
+  }
+  function go(i){
+    if(over||busy||!Q.can(d,turn,i))return;
+    const p=turn,k0=p*5+i,r=Q.move(d,p,i);busy=true;last=k0;
+    const steps=Math.abs(r.to-r.from),dur=.1+.09*steps;
+    tw.push({k:k0,from:r.from,to:r.to,t:0,dur,delay:0,lift:r.jumped.length?1.6:.5,ease:true});
+    beep(p?440:360,60);
+    if(r.to===6)S.after(dur*1000,()=>beep(620,70));
+    if(r.to===12)S.after(dur*1000,()=>{beep(880,90);S.after(90,()=>beep(1170,120))});
+    r.jumped.forEach(([o,od,nd],n)=>{const k=(1-p)*5+o;tw.push({k,from:od,to:nd,t:0,dur:.38,delay:dur*.6+n*.06,lift:1.2,ease:true});S.after((dur*.6+n*.06)*1000,()=>beep(200,120,'square'))});
+    if(r.jumped.length&&!TWO&&p===0)S.after(dur*1000,()=>S.fx.toast(r.jumped.length>1?`Jumped ${r.jumped.length}!`:'Jumped!','sent back'));
+    paint();
+    const wait=(dur+(r.jumped.length?.5:0))*1000+60;
+    S.after(wait,()=>{
+      busy=false;
+      if(Q.home(d,p)>=4)return finish(p);
+      turn=1-p;paint();
+      if(!TWO&&turn===1){busy=true;st('Computer is thinking…');S.after(300,()=>{const m=Q.best(d,1,L);busy=false;go(m)})}
+      else st(TWO?`${NM[turn]}'s turn.`:'Your turn.');
+    });
+  }
+  function finish(p){
+    over=true;paint();
+    if(TWO){st(`${NM[p]} wins! Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(`${NM[p]} wins!`,'4 pieces home');beep(990,300)}
+    else if(p===0){st('You brought 4 pieces home. You win!');S.after(300,S.next)}
+    else{st('The computer brought 4 pieces home. Press ↻ to try again.');S.shake();beep(150,400,'sawtooth')}
+  }
+  S.on(c,'click',e=>{if(over||busy||!human())return;const i=pick(c.pos(e));kb=-1;if(i>=0)go(i)});
+  S.on(c,'pointermove',e=>{if(e.pointerType==='mouse')hover=pick(c.pos(e))});
+  S.on(c,'pointerleave',()=>{hover=-1});
+  S.on(window,'keydown',e=>{
+    if(over||busy||!human())return;const k=e.key;
+    const mov=[0,1,2,3,4].filter(i=>d[turn*5+i]<12);if(!mov.length)return;
+    if(/^[1-5]$/.test(k)){const i=+k-1;if(mov.includes(i)){kb=-1;go(i)}return}
+    const fw=turn===0?['ArrowRight','ArrowDown']:['ArrowDown','ArrowRight'],bk=turn===0?['ArrowLeft','ArrowUp']:['ArrowUp','ArrowLeft'];
+    if(fw.includes(k)||bk.includes(k)){e.preventDefault();const n=mov.indexOf(kb);kb=mov[n<0?0:(n+(fw.includes(k)?1:mov.length-1))%mov.length];beep(600,20)}
+    else if((k==='Enter'||k===' ')&&kb>=0){e.preventDefault();const i=kb;kb=-1;go(i)}
+  });
+  S.loop(draw);paint();
+}
+
+/* Shape Grid (4x4, four 2x2 zones). Cell value -1 empty, else owner*4+shape. Owner 0 = Red (first), 1 = Blue. */
+const QTK_=(()=>{
+  const REG=[],OF=[...Array(16)].map(()=>[]);
+  for(let r=0;r<4;r++)REG.push([0,1,2,3].map(c=>r*4+c));
+  for(let c=0;c<4;c++)REG.push([0,1,2,3].map(r=>r*4+c));
+  for(let z=0;z<4;z++){const r0=(z>>1)*2,c0=(z&1)*2;REG.push([r0*4+c0,r0*4+c0+1,(r0+1)*4+c0,(r0+1)*4+c0+1])}
+  REG.forEach((g,k)=>g.forEach(i=>OF[i].push(k)));
+  const WIN=1000;
+  const Q={REG,OF,WIN,
+    make(){return{b:new Int8Array(16).fill(-1),cnt:[[2,2,2,2],[2,2,2,2]],n:0}},
+    /* why shape s cannot go on i for player p: null if legal, else region index that blocks */
+    block(s,p,sh,i){
+      if(s.b[i]>=0)return -2;
+      const bad=(1-p)*4+sh;
+      for(const k of OF[i])for(const j of REG[k])if(s.b[j]===bad)return k;
+      return null;
+    },
+    legal(s,p,sh,i){return s.cnt[p][sh]>0&&Q.block(s,p,sh,i)===null},
+    moves(s,p){const m=[];for(let sh=0;sh<4;sh++){if(!s.cnt[p][sh])continue;for(let i=0;i<16;i++)if(Q.block(s,p,sh,i)===null)m.push(i*4+sh)}return m},
+    put(s,p,m){s.b[m>>2]=p*4+(m&3);s.cnt[p][m&3]--;s.n++},
+    take(s,p,m){s.b[m>>2]=-1;s.cnt[p][m&3]++;s.n--},
+    /* region completed through cell i (all 4 shapes), or null */
+    winReg(s,i){for(const k of OF[i]){let mask=0;for(const j of REG[k]){const v=s.b[j];if(v<0){mask=-1;break}mask|=1<<(v&3)}if(mask===15)return k}return null},
+    winning(s,p){for(const m of Q.moves(s,p)){Q.put(s,p,m);const w=Q.winReg(s,m>>2);Q.take(s,p,m);if(w!==null)return m}return -1},
+    evalS(s,p){
+      /* mobility difference */
+      let a=0,o=0;
+      for(let sh=0;sh<4;sh++)for(let i=0;i<16;i++){if(s.b[i]>=0)continue;if(s.cnt[p][sh]&&Q.block(s,p,sh,i)===null)a++;if(s.cnt[1-p][sh]&&Q.block(s,1-p,sh,i)===null)o++}
+      return a-o;
+    },
+    nega(s,p,d,al,be,ply,ctx){
+      if((++ctx.nodes&1023)===0&&performance.now()>ctx.dl)ctx.stop=true;
+      if(ctx.stop)return 0;
+      const ms=Q.moves(s,p);
+      if(!ms.length)return -WIN+ply;
+      for(const m of ms){Q.put(s,p,m);const w=Q.winReg(s,m>>2);Q.take(s,p,m);if(w!==null)return WIN-ply}
+      if(d<=0)return Q.evalS(s,p);
+      let best=-Infinity;
+      for(const m of ms){
+        Q.put(s,p,m);const v=-Q.nega(s,1-p,d-1,-be,-al,ply+1,ctx);Q.take(s,p,m);
+        if(ctx.stop)return 0;
+        if(v>best)best=v;if(v>al)al=v;if(al>=be)break;
+      }
+      return best;
+    },
+    /* level 1..3; returns move (i*4+shape) */
+    best(s,p,level,ms){
+      const all=Q.moves(s,p);if(!all.length)return -1;
+      const win=Q.winning(s,p);
+      if(level===1){
+        if(win>=0&&Math.random()<.6)return win;
+        if(Math.random()<.35){const safe=all.filter(m=>{Q.put(s,p,m);const r=Q.winning(s,1-p)<0;Q.take(s,p,m);return r});if(safe.length)return safe[Math.floor(Math.random()*safe.length)]}
+        return all[Math.floor(Math.random()*all.length)];
+      }
+      if(win>=0)return win;
+      const ctx={nodes:0,stop:false,dl:performance.now()+(ms||(level===2?120:280))};
+      let order=shuffle(all.slice()),bestM=order[0];
+      const maxD=level===2?2:16;
+      for(let d=1;d<=maxD&&d<=16-s.n;d++){
+        let al=-Infinity,sc=[];
+        for(const m of order){
+          Q.put(s,p,m);const v=-Q.nega(s,1-p,d-1,-Infinity,-al+1,1,ctx);Q.take(s,p,m);
+          if(ctx.stop)break;sc.push([v,m]);if(v>al)al=v;
+        }
+        if(ctx.stop){const wn=sc.find(x=>x[0]>WIN-50);if(wn)bestM=wn[1];break}
+        const top=sc.filter(x=>x[0]===al).map(x=>x[1]);
+        bestM=top[Math.floor(Math.random()*top.length)];
+        sc.sort((x,y)=>y[0]-x[0]);order=sc.map(x=>x[1]);
+        if(Math.abs(al)>WIN-50)break;
+      }
+      return bestM;
+    }
+  };
+  return Q;
+})();
+const QTK_SVG=['<circle cx="50" cy="50" r="35"/>','<rect x="16" y="16" width="68" height="68" rx="9"/>','<path d="M50 11 L89 85 L11 85Z"/>','<path d="M50 7 L91 50 L50 93 L9 50Z"/>'];
+const QTK_NAMES=['circle','square','triangle','diamond'];
+function qtkPiece(p,sh,cls){return `<svg class="qk-pc ${p?'blu':'red'} ${cls||''}" viewBox="0 0 100 100" aria-hidden="true">${QTK_SVG[sh]}</svg>`}
+
+function quantik(root,S){
+  const L=S.level,TWO=L===4,Q=QTK_;
+  const NM=TWO?['Red','Blue']:['You','Computer'];
+  const st=status(root,TWO?'Red starts. Place a shape; you can\'t put it in a row, column or zone where the other player has that shape. Finish a line or zone with all 4 shapes to win.':'Place your shapes. You can\'t put a shape where the computer has the same one in that row, column or zone. Be first to complete a line or zone with 4 different shapes!');
+  const w=el('div','qk-wrap',root);w.dataset.ar=100/156;w.dataset.max=470;
+  const trays=[1,0].map(p=>{
+    const t=el('div','qk-tray '+(p?'blu':'red')+(p===1?' top':' bot'),w);
+    const nm=el('div','qk-nm',t,`<i></i><b></b>`);nm.querySelector('b').textContent=NM[p];
+    const slots=[0,1,2,3].map(sh=>{const b=el('button','qk-slot',t);b.setAttribute('aria-label',(NM[p])+' '+QTK_NAMES[sh]);
+      S.on(b,'click',()=>pick(p,sh));return b});
+    return{t,nm,slots};
+  });
+  trays.reverse(); /* trays[0]=red(bottom) trays[1]=blue(top) */
+  const g=el('div','qk-board',w);w.insertBefore(g,trays[0].t);
+  const cells=[...Array(16)].map((_,i)=>{const r=i>>2,c=i&3,z=(r>>1)*2+(c>>1);
+    const e=el('button','qk-cell z'+(z===0||z===3?'a':'b'),g);e.style.animationDelay=(r+c)*35+'ms';e.setAttribute('aria-label','Row '+(r+1)+' column '+(c+1));
+    if(c===1)e.classList.add('gr');if(r===1)e.classList.add('gb');
+    S.on(e,'click',()=>tap(i));S.on(e,'pointerenter',()=>{cur=i;paint()});return e});
+  const s=Q.make();let turn=0,sel=[0,0],cur=5,over=false,busy=false,last=-1;
+  const human=p=>TWO||p===0,HOV=!matchMedia('(hover:none)').matches;
+  function fixSel(p){if(!s.cnt[p][sel[p]]){const k=[0,1,2,3].find(sh=>s.cnt[p][sh]);sel[p]=k==null?0:k}}
+  function paint(){
+    fixSel(turn);
+    for(let p=0;p<2;p++){const T=trays[p];T.t.classList.toggle('on',!over&&turn===p);
+      T.slots.forEach((b,sh)=>{const n=s.cnt[p][sh];
+        b.innerHTML=qtkPiece(p,sh,n?'':'gone')+(n?`<em>${n}</em>`:'');
+        b.classList.toggle('sel',!over&&turn===p&&human(p)&&sel[p]===sh&&n>0);b.disabled=!n||!human(p)||over;})}
+    const myTurn=!over&&!busy&&human(turn);
+    cells.forEach((e,i)=>{const ok=myTurn&&Q.legal(s,turn,sel[turn],i);e.classList.toggle('ok',ok);e.classList.toggle('cur',myTurn&&i===cur&&HOV);
+      e.classList.toggle('no',myTurn&&s.b[i]<0&&!ok);
+      let gh=e.querySelector('.qk-ghost');if(ok&&i===cur&&HOV){if(!gh)e.insertAdjacentHTML('beforeend',qtkPiece(turn,sel[turn],'qk-ghost'));else if(!gh.classList.contains(turn?'blu':'red')||gh.innerHTML!==QTK_SVG[sel[turn]]){gh.remove();e.insertAdjacentHTML('beforeend',qtkPiece(turn,sel[turn],'qk-ghost'))}}else if(gh)gh.remove()});
+  }
+  function pick(p,sh){if(over||busy||p!==turn||!human(p)||!s.cnt[p][sh])return;sel[p]=sh;beep(520+sh*80,40);paint()}
+  function tap(i){
+    if(over||busy||!human(turn))return;cur=i;
+    const sh=sel[turn],why=Q.block(s,turn,sh,i);
+    if(why!==null){
+      if(why>=0){const reg=Q.REG[why];reg.forEach(j=>{if(s.b[j]===(1-turn)*4+sh)restartAnim(cells[j],'warn')});
+        st(`Blocked: ${TWO?NM[1-turn]+' has':'the computer has'} a ${QTK_NAMES[sh]} in that ${why<4?'row':why<8?'column':'zone'}.`)}
+      restartAnim(cells[i],'nope');beep(140,90,'sawtooth');paint();return}
+    play(i*4+sh);
+  }
+  function play(m){
+    const p=turn,i=m>>2;Q.put(s,p,m);last=i;
+    cells.forEach(e=>e.classList.remove('last'));
+    const gh=cells[i].querySelector('.qk-ghost');if(gh)gh.remove();
+    cells[i].insertAdjacentHTML('beforeend',qtkPiece(p,m&3,'placed'));cells[i].classList.add('full','last');
+    beep(p?392:523,90);
+    const k=Q.winReg(s,i);
+    if(k!==null){
+      over=true;g.classList.add('done');Q.REG[k].forEach((j,n)=>{cells[j].classList.add('hit');cells[j].style.animationDelay=n*110+'ms'});
+      const where=k<4?'row':k<8?'column':'zone';
+      if(TWO){st(`${NM[p]} completes a ${where}! ${NM[p]} wins. Press ↻ for a rematch.`);S.after(500,()=>{S.fx.confetti();S.fx.banner(`${NM[p]} wins!`);beep(990,300)})}
+      else if(p===0){st(`You completed a ${where} with all 4 shapes. You win!`);S.after(700,S.next)}
+      else{st(`The computer completed a ${where}. Press ↻ to try again.`);S.after(500,()=>{S.shake();beep(150,400,'sawtooth')})}
+      paint();return;
+    }
+    turn=1-p;
+    if(!Q.moves(s,turn).length){
+      over=true;const wnr=1-turn;
+      if(TWO){st(`${NM[turn]} has no legal move, so ${NM[wnr]} wins! Press ↻ for a rematch.`);S.after(400,()=>{S.fx.confetti();S.fx.banner(`${NM[wnr]} wins!`,`${NM[turn]} is stuck`)})}
+      else if(wnr===0){st('The computer has no legal move. You win!');S.after(600,S.next)}
+      else{st('You have no legal move left. The computer wins. Press ↻ to try again.');S.after(400,()=>{S.shake();beep(150,400,'sawtooth')})}
+      paint();return;
+    }
+    if(TWO){st(`${NM[turn]}'s turn.`);paint();return}
+    if(turn===1){busy=true;st('Computer is thinking…');paint();
+      S.after(420,()=>{const mv=Q.best(s,1,L);busy=false;play(mv)})}
+    else{st('Your turn.');paint()}
+  }
+  S.on(window,'keydown',e=>{
+    if(over||busy||!human(turn))return;const k=e.key;
+    const d={ArrowUp:-4,ArrowDown:4,ArrowLeft:-1,ArrowRight:1}[k];
+    if(d){e.preventDefault();if((d===-1&&cur%4===0)||(d===1&&cur%4===3))return;const n=cur+d;if(n>=0&&n<16){cur=n;beep(600,15);paint()}}
+    else if(/^[1-4]$/.test(k))pick(turn,+k-1);
+    else if(k==='Enter'||k===' '){e.preventDefault();tap(cur)}
+  });
+  paint();
+}
+
+/* Stone Sow: 4x4 board of stacks (bottom -> top). Stone 0 = neutral, 1 = Red (first player), 2 = Blue.
+   A move: add your stone on top of any stack, lift the whole stack and sow it one stone per square along an
+   orthogonal path starting next to the lifted square, bottom stone first, never stepping straight back to the
+   square just left. Only top stones count for lines. If a move makes lines for both colours, the mover wins. */
+const QWL_=(()=>{
+  const NB=[...Array(16)].map((_,i)=>{const r=i>>2,c=i&3,a=[];if(r>0)a.push(i-4);if(r<3)a.push(i+4);if(c>0)a.push(i-1);if(c<3)a.push(i+1);return a});
+  const LINES=[];
+  for(let r=0;r<4;r++)LINES.push([0,1,2,3].map(c=>r*4+c));
+  for(let c=0;c<4;c++)LINES.push([0,1,2,3].map(r=>r*4+c));
+  LINES.push([0,5,10,15],[3,6,9,12]);
+  const WIN=1e6;
+  const Q={NB,LINES,WIN,
+    make(){const st=[...Array(16)].map(()=>[]);for(const i of[0,3,12,15])st[i]=[0,0];return{st,left:[0,8,8]}},
+    clone(s){return{st:s.st.map(a=>a.slice()),left:s.left.slice()}},
+    tops(s){return s.st.map(a=>a.length?a[a.length-1]:-1)},
+    /* which colours have a line: bit 1 = Red, bit 2 = Blue */
+    lines(t){let m=0;for(const l of LINES){const v=t[l[0]];if(v>0&&t[l[1]]===v&&t[l[2]]===v&&t[l[3]]===v)m|=v}return m},
+    lineOf(t,p){return LINES.find(l=>l.every(i=>t[i]===p))},
+    /* result after p moved: p, 3-p or 0 */
+    winner(t,p){const m=Q.lines(t);return m&p?p:m&(3-p)?3-p:0},
+    apply(s,p,from,path){const h=s.st[from].concat([p]);s.st[from]=[];s.left[p]--;path.forEach((q,k)=>s.st[q].push(h[k]))},
+    validPath(s,from,path){
+      if(!s.st[from].length||path.length!==s.st[from].length+1)return false;
+      let prev=-1,cur=from;for(const q of path){if(!NB[cur].includes(q)||q===prev)return false;prev=cur;cur=q}return true;
+    },
+    /* call cb(from,path,tops) for each sowing (sampled when the stack is tall). cb returns true to stop. */
+    each(s,p,cb,cap){
+      const T0=Q.tops(s);
+      for(let from=0;from<16;from++){
+        if(!s.st[from].length)continue;
+        const h=s.st[from].concat([p]),n=h.length,t=T0.slice();t[from]=-1;const path=[];
+        if(n<=8){
+          let stop=false;
+          const rec=(pos,prev,k)=>{
+            if(k===n){if(cb(from,path,t))stop=true;return}
+            for(const q of NB[pos]){if(q===prev)continue;const old=t[q];t[q]=h[k];path.push(q);rec(q,pos,k+1);path.pop();t[q]=old;if(stop)return}
+          };
+          rec(from,-1,0);if(stop)return true;
+        }else{
+          const seen=new Set();
+          for(let tries=0;tries<(cap||900);tries++){
+            const tt=t.slice();let pos=from,prev=-1;path.length=0;
+            for(let k=0;k<n;k++){const o=NB[pos].filter(q=>q!==prev),q=o[Math.floor(Math.random()*o.length)];tt[q]=h[k];path.push(q);prev=pos;pos=q}
+            const key=path.join(',');if(seen.has(key))continue;seen.add(key);
+            if(cb(from,path,tt))return true;
+          }
+        }
+      }
+      return false;
+    },
+    /* can p win right now? returns {from,path} or null */
+    findWin(s,p){let r=null;Q.each(s,p,(f,path,t)=>{if(Q.winner(t,p)===p){r={from:f,path:path.slice()};return true}return false});return r},
+    evalT(t,p){
+      let v=0;const o=3-p;
+      for(const l of LINES){let a=0,b=0;for(const i of l){const x=t[i];if(x===p)a++;else if(x===o)b++}
+        if(!b)v+=[0,1,5,24,0][a];if(!a)v-=[0,1,6,30,0][b];}
+      return v;
+    },
+    /* level 1..3 for side p; returns {from,path} */
+    best(s,p,level,ms){
+      const t0=performance.now(),dl=t0+(ms||(level===1?60:level===2?150:300));
+      const cand=[];let win=null;
+      Q.each(s,p,(f,path,t)=>{
+        const w=Q.winner(t,p);
+        if(w===p){win={from:f,path:path.slice()};return true}
+        cand.push({from:f,path:path.slice(),v:w?-WIN:Q.evalT(t,p)+Math.random()*(level===1?40:level===2?3:.5)});
+        return cand.length>60000;
+      });
+      if(win&&(level>1||Math.random()<.5))return win;
+      if(!cand.length)return win;
+      if(level===1){const ok=cand.filter(c=>c.v>-WIN);const pool=Math.random()<.5?ok.sort((a,b)=>b.v-a.v).slice(0,8):ok;const pick=pool.length?pool:cand;return pick[Math.floor(Math.random()*pick.length)]}
+      cand.sort((a,b)=>b.v-a.v);
+      /* dedupe by resulting position */
+      const seen=new Set(),list=[];
+      for(const c of cand){const n=Q.clone(s);Q.apply(n,p,c.from,c.path);const k=n.st.map(a=>a.join('')).join('|');if(seen.has(k))continue;seen.add(k);c.n=n;list.push(c);if(list.length>=(level===2?12:80))break}
+      const o=3-p;let bestC=null,bestV=-Infinity;
+      for(let k=0;k<list.length;k++){
+        const c=list[k];if(k>0&&performance.now()>dl)break;
+        if(c.v<=-WIN){if(bestC==null){bestC=c;bestV=-WIN*2}continue}
+        let v;
+        if(!c.n.left[o]){v=c.v}
+        else if(level===2){v=Q.findWin(c.n,o)?-WIN:c.v}
+        else{
+          /* opponent's best reply by static eval */
+          let worst=-Infinity,cnt=0,cut=false;
+          Q.each(c.n,o,(f,path,t)=>{if((++cnt&255)===0&&performance.now()>dl+(k?0:250)){cut=true;return true}
+            const w=Q.winner(t,o);const e=w===o?WIN:w===p?-WIN:Q.evalT(t,o);if(e>worst)worst=e;return worst>=WIN},400);
+          if(cut&&k>0&&worst<WIN)break;
+          v=-worst;
+          if(!c.n.left[p]&&v>-WIN)v=Math.min(v,0)+c.v*.001;
+        }
+        if(v>bestV){bestV=v;bestC=c}
+      }
+      return{from:bestC.from,path:bestC.path};
+    }
+  };
+  return Q;
+})();
+
+function qawale(root,S){
+  const L=S.level,TWO=L===4,Q=QWL_;
+  const NM=['',TWO?'Red':'You',TWO?'Blue':'Computer'],CL=['neu','red','blu'];
+  const st=status(root,TWO?'Red starts. Put a stone on a stack, then sow the stack square by square. Line up 4 of your colour on top to win.':'Put your stone on any stack, then sow the whole stack square by square. Get 4 of your colour on top in a row, column or diagonal!');
+  const w=el('div','qw-wrap',root);w.dataset.ar=100/138;w.dataset.max=480;
+  const bar=el('div','qw-bar',w);
+  const who=[0,1,2].map(p=>{if(!p)return null;const e=el('div','qw-who '+CL[p],bar,'<b></b><span class="qw-pile"></span>');e.querySelector('b').textContent=NM[p];return e});
+  const g=el('div','qw-board',w);
+  const cells=[...Array(16)].map((_,i)=>{const e=el('button','qw-cell in',g);e.style.animationDelay=((i>>2)+(i&3))*35+'ms';e.setAttribute('aria-label','Square '+(i+1));
+    S.on(e,'click',()=>tap(i));return e});
+  const foot=el('div','qw-foot',w);
+  const hand=el('div','qw-hand',foot);
+  const undoB=el('button','btn ghost qw-undo',foot,'↶ Undo');S.on(undoB,'click',()=>undo());
+  const s=Q.make();let turn=1,over=false,busy=false,sow=null,cur=5,lastPath=[];
+  const human=p=>TWO||p===1;
+  /* sow = {from, hand:[stones], path:[squares]} : preview state is s with the drops applied */
+  function view(){
+    if(!sow)return s.st;
+    const v=s.st.map(a=>a.slice());v[sow.from]=[];sow.path.forEach((q,k)=>v[q].push(sow.hand[k]));return v;
+  }
+  function nextSq(){if(!sow)return[];const n=sow.path.length;const pos=n?sow.path[n-1]:sow.from,prev=n>1?sow.path[n-2]:n===1?sow.from:-1;return Q.NB[pos].filter(q=>q!==prev)}
+  function stackHTML(a){
+    const n=a.length;if(!n)return '';
+    const step=n<=1?0:Math.min(11,52/(n-1));let h='';
+    a.forEach((v,k)=>{h+=`<i class="qw-st ${CL[v]}" style="bottom:${14+k*step}%;z-index:${k+1}"></i>`});
+    if(n>1)h+=`<em>${n}</em>`;
+    return h;
+  }
+  function paint(){
+    const v=view(),nx=nextSq(),myTurn=!over&&!busy&&human(turn);
+    cells.forEach((e,i)=>{
+      const key=v[i].join('');if(e.dataset.k!==key){e.dataset.k=key;e.innerHTML=stackHTML(v[i])}
+      e.classList.toggle('pick',myTurn&&!sow&&v[i].length>0);
+      e.classList.toggle('next',myTurn&&!!sow&&nx.includes(i));
+      e.classList.toggle('from',!!sow&&i===sow.from);
+      e.classList.toggle('trail',!!sow&&sow.path.includes(i)||(!sow&&lastPath.includes(i)));
+      e.classList.toggle('cur',myTurn&&i===cur&&KB);
+    });
+    for(const p of[1,2]){who[p].classList.toggle('on',!over&&turn===p);
+      who[p].querySelector('.qw-pile').innerHTML=`<i class="qw-st ${CL[p]}"></i><em>×${s.left[p]-(sow&&turn===p?1:0)}</em>`}
+    if(sow){const rest=sow.hand.slice(sow.path.length);hand.innerHTML=`<span>In hand</span>`+rest.map((x,k)=>`<i class="qw-st ${CL[x]}${k===0?' nx':''}"></i>`).join('')}
+    else hand.innerHTML=over?'<span>Game over. Press ↻ to play again</span>':`<span>${myTurn?'Tap a stack to add your stone':TWO?'':'Computer is thinking…'}</span>`;
+    undoB.disabled=!sow||!myTurn;
+  }
+  let KB=false;
+  function tap(i){
+    if(over||busy||!human(turn))return;cur=i;
+    if(!sow){
+      if(!s.st[i].length){restartAnim(cells[i],'nope');beep(140,80,'sawtooth');st('Pick a square that has stones on it.');return}
+      sow={from:i,hand:s.st[i].concat([turn]),path:[]};lastPath=[];beep(600,60);
+      st(`Sow ${sow.hand.length} stones: tap the glowing squares.`);paint();return;
+    }
+    if(i===sow.from&&!sow.path.length){sow=null;beep(300,50);st('Choose a stack.');paint();return}
+    if(!nextSq().includes(i)){restartAnim(cells[i],'nope');beep(140,80,'sawtooth');if(sow.path.length&&i===(sow.path.length>1?sow.path[sow.path.length-2]:sow.from))st("You can't step straight back to the square you just left.");return}
+    sow.path.push(i);beep(440+sow.path.length*40,50);restartAnim(cells[i],'drop');
+    if(sow.path.length===sow.hand.length){const m=sow;sow=null;commit(m.from,m.path,true)}
+    else paint();
+  }
+  function undo(){if(!sow||busy)return;if(sow.path.length)sow.path.pop();else{sow=null;st('Choose a stack.')}beep(300,40);paint()}
+  function commit(from,path,shown){
+    const p=turn;Q.apply(s,p,from,path);lastPath=path.slice();
+    paint();
+    const t=Q.tops(s),wn=Q.winner(t,p);
+    if(wn){
+      over=true;const l=Q.lineOf(t,wn);
+      S.after(250,()=>{g.classList.add('done');l.forEach((j,k)=>{cells[j].classList.add('hit');cells[j].style.animationDelay=k*110+'ms'})});
+      const self=wn===p?'':(TWO?` (${NM[p]} handed it over)`:'');
+      if(TWO){st(`${NM[wn]} lines up four${self}! Press ↻ for a rematch.`);S.after(500,()=>{S.fx.confetti();S.fx.banner(`${NM[wn]} wins!`);beep(990,300)})}
+      else if(wn===1){st('Four of your stones in a line. You win!');S.after(700,S.next)}
+      else{st('The computer lined up four. Press ↻ to try again.');S.after(500,()=>{S.shake();beep(150,400,'sawtooth')})}
+      paint();return;
+    }
+    if(!s.left[1]&&!s.left[2]){over=true;st("All stones played and no line. It's a draw! Press ↻ to play again.");S.fx.banner('Draw');paint();return}
+    turn=3-p;
+    if(TWO){st(`${NM[turn]}'s turn. Tap a stack.`);paint();return}
+    if(turn===2){busy=true;st('Computer is thinking…');paint();
+      S.after(380,()=>{const m=Q.best(s,2,L);aiSow(m)})}
+    else{st('Your turn.');paint()}
+  }
+  function aiSow(m){
+    sow={from:m.from,hand:s.st[m.from].concat([2]),path:[]};paint();beep(600,60);
+    const stepT=Math.max(170,Math.min(320,1700/m.path.length));
+    m.path.forEach((q,k)=>S.after(380+k*stepT,()=>{sow.path.push(q);beep(440+(k+1)*40,50);restartAnim(cells[q],'drop');paint()}));
+    S.after(380+m.path.length*stepT+250,()=>{sow=null;busy=false;commit(m.from,m.path)});
+  }
+  S.on(window,'keydown',e=>{
+    if(over||busy||!human(turn))return;const k=e.key;
+    const d={ArrowUp:-4,ArrowDown:4,ArrowLeft:-1,ArrowRight:1}[k];
+    if(d){e.preventDefault();KB=true;
+      if(sow){const pos=sow.path.length?sow.path[sow.path.length-1]:sow.from;const q=pos+d;if((d===-1&&pos%4===0)||(d===1&&pos%4===3)||q<0||q>15)return;tap(q);return}
+      if((d===-1&&cur%4===0)||(d===1&&cur%4===3))return;const n=cur+d;if(n>=0&&n<16){cur=n;beep(600,15);paint()}}
+    else if((k==='Enter'||k===' ')&&!sow){e.preventDefault();KB=true;tap(cur)}
+    else if(k==='Backspace'||k==='Escape'||k==='z'){e.preventDefault();undo()}
+  });
+  S.after(900,()=>cells.forEach(e=>e.classList.remove('in')));
+  paint();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -5502,11 +6692,17 @@ const GAMES=[
   {id:'wordguess',name:'Word Guess',icon:'🟩',blurb:'Crack the hidden word in six tries with color clues.',help:'Type or tap letters, then press Enter. Green means right spot, yellow means the letter is in the word somewhere else, grey means it isn\'t in the word. Pick 4, 5 or 6 letters at the top.',mount:wordguess,levels:3,open:true,names:['4 letters','5 letters','6 letters'],isNew:true},
   {id:'clash',name:'Color Clash',icon:'🎴',blurb:'Match colors and numbers and empty your hand before the bots.',help:'Tap a glowing card to play it or tap the deck to draw. Wild cards ask for a color, and Wild +4 can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clash,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true},
   {id:'clashflip',name:'Color Clash Flip',icon:'🔄',blurb:'Two-sided cards: flip the whole game to the wild dark side.',help:'Tap a glowing card to play it or tap the deck to draw. A Flip card turns every card over. Wild cards ask for a color and can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clashflip,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true},
-  {id:'rugs',name:'Rug Market',icon:'🧶',blurb:'Steer the merchant, lay rugs and charge rivals a toll.',help:'Tap ⟲, ↑ or ⟳ to turn the merchant, then Roll. Landing on a rival\'s rug patch costs a coin per square. Then tap a square next to him to lay your rug (tap again or ⟳ Turn to rotate) and press ✓ Place.',mount:rugmarket,levels:4,open:true,names:['vs 1','vs 2','vs 3','2 Players'],isNew:true}
+  {id:'rugs',name:'Rug Market',icon:'🧶',blurb:'Steer the merchant, lay rugs and charge rivals a toll.',help:'Tap ⟲, ↑ or ⟳ to turn the merchant, then Roll. Landing on a rival\'s rug patch costs a coin per square. Then tap a square next to him to lay your rug (tap again or ⟳ Turn to rotate) and press ✓ Place.',mount:rugmarket,levels:4,open:true,names:['vs 1','vs 2','vs 3','2 Players'],isNew:true},
+  {id:'quad',name:'Four Alike',icon:'🗿',blurb:'Place the piece you\'re given. Line up four that share a trait.',help:'Tap a piece below, then Give, to hand it to your opponent. Tap an empty square to place the piece you were given. Four in a line sharing any trait wins.',mount:quadgame,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'cubes',name:'Cube Push',icon:'🧊',blurb:'Push cubes into the grid and line up five of your symbol.',help:'Tap a border cube that is blank or yours, then tap an arrow to push it back in from another end of its line. Five in a row wins, but making five for your opponent loses.',mount:cubepush,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'pyramid',name:'Ball Pyramid',icon:'🔺',blurb:'Stack balls into a pyramid and save yours to place the top one.',help:'Tap a glowing spot to place a ball, or tap one of your free balls and then a gold spot to move it up. Make a 2×2 square of your color to take 1 or 2 balls back. Pick Easy, Medium, Hard, or 2 Players at the top.',mount:pyramid,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'squadro',name:'Shuttle Race',icon:'🏁',blurb:'Race 5 shuttles across the board and back, jumping your rival.',help:'Tap a piece to move it. Dots on the board edge show its speed going out and coming back. Jump over enemy pieces to send them back. Bring 4 of 5 home first. Keys 1–5 move a piece.',mount:squadro,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'quantik',name:'Shape Grid',icon:'🔷',blurb:'Place shapes and be first to fill a line with all four kinds.',help:'Pick a shape from your tray, then tap a glowing square (or use 1–4, arrows and Enter). You can\'t place a shape where the other side already has that shape in the row, column or 2×2 zone. Complete a row, column or zone with 4 different shapes to win.',mount:quantik,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'qawale',name:'Stone Sow',icon:'🪨',blurb:'Stack, sow and line up four stones of your colour on top.',help:'Tap a stack to add your stone, then tap glowing squares one by one to sow the whole stack, bottom stone first (arrow keys work too, Undo or Backspace steps back). Get 4 of your colour on top in a row, column or diagonal.',mount:qawale,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game'};
 const CATS={'snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
