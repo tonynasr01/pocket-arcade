@@ -1041,3 +1041,75 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 @keyframes qw-drop{from{transform:translateY(-120%) scale(1.15);opacity:.3}}
 @keyframes qw-bob{to{transform:translateY(-12%)}}
 @media (prefers-reduced-motion:reduce){.qw-cell.next::after,.qw-hand .qw-st.nx,.qw-cell.drop .qw-st:last-of-type{animation:none}}
+/* Wall Race */
+.wr-bar{display:flex;gap:10px;flex:none;justify-content:center}
+.wr-who{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:3px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);opacity:.55;transition:opacity .2s,transform .25s var(--spring),box-shadow .2s}
+.wr-who i{width:24px;height:24px;border-radius:50%;border:2.5px solid #1E1F5C;flex:none}
+.wr-who.wr0 i{background:radial-gradient(circle at 35% 30%,#9DB0FF,#4F63F5 60%)}
+.wr-who.wr1 i{background:radial-gradient(circle at 35% 30%,#FFB0C4,#F0457A 60%)}
+.wr-who span{display:flex;flex-direction:column;line-height:1.05}
+.wr-who b{font:800 .95rem/1.1 var(--body)}
+.wr-who small{font:800 .72rem/1.1 var(--body);color:var(--muted);white-space:nowrap}
+.wr-who small em{font-style:normal;letter-spacing:-1px;color:#B07A3A}
+.wr-who.on{opacity:1;transform:translateY(-2px) scale(1.04);box-shadow:0 4px 0 var(--edge);background:color-mix(in srgb,var(--c2) 40%,var(--board))}
+.wr-board{position:relative;width:320px;aspect-ratio:1;border:3px solid var(--edge);border-radius:14px;background:#5A4F9E;container-type:inline-size;box-shadow:0 6px 0 var(--edge);touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wr-sq{position:absolute;border-radius:1.4cqw;background:#ECE9FF;box-shadow:inset 0 -.6cqw 0 rgba(30,31,92,.14);animation:popin .3s var(--spring) both;pointer-events:none}
+.wr-sq.g0{background:#D7DEFF}
+.wr-sq.g1{background:#FFDCE6}
+.wr-sq.tgt::after{content:'';position:absolute;left:28%;top:28%;width:44%;height:44%;border-radius:50%;border:.6cqw solid #1E1F5C;background:#7F8FFF;box-shadow:0 0 0 1.2cqw rgba(91,108,255,.3);animation:wr-dot .6s ease-in-out infinite alternate}
+.wr-board.wr1turn .wr-sq.tgt::after{background:#FF7DA3;box-shadow:0 0 0 1.2cqw rgba(240,69,122,.3)}
+.wr-walls{position:absolute;inset:0;pointer-events:none}
+.wr-wall{position:absolute;border-radius:1cqw;background:#F2A93B;box-shadow:0 0 0 .5cqw #1E1F5C,0 .7cqw 0 .4cqw #1E1F5C;z-index:2;pointer-events:none}
+.wr-wall.wr0{background:linear-gradient(#FFD27A,#F2A93B)}
+.wr-wall.wr1{background:linear-gradient(#FFC48A,#EE8A3C)}
+.wr-wall.drop{animation:wr-drop .35s var(--spring)}
+.wr-wall.prev{z-index:4;opacity:.92;background:#2EC4B6;animation:wr-pulse .7s ease-in-out infinite alternate}
+.wr-wall.prev.bad{background:#FF5D73}
+.wr-pawn{position:absolute;width:8.7%;height:8.7%;z-index:3;pointer-events:none;transition:left .25s cubic-bezier(.4,1.3,.6,1),top .25s cubic-bezier(.4,1.3,.6,1)}
+.wr-pawn i{position:absolute;inset:12%;border-radius:50%;border:.7cqw solid #1E1F5C;box-shadow:0 .8cqw 0 #1E1F5C,inset 0 0 0 1.2cqw rgba(255,255,255,.22)}
+.wr-pawn.wr0 i{background:radial-gradient(circle at 36% 30%,#B7C4FF,#4F63F5 58%,#3446D8)}
+.wr-pawn.wr1 i{background:radial-gradient(circle at 36% 30%,#FFC2D2,#F0457A 58%,#C82E5E)}
+.wr-pawn.on i{animation:wr-bob .9s ease-in-out infinite alternate}
+.wr-pawn.hop{animation:wr-hop .3s ease-out}
+.wr-pawn.win{animation:wr-win .7s var(--spring) 2}
+.wr-pawn.nope{animation:shake .3s}
+.wr-act{display:flex;align-items:center;justify-content:center;gap:8px;flex:none;min-height:46px}
+.wr-act .btn{padding:9px 14px;font-size:.95rem;display:none}
+.wr-act.pv .btn{display:inline-block}
+.wr-act.pv .wr-hint{display:none}
+.wr-hint{font:800 .92rem/1.25 var(--body);color:var(--muted);text-align:center;padding:0 8px}
+@keyframes wr-dot{to{transform:scale(1.15)}}
+@keyframes wr-drop{0%{transform:scale(1.6);opacity:0}}
+@keyframes wr-pulse{to{opacity:.6}}
+@keyframes wr-bob{to{transform:translateY(-.8cqw)}}
+@keyframes wr-hop{40%{transform:scale(1.25) translateY(-1.5cqw)}}
+@keyframes wr-win{50%{transform:scale(1.5) rotate(20deg)}}
+@media (prefers-reduced-motion:reduce){.wr-pawn{transition:none}.wr-sq.tgt::after,.wr-pawn.on i,.wr-wall.prev{animation:none}}
+/* Pento Box */
+.pn-bar{gap:14px;font-size:.98rem}
+.pn-bar b{font:400 1.05rem/1 var(--display)}
+.pn-table{position:relative;width:320px;container-type:inline-size;touch-action:none;user-select:none;-webkit-user-select:none}
+.pn-tray{position:absolute;border-radius:calc(var(--u)*.4);background:color-mix(in srgb,var(--line) 55%,transparent);border:2px dashed var(--line)}
+.pn-box{position:absolute;display:grid;grid-auto-rows:1fr;border-radius:min(calc(var(--u)*.35),12px);background:#5A4F9E;box-shadow:0 0 0 3px var(--edge),0 6px 0 3px var(--edge);padding:0;overflow:hidden}
+.pn-c{position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);animation:popin .3s var(--spring) both}
+.pn-c.gh{background:rgba(126,217,87,.55)}
+.pn-c.bad{background:rgba(255,93,115,.55)}
+.pn-p{position:absolute;z-index:2;pointer-events:none;cursor:grab;touch-action:none;transition:left .22s var(--spring),top .22s var(--spring),width .22s var(--spring),height .22s var(--spring);animation:pn-in .45s var(--spring) both;filter:drop-shadow(0 calc(var(--u)*.08) 0 var(--edge))}
+.pn-p i{position:absolute;pointer-events:auto;background:var(--pc);box-shadow:inset 0 0 0 calc(var(--u)*.05) rgba(30,31,92,.9),inset 0 calc(var(--u)*-.12) 0 rgba(0,0,0,.16),inset 0 calc(var(--u)*.1) 0 rgba(255,255,255,.35);border-radius:calc(var(--u)*.14)}
+.pn-p.on{z-index:1;filter:none}
+.pn-p.sel{z-index:3;filter:drop-shadow(0 0 calc(var(--u)*.12) #FFC53D) drop-shadow(0 calc(var(--u)*.08) 0 var(--edge))}
+.pn-p.drag{transition:width .15s,height .15s;z-index:9;cursor:grabbing;filter:drop-shadow(0 calc(var(--u)*.35) calc(var(--u)*.2) rgba(7,8,42,.45))}
+.pn-p.spin{animation:pn-spin .3s var(--spring)}
+.pn-p.snap{animation:pn-snap .3s var(--spring)}
+.pn-table.won .pn-p{animation:pn-won .6s var(--spring) both}
+.pn-table.won .pn-box{animation:pn-glow 1.2s ease-in-out infinite alternate}
+.pn-btns{gap:8px}
+.pn-btns .btn{padding:9px 14px;font-size:.95rem}
+.pn-btns .btn.go{animation:pn-go .7s ease-in-out infinite alternate}
+@keyframes pn-in{from{transform:scale(0) rotate(-30deg)}}
+@keyframes pn-spin{from{transform:rotate(-70deg) scale(.85)}}
+@keyframes pn-snap{40%{transform:scale(1.06)}}
+@keyframes pn-won{50%{transform:translateY(calc(var(--u)*-.25))}}
+@keyframes pn-glow{to{box-shadow:0 0 0 3px var(--edge),0 0 calc(var(--u)*.8) calc(var(--u)*.3) #FFC53D}}
+@keyframes pn-go{to{transform:scale(1.08)}}
+@media (prefers-reduced-motion:reduce){.pn-p{transition:none}}

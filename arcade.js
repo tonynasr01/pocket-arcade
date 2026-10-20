@@ -2398,7 +2398,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -6651,6 +6651,398 @@ function qawale(root,S){
   paint();
 }
 
+/* Wall Race: 9x9 board, squares s=r*9+c. Player 0 starts at the bottom (row 8) and races to row 0,
+   player 1 starts at the top and races to row 8. Walls sit on an 8x8 grid of groove crossings (i,j) =
+   the point between rows i,i+1 and columns j,j+1. h[i*8+j]: horizontal wall under row i covering columns j,j+1.
+   v[i*8+j]: vertical wall right of column j covering rows i,i+1. */
+const WRL={
+  start(){return{p:[76,4],h:new Uint8Array(64),v:new Uint8Array(64),w:[10,10]}},
+  clone(s){return{p:s.p.slice(),h:s.h.slice(),v:s.v.slice(),w:s.w.slice()}},
+  D:[-9,1,9,-1],                                   /* up right down left */
+  open(s,q,d){
+    const r=(q/9)|0,c=q%9,h=s.h,v=s.v;
+    if(d===0){if(!r)return false;const b=(r-1)*8;return!(c<8&&h[b+c])&&!(c>0&&h[b+c-1])}
+    if(d===2){if(r===8)return false;const b=r*8;return!(c<8&&h[b+c])&&!(c>0&&h[b+c-1])}
+    if(d===3){if(!c)return false;return!(r<8&&v[r*8+c-1])&&!(r>0&&v[(r-1)*8+c-1])}
+    if(c===8)return false;return!(r<8&&v[r*8+c])&&!(r>0&&v[(r-1)*8+c]);
+  },
+  goal(k){return k?8:0},
+  /* BFS distances to player k's goal row (pawns ignored); 99 = cannot get there */
+  Q:new Int16Array(81),
+  dist(s,k){
+    const d=new Int8Array(81).fill(99),Q=WRL.Q;let a=0,b=0;const g=WRL.goal(k)*9;
+    for(let c=0;c<9;c++){d[g+c]=0;Q[b++]=g+c}
+    while(a<b){const q=Q[a++],n=d[q]+1;for(let k2=0;k2<4;k2++){if(!WRL.open(s,q,k2))continue;const t=q+WRL.D[k2];if(d[t]>n){d[t]=n;Q[b++]=t}}}
+    return d;
+  },
+  /* can player k reach the goal at all (fast DFS) */
+  reach(s,k){
+    const seen=new Uint8Array(81),Q=WRL.Q;let b=0;const gr=WRL.goal(k);Q[b++]=s.p[k];seen[s.p[k]]=1;
+    while(b){const q=Q[--b];if(((q/9)|0)===gr)return true;for(let d=0;d<4;d++){if(!WRL.open(s,q,d))continue;const t=q+WRL.D[d];if(!seen[t]){seen[t]=1;Q[b++]=t}}}
+    return false;
+  },
+  /* pawn destinations for player k, including straight jumps and side steps */
+  moves(s,k){
+    const me=s.p[k],op=s.p[1-k],out=[];
+    for(let d=0;d<4;d++){
+      if(!WRL.open(s,me,d))continue;const n=me+WRL.D[d];
+      if(n!==op){out.push(n);continue}
+      if(WRL.open(s,op,d))out.push(op+WRL.D[d]);
+      else for(const d2 of[(d+1)&3,(d+3)&3])if(WRL.open(s,op,d2)){const t=op+WRL.D[d2];if(t!==me)out.push(t)}
+    }
+    return out;
+  },
+  /* wall o (0 horizontal, 1 vertical) at crossing i,j: no overlap and no crossing */
+  fits(s,o,i,j){
+    if(i<0||j<0||i>7||j>7)return false;const x=i*8+j;
+    if(s.h[x]||s.v[x])return false;
+    if(o===0)return!(j>0&&s.h[x-1])&&!(j<7&&s.h[x+1]);
+    return!(i>0&&s.v[x-8])&&!(i<7&&s.v[x+8]);
+  },
+  /* full legality: fits and both players can still reach their goal */
+  legal(s,o,i,j){
+    if(!WRL.fits(s,o,i,j))return false;
+    const a=o?s.v:s.h,x=i*8+j;a[x]=1;const ok=WRL.reach(s,0)&&WRL.reach(s,1);a[x]=0;return ok;
+  },
+  /* actions: {m:sq} pawn move or {o,i,j} wall */
+  apply(s,k,a){if(a.m!=null)s.p[k]=a.m;else{(a.o?s.v:s.h)[a.i*8+a.j]=1;s.w[k]--}},
+  undo(s,k,a,from){if(a.m!=null)s.p[k]=from;else{(a.o?s.v:s.h)[a.i*8+a.j]=0;s.w[k]++}},
+  won(s,k){return((s.p[k]/9)|0)===WRL.goal(k)},
+  /* the shortest path of player k as a list of squares (from its pawn to the goal) */
+  path(s,k,d){
+    d=d||WRL.dist(s,k);let q=s.p[k];const out=[q];
+    while(d[q]>0&&d[q]<99){let nx=-1;for(let k2=0;k2<4;k2++){if(!WRL.open(s,q,k2))continue;const t=q+WRL.D[k2];if(d[t]===d[q]-1){nx=t;break}}if(nx<0)break;q=nx;out.push(q)}
+    return out;
+  },
+  /* walls that block the first steps of player k's shortest path or sit around its pawn (legal only) */
+  wallCands(s,k,steps){
+    const P=WRL.path(s,k),seen=new Set(),out=[];
+    const add=(o,i,j)=>{if(i<0||j<0||i>7||j>7)return;const key=o*64+i*8+j;if(seen.has(key))return;seen.add(key);if(WRL.legal(s,o,i,j))out.push({o,i,j})};
+    for(let n=0;n<Math.min(steps,P.length-1);n++){
+      const a=P[n],b=P[n+1],r=(a/9)|0,c=a%9;
+      if(b-a===9||a-b===9){const i=b>a?r:r-1;add(0,i,c);add(0,i,c-1)}
+      else{const j=b>a?c:c-1;add(1,r,j);add(1,r-1,j)}
+    }
+    const r=(s.p[k]/9)|0,c=s.p[k]%9;
+    for(const i of[r-1,r])for(const j of[c-1,c]){add(0,i,j);add(1,i,j)}
+    return out;
+  },
+  cands(s,k,steps){
+    const a=WRL.moves(s,k).map(m=>({m}));
+    if(s.w[k]>0)for(const w of WRL.wallCands(s,1-k,steps))a.push(w);
+    return a;
+  },
+  /* score from player k's side: opponent's distance minus mine, walls in hand worth a little */
+  score(s,k,ww=.3){
+    const dm=WRL.dist(s,k)[s.p[k]],dop=WRL.dist(s,1-k)[s.p[1-k]];
+    return dop-dm+ww*(s.w[k]-s.w[1-k])+(s.w[1-k]===0?.5*(dop-dm):0);
+  },
+  /* negamax with alpha-beta over pruned candidates, iterative deepening to depth 3 within a time budget */
+  neg(s,k,depth,al,be,ctx){
+    if(depth===0)return WRL.score(s,k,WRL.HW);
+    if((++ctx.n&63)===0&&performance.now()>ctx.end)ctx.stop=true;
+    if(ctx.stop)return 0;
+    const A=WRL.cands(s,k,6);let best=-1e9;
+    for(const a of A){
+      const from=s.p[k];WRL.apply(s,k,a);
+      const v=WRL.won(s,k)?1000+depth:-WRL.neg(s,1-k,depth-1,-be,-al,ctx);
+      WRL.undo(s,k,a,from);
+      if(ctx.stop)return 0;
+      if(v>best)best=v;if(v>al)al=v;if(al>=be)break;
+    }
+    return best;
+  },
+  HW:.4,
+  search(s,k,end){
+    const ctx={n:0,stop:false,end};let A=WRL.cands(s,k,8),bestA=null;
+    for(let d=1;d<=3;d++){
+      let al=-1e9,cur=null;const sc=[];
+      for(const a of A){
+        const from=s.p[k];WRL.apply(s,k,a);
+        let v=WRL.won(s,k)?2000:-WRL.neg(s,1-k,d-1,-1e9,-al+.001,ctx);
+        WRL.undo(s,k,a,from);if(ctx.stop)break;
+        if(a.m==null)v-=.05;v+=Math.random()*.02;sc.push([v,a]);
+        if(v>al){al=v;cur=a}
+      }
+      if(ctx.stop)break;
+      bestA=cur;sc.sort((x,y)=>y[0]-x[0]);A=sc.map(x=>x[1]);   /* best first for the next pass */
+      if(al>900)break;
+    }
+    return bestA;
+  },
+  /* level 1..3 → an action for player k */
+  pick(s,k,level){
+    const dm=WRL.dist(s,k),ms=WRL.moves(s,k);
+    const step=()=>{let b=ms[0],bd=99;for(const m of shuffle(ms.slice()))if(dm[m]<bd){bd=dm[m];b=m}return{m:b}};
+    for(const m of ms)if(((m/9)|0)===WRL.goal(k))return{m};
+    if(level===1){
+      if(Math.random()<.18)return{m:ms[rand(ms.length)]};
+      if(s.w[k]&&Math.random()<.2){const c=WRL.wallCands(s,1-k,3);if(c.length)return c[rand(c.length)]}
+      return step();
+    }
+    if(level===3)return WRL.search(s,k,performance.now()+260)||step();
+    const A=WRL.cands(s,k,4);let best=-1e9,pick=[];
+    for(const a of A){
+      const from=s.p[k];WRL.apply(s,k,a);
+      let v=WRL.score(s,k)+Math.random()*.6;
+      WRL.undo(s,k,a,from);
+      if(a.m==null)v-=.05;
+      if(v>best){best=v;pick=[a]}
+    }
+    return pick[0]||step();
+  }
+};
+
+function walls(root,S){
+  const L=S.level,TWO=L===4;
+  const NM=TWO?['Blue','Pink']:['You','Computer'];
+  const st=status(root,TWO?'Blue starts. Race to the far side, or tap a gap to drop a wall.':'Race your pawn to the top row. Tap a glowing square to move, or tap a gap to place a wall.');
+  const bar=el('div','wr-bar',root);
+  const chips=[0,1].map(k=>{const e=el('div','wr-who wr'+k,bar,'<i></i><span><b></b><small></small></span>');e.querySelector('b').textContent=NM[k];return e});
+  const g=el('div','wr-board',root);g.dataset.ar=1;g.dataset.max=560;
+  const P=2,G=2.3,C=(100-2*P-8*G)/9,U=C+G;          /* layout in % of board width */
+  const sqs=[...Array(81)].map((_,i)=>{
+    const r=(i/9)|0,c=i%9,e=el('div','wr-sq'+(r===0?' g0':r===8?' g1':''),g);
+    e.style.cssText=`left:${P+c*U}%;top:${P+r*U}%;width:${C}%;height:${C}%;animation-delay:${Math.min((r+c)*22,360)}ms`;return e});
+  const wl=el('div','wr-walls',g);
+  const pawns=[0,1].map(k=>el('div','wr-pawn wr'+k,g,'<i></i>'));
+  const prev=el('div','wr-wall prev',g);prev.hidden=true;
+  const act=el('div','wr-act',root);
+  const hint=el('div','wr-hint',act);
+  const bTurn=el('button','btn ghost',act,'⟲ Turn'),bOk=el('button','btn',act,'✓ Place'),bNo=el('button','btn ghost',act,'✕');
+  bTurn.setAttribute('aria-label','Turn wall');bNo.setAttribute('aria-label','Cancel wall');
+  let s=WRL.start(),turn=0,busy=false,over=false,pv=null,targets=[];
+  const human=()=>!over&&!busy&&(TWO||turn===0);
+  function wallEl(o,i,j,e){
+    e=e||el('div','wr-wall o'+o+' wr'+turn,wl);
+    if(o===0)e.style.cssText=`left:${P+j*U}%;top:${P+(i+1)*U-G}%;width:${2*C+G}%;height:${G}%`;
+    else e.style.cssText=`left:${P+(j+1)*U-G}%;top:${P+i*U}%;width:${G}%;height:${2*C+G}%`;
+    return e;
+  }
+  function placePawn(k){const q=s.p[k];pawns[k].style.left=P+(q%9)*U+'%';pawns[k].style.top=P+((q/9)|0)*U+'%'}
+  function draw(){
+    placePawn(0);placePawn(1);
+    targets=human()?WRL.moves(s,turn):[];
+    sqs.forEach((e,i)=>e.classList.toggle('tgt',targets.includes(i)));
+    pawns.forEach((p,k)=>p.classList.toggle('on',!over&&turn===k));
+    chips.forEach((e,k)=>{
+      e.classList.toggle('on',!over&&turn===k);
+      e.querySelector('small').innerHTML='<em>'+'▮'.repeat(s.w[k])+'</em> '+s.w[k]+' wall'+(s.w[k]===1?'':'s');
+    });
+    g.classList.toggle('wr1turn',turn===1);
+    const show=!!pv&&human();prev.hidden=!show;
+    act.classList.toggle('pv',show);
+    if(show){wallEl(pv.o,pv.i,pv.j,prev);prev.className='wr-wall prev o'+pv.o+' wr'+turn+(pv.ok?'':' bad');bOk.disabled=!pv.ok}
+    hint.textContent=over?'Press ↻ to play again':!human()?'Computer is thinking…':s.w[turn]?(TWO?NM[turn]+': move, or tap a gap for a wall':'Tap a square to move, or a gap for a wall'):'No walls left: move your pawn';
+  }
+  function setPv(o,i,j,auto){
+    i=clamp(i,0,7);j=clamp(j,0,7);
+    let ok=WRL.legal(s,o,i,j);
+    if(!ok&&auto&&WRL.legal(s,1-o,i,j)){o=1-o;ok=true}
+    pv={o,i,j,ok};beep(ok?600:200,40);draw();
+    if(!ok&&!COMPACT.matches)st(WRL.fits(s,o,i,j)?'That wall would close the last way through.':'Walls can\'t overlap or cross.');
+  }
+  function placeWall(){
+    if(!pv||!pv.ok||!human())return;
+    const a={o:pv.o,i:pv.i,j:pv.j};pv=null;commit(a);
+  }
+  function commit(a){
+    const k=turn;
+    if(a.m!=null){s.p[k]=a.m;restartAnim(pawns[k],'hop');beep(k?440:560,70)}
+    else{WRL.apply(s,k,a);const e=wallEl(a.o,a.i,a.j);e.classList.add('drop');beep(240,90,'square');S.after(70,()=>beep(330,80,'square'))}
+    if(WRL.won(s,k)){
+      over=true;draw();restartAnim(pawns[k],'win');
+      if(TWO){st(NM[k]+' wins! Press ↻ for a rematch.');S.fx.confetti();S.fx.banner(NM[k]+' wins!')}
+      else if(k===0){st('You win! Press ↻ to play again.');S.next()}
+      else{st('The computer got there first. Press ↻ to try again.');S.shake();beep(160,300,'sawtooth')}
+      return;
+    }
+    turn=1-k;draw();
+    if(!TWO&&turn===1){
+      busy=true;draw();st('Computer is thinking…');
+      S.after(380,()=>{const t=performance.now();const m=WRL.pick(s,1,L);busy=false;commit(m);if(!over)st('Your move.')});
+    }else if(TWO)st(NM[turn]+"'s turn.");
+  }
+  function tap(e){
+    if(!human())return;
+    const b=g.getBoundingClientRect(),x=(e.clientX-b.left)/b.width*100,y=(e.clientY-b.top)/b.height*100;
+    const u=(x-P+G/2)/U,v=(y-P+G/2)/U;                    /* integer = groove line, +.5 = square centre */
+    const c=Math.floor(u),r=Math.floor(v),fu=u-c,fv=v-r;
+    /* a tap well inside a glowing square moves there */
+    if(c>=0&&c<9&&r>=0&&r<9&&targets.includes(r*9+c)&&fu>.12&&fu<.88&&fv>.12&&fv<.88){pv=null;commit({m:r*9+c});return}
+    if(!s.w[turn]){st('No walls left. Move your pawn.');restartAnim(pawns[turn],'nope');beep(150,90,'sawtooth');return}
+    const gx=clamp(Math.round(u),1,8),gy=clamp(Math.round(v),1,8),dx=Math.abs(u-gx),dy=Math.abs(v-gy);
+    if(pv&&pv.i===gy-1&&pv.j===gx-1){setPv(1-pv.o,pv.i,pv.j);return}   /* same crossing again: turn it */
+    setPv(dy<dx?0:1,gy-1,gx-1,true);
+  }
+  S.on(g,'click',tap);
+  S.on(bTurn,'click',()=>{if(pv)setPv(1-pv.o,pv.i,pv.j)});
+  S.on(bOk,'click',placeWall);
+  S.on(bNo,'click',()=>{pv=null;draw()});
+  S.on(window,'keydown',e=>{
+    if(!human())return;const k=e.key;
+    const dir={ArrowUp:0,ArrowRight:1,ArrowDown:2,ArrowLeft:3}[k];
+    if(dir!=null){
+      e.preventDefault();
+      if(pv){const[di,dj]=[[-1,0],[0,1],[1,0],[0,-1]][dir];setPv(pv.o,pv.i+di,pv.j+dj);return}
+      const me=s.p[turn],n=me+WRL.D[dir],j=n+WRL.D[dir];
+      const t=targets.find(q=>q===n)??targets.find(q=>q===j&&n===s.p[1-turn]);
+      if(t!=null)commit({m:t});else{restartAnim(pawns[turn],'nope');beep(150,60,'sawtooth')}
+    }else if(k==='w'||k==='W'){if(!s.w[turn])return;if(pv)pv=null,draw();else{const q=s.p[1-turn];setPv(0,((q/9)|0)-turn,q%9,true)}}
+    else if(pv&&(k==='r'||k==='R'||k===' ')){e.preventDefault();setPv(1-pv.o,pv.i,pv.j)}
+    else if(pv&&k==='Enter'){e.preventDefault();placeWall()}
+    else if(k==='Escape'&&pv){pv=null;draw()}
+  });
+  /* the engine's fit() leaves a few px of overflow with several rows around the board: trim the board to fit */
+  const trim=()=>{if(!g.isConnected)return;const o=root.scrollHeight-root.clientHeight;if(o>0&&g.offsetWidth>200)g.style.width=Math.max(180,g.offsetWidth-Math.ceil(o*(+g.dataset.ar)))+'px'};
+  S.on(window,'resize',()=>S.after(30,trim));S.after(60,trim);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>S.after(60,trim));
+  draw();
+}
+
+/* Pento Box: fill a 5×N box with N given pentominoes (every set below has been checked to have a solution) */
+const PENTO_SH={F:['.##','##.','.#.'],I:['#####'],L:['####','#...'],N:['##..','.###'],P:['##','##','#.'],T:['###','.#.','.#.'],
+  U:['#.#','###'],V:['#..','#..','###'],W:['#..','##.','.##'],X:['.#.','###','.#.'],Y:['####','.#..'],Z:['##.','.#.','.##']};
+const PENTO_COL={F:'#FF5D73',I:'#5B6CFF',L:'#FFC53D',N:'#2EC4B6',P:'#B06CFF',T:'#FF8A3D',U:'#7ED957',V:'#FF7EC8',W:'#3FB8F5',X:'#F25C3D',Y:'#C9A2FF',Z:'#3DD6A0'};
+const PENTO_N=[3,4,5,6,7,8,10,12];
+const PENTO_SETS={"3":"FPU LNV LPV LTY NPU PUV PUY","4":"LPWY LPTV FLUY LPVY FIPU FLUV ILNV ILPV ILTY INPU IPUV IPUY LNPU LNVZ LPVZ LUVY PTVW FLPU FLTY FPUY LPTY LPUY LPYZ NPUY NTVY PUVZ","5":"ILPWY FILUY ILPVY ILNPU ILNVZ ILUVY IPTVW NPVWY FILPU FIPUY FNPUV ILPUY ILPYZ INTVY IPUVZ LNPUZ LPWYZ FLPUW FLPUX FLPVY FLUYZ FPTUY LNPWY LNUWY LPTUX LPTWY LPUVW LUVYZ NPUVY PVWYZ","6":"INPVWY ILNPUZ ILPVYZ ILUVYZ ILPTUX FLNPTU ILPTWY FNPUVY IPTVWZ FLPUWY LNPTWZ FIPTUV FLNPVZ FLPVWY ILNUVX INPTVZ IPUVYZ LTVWYZ FILPTV FINPVY FITUWY FLNUVW FLUVYZ ILNPTZ ILNUVY INPTUZ LNPTUV LNPUXY LPTWYZ PTUVWY","7":"ILNPUVY INPVWYZ FINPUVZ FILNPTV FLNPVYZ ILNPTWZ FLPUVYZ ILNPVWY FILNVWZ ILPUWXY FILPUYZ LNPUVWZ FLPTUXY ILPTUVW LPUVWXY FLNPUVW LNPUVWY FILNUYZ FLNPTYZ FLTVWYZ ILPTVWX INTUWYZ FILNPVW FINTVWY FLNPUVX FLPTVWX FNPUVWY INTVWYZ LNPUVXY NPUVXYZ","8":"ILNPUVYZ FINPTUVY FILNPTVW ILPUVWYZ ILNPTUWY FILPTUWY ILNPTVWZ FINPTUWY ILPTVWYZ INPTUWYZ FILUVXYZ FLPUVWYZ NPTUVWYZ ILNPTWYZ FILTVWYZ ILPTUWXY FLNPTVWX LNPTVWXY FILPUVWX FLNPUVXY FILNPUXZ FLNUVWYZ LNPUVXYZ FILPVWXY FLPUVWXY LNPTUVXZ FILTUXYZ FLUVWXYZ ILPTVXYZ LPTVWXYZ","10":"FILNPTUVWX FILNPTUVWZ FILNPTUVYZ FILNPTUXYZ FILNPTVWYZ FILNPUVWXY FILNPUVXYZ FILPTUVWXY FINPTUVWYZ FLNPTUVWXY FLNPTUVXYZ ILNPTUVWYZ FILPTUWXYZ FILPTUVXYZ FLNPUVWXYZ FILNPTUVXZ ILNPTVWXYZ FLPTUVWXYZ FLNPTUWXYZ ILNPTUVWXZ FILNPUVWXZ FILNPTVWXZ FILPTUVWXZ FINPTUVWXY FILNTVWXYZ INPTUVWXYZ FILNTUWXYZ FINTUVWXYZ FILTUVWXYZ FNPTUVWXYZ","12":"FILNPTUVWXYZ"};
+const PENTO={
+  cells(k){const o=[];PENTO_SH[k].forEach((r,i)=>[...r].forEach((ch,j)=>{if(ch==='#')o.push([i,j])}));return o},
+  norm(cs){const r0=Math.min(...cs.map(p=>p[0])),c0=Math.min(...cs.map(p=>p[1]));return cs.map(([r,c])=>[r-r0,c-c0]).sort((a,b)=>a[0]-b[0]||a[1]-b[1])},
+  rot(cs){return PENTO.norm(cs.map(([r,c])=>[c,-r]))},          /* clockwise */
+  flip(cs){return PENTO.norm(cs.map(([r,c])=>[r,-c]))},
+  dims(cs){return[Math.max(...cs.map(p=>p[0]))+1,Math.max(...cs.map(p=>p[1]))+1]},
+  /* table layout (in cell units) that gives the biggest cells for the space aw×ah */
+  layout(N,aw,ah){
+    let best=null;
+    for(const[bw,bh]of[[N,5],[5,N]])for(const sc of[.42,.5,.6,.7])for(let k=1;k<=N;k++){
+      const s=5*sc+.35,rows=Math.ceil(N/k),gap=.6;
+      for(const side of[0,1]){
+        const W=side?bw+gap+k*s:Math.max(bw,k*s),H=side?Math.max(bh,rows*s):bh+gap+rows*s;
+        const px=Math.min(aw/W,ah/H),v=Math.min(px,70)*Math.sqrt(sc);
+        if(!best||v>best.v)best={v,px,W,H,bw,bh,sc,s,k,side,gap};
+      }
+    }
+    const b=best;b.bx=b.side?0:(b.W-b.bw)/2;b.by=b.side?(b.H-b.bh)/2:0;
+    b.tx=b.side?b.bw+b.gap:(b.W-b.k*b.s)/2;b.ty=b.side?(b.H-Math.ceil(N/b.k)*b.s)/2:b.bh+b.gap;
+    return b;
+  }
+};
+
+function pento(root,S){
+  const L=S.level,N=PENTO_N[L-1],list=PENTO_SETS[N].split(' ');
+  const key='pento:i'+N;let idx=(store.get(key)||0)%list.length;
+  const st=status(root,'Drag every piece into the box until it is full. Tap a piece to turn it, Flip to mirror it.');
+  const bar=el('div','row mbar pn-bar',root,`<span>Puzzle <b>${idx+1}</b>/${list.length}</span><span class="pn-t">⏱ <b>0:00</b></span><span class="pn-b">Best <b>–</b></span>`);
+  const tEl=$('.pn-t b',bar),bEl=$('.pn-b b',bar);
+  const g=el('div','pn-table',root);
+  const btns=el('div','row pn-btns',root);
+  const bRot=el('button','btn ghost',btns,'⟳ Turn'),bFlip=el('button','btn ghost',btns,'⇋ Flip'),bNext=el('button','btn',btns,'Next ▸');
+  bNext.setAttribute('aria-label','Next puzzle');
+  /* lay out for the space left once the other rows are in */
+  const gap=parseFloat(getComputedStyle(root).rowGap)||0;let used=20;
+  for(const ch of root.children)if(ch!==g&&getComputedStyle(ch).display!=='none')used+=ch.offsetHeight+gap;
+  const lay=PENTO.layout(N,Math.max(200,root.clientWidth-(COMPACT.matches?2:8)),Math.max(200,root.clientHeight-used));
+  const{W,H,bw,bh,bx,by,sc,s}=lay;
+  g.dataset.ar=W/H;g.dataset.max=Math.round(W*64);g.style.setProperty('--u',100/W+'cqw');g.style.aspectRatio=W/H;
+  const fmt=t=>Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+  const bk='best:pento'+N,b0=store.get(bk);if(b0!=null)bEl.textContent=fmt(b0);
+  const tray=el('div','pn-tray',g),tr=Math.ceil(N/lay.k);tray.style.cssText=`left:calc(var(--u)*${lay.tx-.15});top:calc(var(--u)*${lay.ty-.15});width:calc(var(--u)*${lay.k*s+.3});height:calc(var(--u)*${tr*s+.3})`;
+  const box=el('div','pn-box',g);box.style.cssText=`left:calc(var(--u)*${bx});top:calc(var(--u)*${by});width:calc(var(--u)*${bw});height:calc(var(--u)*${bh});grid-template-columns:repeat(${bw},1fr)`;
+  const bc=[...Array(bw*bh)].map((_,i)=>{const e=el('div','pn-c',box);e.style.animationDelay=Math.min(((i/bw|0)+i%bw)*25,400)+'ms';return e});
+  const occ=Array(bw*bh).fill(-1);
+  const letters=shuffle(list[idx].split(''));
+  const P=letters.map((k,id)=>{
+    let cs=PENTO.norm(PENTO.cells(k));for(let n=rand(4);n--;)cs=PENTO.rot(cs);if(rand(2))cs=PENTO.flip(cs);
+    const e=el('div','pn-p',g);e.style.setProperty('--pc',PENTO_COL[k]);e.setAttribute('aria-label','Piece '+k);
+    return{id,k,cs,at:null,e,home:id};
+  });
+  let sel=null,drag=null,t0=0,secs=0,over=false;
+  const slotXY=h=>{const r=Math.floor(h/lay.k),c=h%lay.k;return[lay.tx+c*s,lay.ty+r*s]};
+  function render(p,x,y,scale){
+    const[h,w]=PENTO.dims(p.cs);
+    if(x==null){
+      if(p.at){x=bx+p.at[1];y=by+p.at[0];scale=1}
+      else{const[sx,sy]=slotXY(p.home);scale=sc;x=sx+(s-w*sc)/2;y=sy+(s-h*sc)/2}
+    }
+    p.x=x;p.y=y;p.sc=scale;
+    const e=p.e;e.style.left=`calc(var(--u)*${x})`;e.style.top=`calc(var(--u)*${y})`;
+    e.style.width=`calc(var(--u)*${w*scale})`;e.style.height=`calc(var(--u)*${h*scale})`;
+    const kids=e.children;
+    p.cs.forEach(([r,c],i)=>{const q=kids[i]||el('i',null,e);q.style.cssText=`left:${c/w*100}%;top:${r/h*100}%;width:${100/w}%;height:${100/h}%`});
+    e.classList.toggle('on',p.at!=null);e.classList.toggle('sel',sel===p);
+  }
+  function fits(cs,r,c,id){for(const[dr,dc]of cs){const R=r+dr,C=c+dc;if(R<0||C<0||R>=bh||C>=bw)return false;const o=occ[R*bw+C];if(o>=0&&o!==id)return false}return true}
+  function lift(p){if(!p.at)return;for(const[dr,dc]of p.cs)occ[(p.at[0]+dr)*bw+p.at[1]+dc]=-1;p.at=null}
+  function put(p,r,c){p.at=[r,c];for(const[dr,dc]of p.cs)occ[(r+dr)*bw+c+dc]=p.id}
+  function paintBox(gh){
+    bc.forEach((e,i)=>{e.classList.toggle('gh',!!gh&&gh.ok&&gh.at.has(i));e.classList.toggle('bad',!!gh&&!gh.ok&&gh.at.has(i))});
+  }
+  function startClock(){if(!t0&&!over){t0=performance.now();restartAnim(tEl.parentNode,'bump')}}
+  S.every(250,()=>{if(t0&&!over){const n=Math.floor((performance.now()-t0)/1000);if(n!==secs){secs=n;tEl.textContent=fmt(secs)}}});
+  function check(){
+    if(occ.every(v=>v>=0)){
+      over=true;secs=Math.max(1,Math.round((performance.now()-t0)/1000));tEl.textContent=fmt(secs);
+      const nb=best('pento'+N,secs,true);if(nb)bEl.textContent=fmt(secs);
+      store.set(key,(idx+1)%list.length);best('pento',(store.get('best:pento')||0)+1);
+      P.forEach(q=>{q.e.classList.remove('spin','snap');q.e.style.animationDelay=q.id*60+'ms'});g.classList.add('won');sel=null;P.forEach(q=>render(q));
+      st(`Box filled in ${fmt(secs)}!${nb?' New best!':''} Tap Next for another.`);
+      bNext.classList.add('go');S.next();
+    }
+  }
+  /* turn or flip a piece; on the board it stays put if it still fits, otherwise it goes back to the tray */
+  function morph(p,f){
+    if(over)return;startClock();
+    const[h,w]=PENTO.dims(p.cs),ncs=f(p.cs),[h2,w2]=PENTO.dims(ncs);
+    if(p.at){
+      const[r,c]=p.at;lift(p);p.cs=ncs;
+      const r0=Math.round(r+(h-h2)/2),c0=Math.round(c+(w-w2)/2);
+      const spot=[[0,0],[0,-1],[-1,0],[0,1],[1,0],[-1,-1],[1,1],[-1,1],[1,-1]].map(([a,b])=>[r0+a,c0+b]).find(([R,C])=>fits(ncs,R,C,p.id));
+      if(spot)put(p,spot[0],spot[1]);
+    }else p.cs=ncs;
+    sel=p;P.forEach(q=>render(q));p.e.style.animationDelay='';restartAnim(p.e,'spin');beep(p.at?560:480,40);check();
+  }
+  const pt=e=>{const b=g.getBoundingClientRect();return[(e.clientX-b.left)/b.width*W,(e.clientY-b.top)/b.height*H]};
+  for(const p of P){
+    render(p);p.e.style.animationDelay=p.id*50+'ms';
+    S.on(p.e,'pointerdown',e=>{
+      if(over||drag)return;e.preventDefault();p.e.setPointerCapture(e.pointerId);
+      const[x,y]=pt(e),[h,w]=PENTO.dims(p.cs);   /* grab point in the piece's own cells (layout, not the animated box) */
+      drag={p,id:e.pointerId,x0:e.clientX,y0:e.clientY,moved:false,gx:clamp((x-p.x)/p.sc,0,w),gy:clamp((y-p.y)/p.sc,0,h),lift:e.pointerType==='mouse'?0:.9,spot:null};
+    });
+    S.on(p.e,'pointermove',e=>{
+      if(!drag||drag.p!==p||e.pointerId!==drag.id)return;
+      if(!drag.moved){if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<7)return;drag.moved=true;lift(p);sel=p;P.forEach(q=>render(q));p.e.classList.add('drag');startClock();beep(420,30)}
+      const[x,y]=pt(e),X=x-drag.gx,Y=y-drag.gy-drag.lift;render(p,X,Y,1);
+      const r=Math.round(Y-by),c=Math.round(X-bx),[h,w]=PENTO.dims(p.cs);
+      const near=r>-1.6&&c>-1.6&&r+h<bh+1.6&&c+w<bw+1.6;
+      if(near){const ok=fits(p.cs,r,c,p.id),at=new Set(p.cs.map(([dr,dc])=>(r+dr)*bw+c+dc).filter((i,n)=>{const R=r+p.cs[n][0],C=c+p.cs[n][1];return R>=0&&C>=0&&R<bh&&C<bw}));drag.spot=ok?[r,c]:null;paintBox({ok,at})}
+      else{drag.spot=null;paintBox(null)}
+    });
+    const up=e=>{
+      if(!drag||drag.p!==p||e.pointerId!==drag.id)return;const d=drag;drag=null;p.e.classList.remove('drag');paintBox(null);
+      if(!d.moved){if(e.type==='pointerup')morph(p,PENTO.rot);return}
+      if(d.spot){put(p,d.spot[0],d.spot[1]);beep(660,60);S.after(60,()=>beep(880,50));p.e.style.animationDelay='';restartAnim(p.e,'snap')}
+      else beep(260,60,'square');
+      P.forEach(q=>render(q));check();
+    };
+    S.on(p.e,'pointerup',up);S.on(p.e,'pointercancel',up);
+    S.on(p.e,'contextmenu',e=>{e.preventDefault();morph(p,PENTO.flip)});
+  }
+  const need=()=>{if(!sel){st('Tap a piece first, then Turn or Flip it.');S.fx.toast('Pick a piece first');return false}return true};
+  S.on(bRot,'click',()=>{if(need())morph(sel,PENTO.rot)});
+  S.on(bFlip,'click',()=>{if(need())morph(sel,PENTO.flip)});
+  S.on(bNext,'click',()=>{if(!over)store.set(key,(idx+1)%list.length);S.restart()});
+  /* the engine's fit() leaves a few px of overflow with several rows around the board: trim the board to fit */
+  const trim=()=>{if(!g.isConnected)return;const o=root.scrollHeight-root.clientHeight;if(o>0&&g.offsetWidth>200)g.style.width=Math.max(180,g.offsetWidth-Math.ceil(o*(+g.dataset.ar)))+'px'};
+  S.on(window,'resize',()=>S.after(30,trim));S.after(60,trim);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>S.after(60,trim));
+  S.on(window,'keydown',e=>{
+    const k=e.key.toLowerCase();
+    if(k==='r'&&sel)morph(sel,PENTO.rot);else if(k==='f'&&sel)morph(sel,PENTO.flip);
+    else if(k==='n'){bNext.click()}
+    else if(k==='tab'){e.preventDefault();sel=sel?P[(sel.id+(e.shiftKey?P.length-1:1))%P.length]:P[0];P.forEach(q=>render(q))}
+  });
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -6698,11 +7090,13 @@ const GAMES=[
   {id:'pyramid',name:'Ball Pyramid',icon:'🔺',blurb:'Stack balls into a pyramid and save yours to place the top one.',help:'Tap a glowing spot to place a ball, or tap one of your free balls and then a gold spot to move it up. Make a 2×2 square of your color to take 1 or 2 balls back. Pick Easy, Medium, Hard, or 2 Players at the top.',mount:pyramid,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'squadro',name:'Shuttle Race',icon:'🏁',blurb:'Race 5 shuttles across the board and back, jumping your rival.',help:'Tap a piece to move it. Dots on the board edge show its speed going out and coming back. Jump over enemy pieces to send them back. Bring 4 of 5 home first. Keys 1–5 move a piece.',mount:squadro,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'quantik',name:'Shape Grid',icon:'🔷',blurb:'Place shapes and be first to fill a line with all four kinds.',help:'Pick a shape from your tray, then tap a glowing square (or use 1–4, arrows and Enter). You can\'t place a shape where the other side already has that shape in the row, column or 2×2 zone. Complete a row, column or zone with 4 different shapes to win.',mount:quantik,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
-  {id:'qawale',name:'Stone Sow',icon:'🪨',blurb:'Stack, sow and line up four stones of your colour on top.',help:'Tap a stack to add your stone, then tap glowing squares one by one to sow the whole stack, bottom stone first (arrow keys work too, Undo or Backspace steps back). Get 4 of your colour on top in a row, column or diagonal.',mount:qawale,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true}
+  {id:'qawale',name:'Stone Sow',icon:'🪨',blurb:'Stack, sow and line up four stones of your colour on top.',help:'Tap a stack to add your stone, then tap glowing squares one by one to sow the whole stack, bottom stone first (arrow keys work too, Undo or Backspace steps back). Get 4 of your colour on top in a row, column or diagonal.',mount:qawale,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'walls',name:'Wall Race',icon:'🧱',blurb:'Race to the far side and block your rival with walls.',help:'Tap a glowing square to move your pawn, or tap a gap between squares to preview a wall, then tap ✓ Place (tap the same gap again or ⟲ Turn to rotate it). Pick Easy, Medium, Hard, or 2 Players at the top.',mount:walls,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
+  {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle'};
 const CATS={'snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
