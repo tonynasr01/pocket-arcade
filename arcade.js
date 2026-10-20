@@ -2398,7 +2398,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -5119,6 +5119,348 @@ function CLASH_mount(root,S,FLIP){
 
 function clashflip(root,S){CLASH_mount(root,S,true)}
 
+/* Rug Market engine. Cells are r*7+c on a 7x7 square. Directions 0 up, 1 right, 2 down, 3 left.
+   Leaving the board the merchant follows the border loops: pairs of neighbouring rows/columns are joined by
+   U-turns, and the top-right and bottom-left corners have a corner loop that turns him 90 degrees on the spot. */
+const RUGS_DIE=[1,2,2,3,3,4];
+const RUGS_DR=[-1,0,1,0],RUGS_DC=[0,1,0,-1];
+const RUGS_E=(()=>{
+  const N=7,id=(r,c)=>r*N+c;
+  /* one square forward; loop: 0 inside, 1 U-turn into the neighbouring line, 2 corner loop */
+  function step(r,c,d){
+    const nr=r+RUGS_DR[d],nc=c+RUGS_DC[d];
+    if(nr>=0&&nr<N&&nc>=0&&nc<N)return{r:nr,c:nc,d,loop:0};
+    if(d===0)return c===6?{r,c,d:3,loop:2}:{r,c:c^1,d:2,loop:1};
+    if(d===1)return r===0?{r,c,d:2,loop:2}:{r:r%2?r+1:r-1,c,d:3,loop:1};
+    if(d===2)return c===0?{r,c,d:1,loop:2}:{r,c:c%2?c+1:c-1,d:0,loop:1};
+    return r===6?{r,c,d:0,loop:2}:{r:r^1,c,d:1,loop:1};
+  }
+  function walk(m,k){const out=[];let cur={r:m.r,c:m.c,d:m.d};for(let i=0;i<k;i++){const n=step(cur.r,cur.c,cur.d);out.push({from:cur,to:n});cur=n}return{end:{r:cur.r,c:cur.c,d:cur.d},steps:out}}
+  function nb(i){const r=i/N|0,c=i%N,o=[];if(r>0)o.push(i-N);if(r<N-1)o.push(i+N);if(c>0)o.push(i-1);if(c<N-1)o.push(i+1);return o}
+  const ownerAt=(s,i)=>s.top[i]<0?-1:s.rugs[s.top[i]].p;
+  function area(s,i){
+    const o=ownerAt(s,i);if(o<0)return[];const seen=new Set([i]),q=[i];
+    while(q.length){const a=q.pop();for(const b of nb(a))if(!seen.has(b)&&ownerAt(s,b)===o){seen.add(b);q.push(b)}}
+    return[...seen];
+  }
+  /* toll player p pays when the merchant stops on cell i */
+  function toll(s,p,i){const o=ownerAt(s,i);if(o<0||o===p||s.out[o])return{o:-1,n:0,cells:[]};const cells=area(s,i);return{o,n:Math.min(cells.length,s.coins[p]),cells}}
+  function legal(s){
+    const M=id(s.m.r,s.m.c),seen=new Set(),out=[];
+    for(const a of nb(M))for(const b of nb(a)){
+      if(b===M)continue;const k=Math.min(a,b)*64+Math.max(a,b);if(seen.has(k))continue;seen.add(k);
+      if(s.top[a]>=0&&s.top[a]===s.top[b])continue;out.push([Math.min(a,b),Math.max(a,b)]);
+    }
+    return out;
+  }
+  function isLegal(s,a,b){return legal(s).some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))}
+  function start(np){
+    const n=np===2||np===4?12:15;
+    return{np,top:Array(N*N).fill(-1),rugs:[],m:{r:3,c:3,d:0},coins:Array(np).fill(30),left:Array(np).fill(n),out:Array(np).fill(false)};
+  }
+  function place(s,p,a,b){const k=s.rugs.length;s.rugs.push({p,a,b});s.top[a]=s.top[b]=k;s.left[p]--;return k}
+  function visible(s){const v=Array(s.np).fill(0);for(let i=0;i<N*N;i++){const o=ownerAt(s,i);if(o>=0)v[o]++}return v}
+  function scores(s){const v=visible(s);return s.coins.map((c,p)=>s.out[p]?-1:c+v[p])}
+  /* per player: visible squares and sum of squared region sizes (big connected regions earn big tolls) */
+  function stats(top,rugs,np){
+    const vis=Array(np).fill(0),sq=Array(np).fill(0),seen=new Uint8Array(N*N),own=i=>top[i]<0?-1:rugs[top[i]].p;
+    for(let i=0;i<N*N;i++){const o=own(i);if(o<0||seen[i])continue;let n=0;const q=[i];seen[i]=1;
+      while(q.length){const a=q.pop();n++;for(const b of nb(a))if(!seen[b]&&own(b)===o){seen[b]=1;q.push(b)}}
+      vis[o]+=n;sq[o]+=n*n}
+    return{vis,sq};
+  }
+  function value(s,top,p){
+    const{vis,sq}=stats(top,s.rugs.concat([{p}]),s.np);let v=0,opp=0;
+    for(let q=0;q<s.np;q++)if(q!==p&&!s.out[q])opp++;
+    for(let q=0;q<s.np;q++){if(s.out[q]&&q!==p)continue;const t=vis[q]+.12*sq[q];v+=q===p?t:-t*(opp>1?.75:1)}
+    return v;
+  }
+  /* best rug for p from here: score = board value after placing */
+  function bestPlace(s,p){
+    const L=legal(s),k=s.rugs.length;let best=null,bv=-1e9;
+    for(const [a,b] of L){const top=s.top.slice();top[a]=top[b]=k;const v=value(s,top,p)+Math.random()*.01;if(v>bv){bv=v;best=[a,b]}}
+    return{pl:best,v:bv};
+  }
+  /* choose a turn (-1 left, 0 straight, 1 right) by expected toll over the die, plus how good the rug spots there are */
+  function bestDir(s,p){
+    const base=value(s,s.top,p);let best=0,bv=1e9;
+    for(const off of [0,-1,1]){
+      const d=(s.m.d+off+4)%4;let e=0;
+      for(const k of RUGS_DIE){
+        const end=walk({r:s.m.r,c:s.m.c,d},k).end,t=toll(s,p,id(end.r,end.c));
+        const ns={...s,m:end};const gain=t.n>=s.coins[p]?-30:bestPlace(ns,p).v-base;
+        e+=(t.n*1.3-.35*gain)/6;
+      }
+      e+=Math.random()*.05;if(e<bv){bv=e;best=off}
+    }
+    return best;
+  }
+  return{N,id,step,walk,nb,ownerAt,area,toll,legal,isLegal,start,place,visible,scores,bestPlace,bestDir};
+})();
+
+function rugmarket(root,S){
+  const L=S.level,TWO=L===4,NP=TWO?2:L+1,E=RUGS_E,N=7;
+  const NAMES=TWO?['Red','Blue']:['You','Blue','Teal','Orange'].slice(0,NP);
+  const isAI=p=>!TWO&&p>0;
+  const st=status(root,TWO?'Two players. Turn the merchant, roll, pay for landing on rival rugs, then lay a rug next to him. Most coins plus visible rug squares wins.':'Turn the merchant, roll and move. Landing on a rival rug costs a coin per square of that patch. Then lay a rug next to him. Coins plus visible squares wins.');
+  const W=360,PH=58,MG=24,CS=(W-2*MG)/N,BOT=78,H0=PH+2*MG+N*CS+BOT,H=tall(W,H0,H0+56,64);
+  const{c,x}=canvas(root,W,H);c.classList.add('rg-cv');c.dataset.max=640;
+  const BX=MG,BY=PH+MG+Math.round((H-H0)*.45),DY=H-BOT/2-2;
+  const row=el('div','row rg-row',root);
+  const bL=el('button','btn ghost rg-dir',row,'⟲'),bU=el('button','btn ghost rg-dir',row,'↑'),bR=el('button','btn ghost rg-dir',row,'⟳');
+  const bRoll=el('button','btn rg-roll',row,'🎲 Roll'),bTurn=el('button','btn ghost rg-turn',row,'⟳ Turn'),bPlace=el('button','btn rg-place',row,'✓ Place');
+  bL.title='Turn left';bU.title='Straight on';bR.title='Turn right';bL.setAttribute('aria-label','Turn left');bU.setAttribute('aria-label','Straight on');bR.setAttribute('aria-label','Turn right');
+  const BODY=(cssv('--body')||'sans-serif');
+  let K=pal(),COL=[];const setCol=()=>{K=pal();COL=TWO?[K.c1,K.c4]:[K.c1,K.c4,K.c3,K.c6]};setCol();
+  let s=E.start(NP),cur=0,phase='wait',off=0,baseD=0,legalL=[],sel=-1,prev=null,kbI=-1,over=false,res=null;
+  let die={v:1,spin:0,rot:0,show:false},flash={cells:[],t:0},floats=[],pop=null,hint='',frame=0;
+  let mx=0,my=0,mang=0,mTarget=0;
+  const cx=i=>BX+(i%N+.5)*CS,cy=i=>BY+((i/N|0)+.5)*CS,M=()=>E.id(s.m.r,s.m.c);
+  mx=cx(M());my=cy(M());mang=mTarget=-Math.PI/2;
+  const tw=[];const tween=(ms,f)=>new Promise(r=>tw.push({t:0,ms,f,r}));
+  const wait=ms=>new Promise(r=>S.after(ms,r));
+  const dirAng=d=>[-Math.PI/2,0,Math.PI/2,Math.PI][d];
+  function cost(p){/* expected toll for each landing 1..4 with the chosen facing */
+    const d=(baseD+off+4)%4,out=[];for(let k=1;k<=4;k++){const e=E.walk({r:s.m.r,c:s.m.c,d},k).end,i=E.id(e.r,e.c);out.push({k,i,t:E.toll(s,p,i)})}return out;
+  }
+  /* ---------- drawing ---------- */
+  function rugShape(a,b,col,alpha,sc){
+    const r1=Math.min(a,b),r2=Math.max(a,b),hor=r2-r1===1,X=BX+(r1%N)*CS,Y=BY+(r1/N|0)*CS,w=hor?2*CS:CS,h=hor?CS:2*CS,ins=2.5;
+    x.save();x.globalAlpha=alpha;
+    if(sc&&sc!==1){const ox=X+w/2,oy=Y+h/2;x.translate(ox,oy);x.scale(sc,sc);x.translate(-ox,-oy)}
+    x.shadowColor='rgba(0,0,0,.28)';x.shadowBlur=4;x.shadowOffsetY=1.5;
+    rr(x,X+ins,Y+ins,w-2*ins,h-2*ins,5);x.fillStyle=col;x.fill();x.shadowColor='transparent';
+    x.lineWidth=2;x.strokeStyle=K.edge;x.stroke();
+    /* border band */
+    rr(x,X+ins+4,Y+ins+4,w-2*ins-8,h-2*ins-8,3);x.lineWidth=2;x.strokeStyle='rgba(255,255,255,.6)';x.stroke();
+    rr(x,X+ins+7.5,Y+ins+7.5,w-2*ins-15,h-2*ins-15,2);x.lineWidth=1.2;x.strokeStyle='rgba(0,0,0,.25)';x.stroke();
+    /* diamonds */
+    for(const k of [0,1]){const qx=X+(hor?(k+.5)*CS:CS/2),qy=Y+(hor?CS/2:(k+.5)*CS),z=CS*.2;
+      x.beginPath();x.moveTo(qx,qy-z);x.lineTo(qx+z,qy);x.lineTo(qx,qy+z);x.lineTo(qx-z,qy);x.closePath();x.fillStyle='rgba(255,255,255,.55)';x.fill();
+      x.beginPath();x.moveTo(qx,qy-z*.45);x.lineTo(qx+z*.45,qy);x.lineTo(qx,qy+z*.45);x.lineTo(qx-z*.45,qy);x.closePath();x.fillStyle='rgba(0,0,0,.28)';x.fill()}
+    if(hor){x.beginPath();x.moveTo(X+CS,Y+ins+9);x.lineTo(X+CS,Y+h-ins-9);x.setLineDash([2,3]);x.lineWidth=1.2;x.strokeStyle='rgba(255,255,255,.45)';x.stroke();x.setLineDash([])}
+    else{x.beginPath();x.moveTo(X+ins+9,Y+CS);x.lineTo(X+w-ins-9,Y+CS);x.setLineDash([2,3]);x.lineWidth=1.2;x.strokeStyle='rgba(255,255,255,.45)';x.stroke();x.setLineDash([])}
+    /* fringe on the short ends */
+    x.lineWidth=1.3;x.strokeStyle='rgba(255,255,255,.75)';x.beginPath();
+    for(let k=0;k<5;k++){const t=.25+k*.125;if(hor){const yy=Y+h*t;x.moveTo(X+ins,yy);x.lineTo(X+ins+2.5,yy);x.moveTo(X+w-ins,yy);x.lineTo(X+w-ins-2.5,yy)}else{const xx=X+w*t;x.moveTo(xx,Y+ins);x.lineTo(xx,Y+ins+2.5);x.moveTo(xx,Y+h-ins);x.lineTo(xx,Y+h-ins-2.5)}}
+    x.stroke();x.restore();
+  }
+  function loops(){
+    x.lineWidth=4;x.strokeStyle=K.muted;x.globalAlpha=.45;const h=CS/2,R=BX+N*CS,B=BY+N*CS;
+    const arcs=[];
+    for(const c0 of [0,2,4])arcs.push([BX+(c0+1)*CS,BY,Math.PI,0]);           // top: columns 0-1,2-3,4-5
+    for(const c0 of [1,3,5])arcs.push([BX+(c0+1)*CS,B,0,Math.PI]);            // bottom: 1-2,3-4,5-6
+    for(const r0 of [1,3,5])arcs.push([R,BY+(r0+1)*CS,-Math.PI/2,Math.PI/2]); // right: rows 1-2,3-4,5-6
+    for(const r0 of [0,2,4])arcs.push([BX,BY+(r0+1)*CS,Math.PI/2,Math.PI*1.5]);// left: 0-1,2-3,4-5
+    for(const [ax,ay,a0,a1] of arcs){x.beginPath();x.arc(ax,ay,h*.8,a0,a1);x.stroke()}
+    x.beginPath();x.arc(R,BY,h*.8,Math.PI,Math.PI/2,false);x.stroke();
+    x.beginPath();x.arc(BX,B,h*.8,0,Math.PI*1.5,false);x.stroke();x.globalAlpha=1;
+  }
+  function merchant(){
+    const r=CS*.32;x.save();x.translate(mx,my);x.rotate(mang);
+    x.shadowColor='rgba(0,0,0,.35)';x.shadowBlur=6;x.shadowOffsetY=2;
+    x.beginPath();x.moveTo(r*1.55,0);x.lineTo(r*.35,-r*.95);x.arc(0,0,r,-1.24,1.24,true);x.closePath();
+    x.fillStyle='#3A2A22';x.fill();x.shadowColor='transparent';x.lineWidth=2.5;x.strokeStyle='#FFC53D';x.stroke();
+    x.beginPath();x.arc(0,0,r*.5,0,7);x.fillStyle='#E63946';x.fill();x.lineWidth=1.5;x.strokeStyle='#FFF4D6';x.stroke();
+    x.beginPath();x.moveTo(r*.9,0);x.lineTo(r*.6,-r*.22);x.lineTo(r*.6,r*.22);x.closePath();x.fillStyle='#FFF4D6';x.fill();
+    x.restore();
+  }
+  function coin(X,Y,r){x.beginPath();x.arc(X,Y,r,0,7);x.fillStyle='#FFC53D';x.fill();x.lineWidth=1.5;x.strokeStyle='#B07A00';x.stroke();x.beginPath();x.arc(X,Y,r*.5,0,7);x.strokeStyle='rgba(176,122,0,.6)';x.lineWidth=1;x.stroke()}
+  function panel(){
+    const g=6,w=(W-g*(NP+1))/NP;const sc=res&&res.sc;
+    for(let p=0;p<NP;p++){
+      const X=g+p*(w+g),Y=6,on=!over&&p===cur,hh=PH-12;x.save();if(s.out[p])x.globalAlpha=.4;
+      rr(x,X,Y+(on?0:2),w,hh,10);x.fillStyle=K.board;x.fill();
+      if(on){x.save();x.globalAlpha=.28;x.fillStyle=COL[p];x.fill();x.restore()}
+      x.lineWidth=on?3:2;x.strokeStyle=on?K.edge:K.line;x.stroke();
+      rr(x,X+6,Y+(on?0:2)+7,14,10,2);x.fillStyle=COL[p];x.fill();x.lineWidth=1.5;x.strokeStyle=K.edge;x.stroke();
+      x.fillStyle=K.ink;x.font=`900 ${NP>3?11:12.5}px ${BODY}`;x.textAlign='left';x.textBaseline='middle';
+      let nm=NAMES[p];if(res&&res.win.includes(p))nm='👑 '+nm;x.fillText(nm,X+24,Y+(on?0:2)+12.5,w-28);
+      const y2=Y+(on?0:2)+32;coin(X+12,y2,6);x.font=`${NP>3?13:15}px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText(String(s.coins[p]),X+21,y2+1);
+      const tx=X+w*.58;
+      if(sc){x.font=`900 ${NP>3?11:12}px ${BODY}`;x.fillStyle=K.muted;x.fillText(s.out[p]?'out':'=',tx,y2+1);if(!s.out[p]){x.font=`${NP>3?13:15}px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText(String(sc[p]),tx+10,y2+1)}}
+      else if(s.out[p]){x.font=`900 12px ${BODY}`;x.fillStyle=K.c1;x.fillText('OUT',tx,y2+1)}
+      else{rr(x,tx,y2-4,10,8,1.5);x.fillStyle=COL[p];x.fill();x.lineWidth=1;x.strokeStyle=K.edge;x.stroke();x.font=`${NP>3?13:15}px ${DISPLAY}`;x.fillStyle=K.ink;x.fillText(String(s.left[p]),tx+13,y2+1)}
+      x.restore();
+    }
+  }
+  const PIPS={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]]};
+  function drawDie(){
+    const X=MG+26,Y=DY,z=40;x.save();x.translate(X,Y);x.rotate(die.rot);
+    rr(x,-z/2,-z/2,z,z,9);x.fillStyle=die.show?'#FFFDF5':K.board;x.fill();x.lineWidth=3;x.strokeStyle=K.edge;x.stroke();
+    if(die.show)for(const [a,b] of PIPS[die.v]){x.beginPath();x.arc(a*z*.24,b*z*.24,4.2,0,7);x.fillStyle='#1E1F5C';x.fill()}
+    else{x.fillStyle=K.muted;x.font=`16px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText('?',0,1)}
+    x.restore();
+    x.fillStyle=K.ink;x.font=`800 14px ${BODY}`;x.textAlign='left';x.textBaseline='middle';
+    const lines=String(hint).split('\n');lines.forEach((t,k)=>{x.fillStyle=k?K.muted:K.ink;x.font=`${k?700:800} ${k?12.5:14}px ${BODY}`;x.fillText(t,MG+58,Y+(k-(lines.length-1)/2)*18,W-MG-64)});
+  }
+  function draw(){
+    if(++frame%60===0)setCol();
+    x.clearRect(0,0,W,H);panel();
+    /* board */
+    rr(x,BX-3,BY-3,N*CS+6,N*CS+6,8);x.fillStyle=K.edge;x.fill();
+    for(let i=0;i<N*N;i++){x.fillStyle=((i%N)+(i/N|0))%2?'#EAD3A8':'#F3E2BF';x.fillRect(BX+(i%N)*CS,BY+(i/N|0)*CS,CS,CS)}
+    x.strokeStyle='rgba(120,80,40,.25)';x.lineWidth=1;x.beginPath();for(let k=1;k<N;k++){x.moveTo(BX+k*CS,BY);x.lineTo(BX+k*CS,BY+N*CS);x.moveTo(BX,BY+k*CS);x.lineTo(BX+N*CS,BY+k*CS)}x.stroke();
+    loops();
+    s.rugs.forEach((r,k)=>{if(s.top[r.a]!==k&&s.top[r.b]!==k)return;rugShape(r.a,r.b,COL[r.p],1,pop&&pop.k===k?pop.sc:1)});
+    /* payment flash */
+    if(flash.t>0){x.save();x.globalAlpha=Math.min(1,flash.t)*(.55+.35*Math.sin(frame*.3));x.lineWidth=3;x.strokeStyle='#FFC53D';x.fillStyle='rgba(255,197,61,.35)';for(const i of flash.cells){rr(x,BX+(i%N)*CS+2,BY+(i/N|0)*CS+2,CS-4,CS-4,5);x.fill();x.stroke()}x.restore()}
+    /* direction preview */
+    if(phase==='dir'&&!isAI(cur)){
+      for(const o of cost(cur)){const X=cx(o.i),Y=cy(o.i);if(o.i===M())continue;
+        x.beginPath();x.arc(X,Y,CS*.27,0,7);x.fillStyle=o.t.n?'rgba(230,57,70,.85)':'rgba(30,31,92,.55)';x.fill();x.lineWidth=2;x.strokeStyle='#FFF';x.stroke();
+        x.fillStyle='#FFF';x.font=`${o.t.n?11:13}px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.fillText(o.t.n?'−'+o.t.n:String(o.k),X,Y+1)}
+    }
+    /* placement hints */
+    if(phase==='place'&&!isAI(cur)){
+      const cand=new Set();legalL.forEach(([a,b])=>{cand.add(a);cand.add(b)});
+      const part=new Set();if(sel>=0)legalL.forEach(([a,b])=>{if(a===sel)part.add(b);if(b===sel)part.add(a)});
+      for(const i of cand){const X=BX+(i%N)*CS,Y=BY+(i/N|0)*CS;x.save();x.setLineDash([4,3]);x.lineWidth=2;x.strokeStyle=part.has(i)?K.edge:'rgba(30,31,92,.45)';rr(x,X+4,Y+4,CS-8,CS-8,6);x.stroke();x.restore();
+        if(part.has(i)){x.beginPath();x.arc(X+CS/2,Y+CS/2,4,0,7);x.fillStyle=K.edge;x.fill()}}
+    }
+    if(prev){const pulse=.75+.12*Math.sin(frame*.15);rugShape(prev[0],prev[1],COL[cur],pulse,1.04);
+      const a=prev[0],hor=prev[1]-a===1;x.save();x.setLineDash([6,4]);x.lineDashOffset=-frame*.4;x.lineWidth=3;x.strokeStyle=K.edge;rr(x,BX+(a%N)*CS,BY+(a/N|0)*CS,hor?2*CS:CS,hor?CS:2*CS,7);x.stroke();x.restore()}
+    merchant();
+    /* floating numbers */
+    floats=floats.filter(f=>(f.t-=1/60)>0);for(const f of floats){x.globalAlpha=Math.min(1,f.t*2);x.font=`22px ${DISPLAY}`;x.textAlign='center';x.textBaseline='middle';x.lineWidth=5;x.lineJoin='round';x.strokeStyle=K.edge;const yy=f.y-(1.4-f.t)*26;x.strokeText(f.s,f.x,yy);x.fillStyle=f.c;x.fillText(f.s,f.x,yy)}x.globalAlpha=1;
+    drawDie();
+  }
+  S.loop(dt=>{
+    for(let i=tw.length-1;i>=0;i--){const a=tw[i];a.t+=dt*1000;const k=Math.min(1,a.t/a.ms);a.f(k);if(k>=1){tw.splice(i,1);a.r()}}
+    if(flash.t>0)flash.t-=dt*.6;
+    let da=mTarget-mang;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;mang+=da*Math.min(1,dt*14);
+    draw();
+  });
+  /* ---------- movement path ---------- */
+  function pathOf(stp){
+    const a=E.id(stp.from.r,stp.from.c),b=E.id(stp.to.r,stp.to.c),A={x:cx(a),y:cy(a)},B={x:cx(b),y:cy(b)},h=CS/2;
+    if(!stp.to.loop)return[A,B];
+    const o1={x:RUGS_DC[stp.from.d],y:RUGS_DR[stp.from.d]},pts=[A];
+    if(stp.to.loop===1){
+      const Mx=(A.x+B.x)/2+o1.x*h,My=(A.y+B.y)/2+o1.y*h,a0=Math.atan2(A.y+o1.y*h-My,A.x+o1.x*h-Mx);
+      const sg=(Math.cos(a0+Math.PI/2)*o1.x+Math.sin(a0+Math.PI/2)*o1.y)>0?1:-1;
+      for(let k=0;k<=16;k++){const t=a0+sg*Math.PI*k/16;pts.push({x:Mx+Math.cos(t)*h,y:My+Math.sin(t)*h})}
+    }else{
+      const o2={x:-RUGS_DC[stp.to.d],y:-RUGS_DR[stp.to.d]},Kx=A.x+(o1.x+o2.x)*h,Ky=A.y+(o1.y+o2.y)*h,a0=Math.atan2(A.y+o1.y*h-Ky,A.x+o1.x*h-Kx);
+      const a1=Math.atan2(A.y+o2.y*h-Ky,A.x+o2.x*h-Kx);let sw=a1-a0;while(sw<=0)sw+=2*Math.PI;if(Math.abs(sw-1.5*Math.PI)>.1)sw-=2*Math.PI;
+      for(let k=0;k<=24;k++){const t=a0+sw*k/24;pts.push({x:Kx+Math.cos(t)*h,y:Ky+Math.sin(t)*h})}
+    }
+    pts.push(B);return pts;
+  }
+  async function animStep(stp){
+    const pts=pathOf(stp),seg=[];let tot=0;for(let i=1;i<pts.length;i++){const l=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);seg.push(l);tot+=l}
+    beep(stp.to.loop?520:440,50);
+    await tween(stp.to.loop?(REDUCED?120:420):(REDUCED?80:230),k=>{
+      const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;let d=e*tot,i=0;while(i<seg.length-1&&d>seg[i]){d-=seg[i];i++}
+      const t=seg[i]?d/seg[i]:1,P=pts[i],Q=pts[i+1];mx=P.x+(Q.x-P.x)*t;my=P.y+(Q.y-P.y)*t;if(seg[i]>.5)mTarget=Math.atan2(Q.y-P.y,Q.x-P.x);
+    });
+    mTarget=dirAng(stp.to.d);
+  }
+  /* ---------- turn flow ---------- */
+  function ui(){
+    const human=!over&&!isAI(cur)&&(phase==='dir'||phase==='place'),dirP=human&&phase==='dir',plP=human&&phase==='place';
+    [bL,bU,bR,bRoll].forEach(b=>{b.style.display=plP?'none':'';b.disabled=!dirP});
+    [bTurn,bPlace].forEach(b=>b.style.display=plP?'':'none');
+    bPlace.disabled=!prev;bTurn.disabled=!prev||cands(sel).length<2;
+    [[bL,-1],[bU,0],[bR,1]].forEach(([b,o])=>b.classList.toggle('rg-on',dirP&&off===o));
+    bRoll.classList.toggle('rg-go',dirP);
+  }
+  const cands=i=>i<0?[]:legalL.filter(([a,b])=>a===i||b===i);
+  const active=()=>[...Array(NP).keys()].filter(p=>!s.out[p]);
+  function setOff(o){if(phase!=='dir'||isAI(cur)&&!aiBusy)return;off=o;mTarget=dirAng((baseD+off+4)%4);beep(600+o*80,40);if(!isAI(cur))dirHint();ui()}
+  function dirHint(){
+    const cs=cost(cur),e=cs.reduce((a,o)=>a+o.t.n*(o.k===2||o.k===3?2:1),0)/6;
+    hint=(TWO?NAMES[cur]+': p':'P')+'ick a direction, then Roll\n'+(e>0?`Expected toll ${e.toFixed(1)} coin${e>=.95&&e<1.05?'':'s'}`:'No toll risk this way');
+  }
+  let aiBusy=false;
+  function startTurn(){
+    if(over)return;
+    const act=active();
+    if((!TWO&&s.out[0])||act.length<=1||act.every(p=>s.left[p]===0)){finish();return}
+    let guard=0;while((s.out[cur]||s.left[cur]===0)&&guard++<NP)cur=(cur+1)%NP;
+    baseD=s.m.d;off=0;phase='dir';prev=null;sel=-1;die.show=false;
+    if(isAI(cur)){hint=`${NAMES[cur]} is thinking…`;ui();aiTurn();return}
+    dirHint();st(TWO?`Your turn, ${NAMES[cur]}: turn the merchant if you like, then roll.`:'Your turn: turn the merchant if you like, then roll.');ui();
+  }
+  async function aiTurn(){
+    aiBusy=true;await wait(500);const o=E.bestDir(s,cur);
+    if(o!==0){setOff(o);await wait(450)}
+    aiBusy=false;await roll();
+  }
+  async function roll(){
+    if(phase!=='dir')return;phase='anim';ui();s.m.d=(baseD+off+4)%4;
+    const v=RUGS_DIE[rand(6)];die.show=true;hint=`${NAMES[cur]} ${isAI(cur)||TWO?'rolls':'roll'}…`;
+    let lastF=-1;await tween(REDUCED?100:650,k=>{die.rot=(1-k)*(1-k)*9;const f=Math.floor(k*9);if(f!==lastF&&k<1){lastF=f;die.v=RUGS_DIE[rand(6)];beep(300+rand(200),25,'square')}});
+    die.v=v;die.rot=0;beep(760,90);hint=`${NAMES[cur]} ${isAI(cur)||TWO?'rolls':'rolled'} ${v}`;
+    await wait(250);
+    const{end,steps}=E.walk(s.m,v);for(const stp of steps)await animStep(stp);
+    s.m=end;mx=cx(M());my=cy(M());mTarget=dirAng(end.d);
+    await wait(200);
+    const t=E.toll(s,cur,M());
+    if(t.n>0||t.o>=0){
+      s.coins[cur]-=t.n;s.coins[t.o]+=t.n;flash={cells:t.cells,t:1.6};
+      const pw=(W-6*(NP+1))/NP,px=p=>6+p*(pw+6)+pw/2;floats.push({x:px(cur),y:PH+16,s:'−'+t.n,c:K.c1,t:1.4},{x:px(t.o),y:PH+16,s:'+'+t.n,c:'#FFC53D',t:1.4});
+      beep(880,80);S.after(110,()=>beep(990,80));
+      const who=cur===0&&!TWO?'You pay':`${NAMES[cur]} pays`;st(`${who} ${NAMES[t.o]} ${t.n} coin${t.n===1?'':'s'}.`);hint=`${who} ${NAMES[t.o]} ${t.n}`;
+      await wait(900);
+      if(s.coins[cur]<=0){s.out[cur]=true;S.shake();beep(150,350,'sawtooth');st(`${cur===0&&!TWO?'You are':NAMES[cur]+' is'} out of coins!`);await wait(900);cur=(cur+1)%NP;startTurn();return}
+    }
+    legalL=E.legal(s);phase='place';sel=-1;prev=null;kbI=-1;
+    if(!legalL.length){cur=(cur+1)%NP;startTurn();return}
+    if(isAI(cur)){
+      hint=`${NAMES[cur]} lays a rug…`;ui();const{pl}=E.bestPlace(s,cur);prev=pl;await wait(650);commit();return;
+    }
+    hint=(TWO?NAMES[cur]+': t':'T')+'ap a square next to the merchant\nthen ✓ Place';st(TWO?`Your turn, ${NAMES[cur]}: lay a rug next to the merchant.`:'Your turn: lay a rug next to the merchant.');ui();
+  }
+  function commit(){
+    if(phase!=='place'||!prev)return;const[a,b]=prev;if(!E.isLegal(s,a,b))return;
+    const k=E.place(s,cur,a,b);prev=null;sel=-1;phase='wait';beep(330,70);S.after(70,()=>beep(495,90));
+    pop={k,sc:1.25};tween(REDUCED?60:260,t=>{pop.sc=1.25-.25*(1-Math.pow(1-t,3))}).then(()=>{pop=null});
+    ui();cur=(cur+1)%NP;S.after(350,startTurn);
+  }
+  function tapCell(i){
+    if(phase!=='place'||isAI(cur)||over)return;
+    if(sel>=0&&i!==sel&&E.isLegal(s,sel,i)){prev=[Math.min(sel,i),Math.max(sel,i)];beep(560,40);ui();return}
+    const cs=cands(i);if(!cs.length){sel=-1;prev=null;beep(180,80,'square');ui();return}
+    if(prev&&prev.includes(i)&&sel===i){turnPrev();return}
+    sel=i;const keep=prev&&cs.find(p=>p[0]===prev[0]&&p[1]===prev[1]);prev=keep||cs[0];beep(520,40);ui();
+  }
+  function turnPrev(){const cs=cands(sel);if(cs.length<2)return;const k=cs.findIndex(p=>prev&&p[0]===prev[0]&&p[1]===prev[1]);prev=cs[(k+1)%cs.length];beep(600,40);ui()}
+  function finish(){
+    over=true;phase='over';prev=null;const sc=E.scores(s);let bestS=Math.max(...sc);
+    let win=[...Array(NP).keys()].filter(p=>sc[p]===bestS);
+    if(win.length>1){const bc=Math.max(...win.map(p=>s.coins[p]));win=win.filter(p=>s.coins[p]===bc)}
+    res={sc,win};ui();const vis=E.visible(s);
+    if(!TWO&&s.out[0]){hint='You ran out of coins\nPress ↻ to play again';st('You ran out of coins. Press ↻ to play again.');S.shake();beep(150,400,'sawtooth');return}
+    const wn=win.map(p=>NAMES[p]).join(' & ');
+    if(TWO){hint=`${wn} win${win.length>1?'':'s'}!\nCoins + visible rug squares`;st(`${wn} win${win.length>1?'':'s'} with ${bestS} points. Press ↻ for a rematch.`);S.fx.confetti();S.fx.banner(win.length>1?"It's a tie!":`${wn} wins!`);beep(990,300);return}
+    const me=sc[0],nb=best('rugs'+L,me);
+    if(win.includes(0)){hint=`You win with ${me}!\n${s.coins[0]} coins + ${vis[0]} squares${nb?' · new best':''}`;st(`You win with ${me} points (${s.coins[0]} coins + ${vis[0]} squares).${nb?' New best!':''}`);beep(990,300);S.after(500,S.next)}
+    else{hint=`${wn} wins with ${bestS}\nYou scored ${me}. Press ↻ to try again`;st(`${wn} wins with ${bestS}. You scored ${me}. Press ↻ to play again.`);S.shake();beep(150,400,'sawtooth')}
+  }
+  /* ---------- input ---------- */
+  S.on(bL,'click',()=>setOff(-1));S.on(bU,'click',()=>setOff(0));S.on(bR,'click',()=>setOff(1));
+  S.on(bRoll,'click',()=>{if(!isAI(cur))roll()});S.on(bPlace,'click',commit);S.on(bTurn,'click',turnPrev);
+  S.on(c,'click',e=>{
+    const p=c.pos(e);const col=Math.floor((p.x-BX)/CS),r=Math.floor((p.y-BY)/CS);
+    if(col>=0&&col<N&&r>=0&&r<N){tapCell(r*N+col);return}
+    if(phase==='dir'&&!isAI(cur)&&p.y>BY+N*CS+MG)roll();
+  });
+  S.on(window,'keydown',e=>{
+    if(over||isAI(cur))return;const k=e.key;
+    if(phase==='dir'){
+      if(k==='ArrowLeft'||k==='a'||k==='A'){setOff(-1);e.preventDefault()}else if(k==='ArrowRight'||k==='d'||k==='D'){setOff(1);e.preventDefault()}
+      else if(k==='ArrowUp'||k==='w'||k==='W'){setOff(0);e.preventDefault()}else if(k===' '||k==='Enter'){roll();e.preventDefault()}
+    }else if(phase==='place'){
+      if(k.startsWith('Arrow')){e.preventDefault();kbI=(kbI+(k==='ArrowLeft'||k==='ArrowUp'?-1:1)+legalL.length)%legalL.length;prev=legalL[kbI];sel=prev[0];beep(520,30);ui()}
+      else if(k===' '||k==='Enter'){e.preventDefault();if(prev)commit();else{kbI=0;prev=legalL[0];sel=prev[0];ui()}}
+      else if(k==='r'||k==='R')turnPrev();
+    }
+  });
+  if(window.__rugsTest)window.__rugsTest({get s(){return s},get cur(){return cur},get phase(){return phase},get prev(){return prev},get legal(){return legalL},get res(){return res},E,tapCell,commit,roll,setOff,cx,cy,BX,BY,CS,setState(f){f(s);mx=cx(M());my=cy(M());mTarget=dirAng(s.m.d);startTurn()}});
+  startTurn();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -5159,11 +5501,12 @@ const GAMES=[
   {id:'wordfind',name:'Word Finder',icon:'🔎',blurb:'Find every hidden word in a themed letter grid.',help:'Drag from the first letter of a word to the last, in a straight line. You can also tap the first letter, then the last. Easy uses across and down, Medium adds diagonals, Hard hides words in all 8 directions.',mount:wordfind,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true},
   {id:'wordguess',name:'Word Guess',icon:'🟩',blurb:'Crack the hidden word in six tries with color clues.',help:'Type or tap letters, then press Enter. Green means right spot, yellow means the letter is in the word somewhere else, grey means it isn\'t in the word. Pick 4, 5 or 6 letters at the top.',mount:wordguess,levels:3,open:true,names:['4 letters','5 letters','6 letters'],isNew:true},
   {id:'clash',name:'Color Clash',icon:'🎴',blurb:'Match colors and numbers and empty your hand before the bots.',help:'Tap a glowing card to play it or tap the deck to draw. Wild cards ask for a color, and Wild +4 can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clash,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true},
-  {id:'clashflip',name:'Color Clash Flip',icon:'🔄',blurb:'Two-sided cards: flip the whole game to the wild dark side.',help:'Tap a glowing card to play it or tap the deck to draw. A Flip card turns every card over. Wild cards ask for a color and can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clashflip,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true}
+  {id:'clashflip',name:'Color Clash Flip',icon:'🔄',blurb:'Two-sided cards: flip the whole game to the wild dark side.',help:'Tap a glowing card to play it or tap the deck to draw. A Flip card turns every card over. Wild cards ask for a color and can be played any time. Tap Last card! when you play down to one card. Keys: arrows + Enter, D to draw, L for Last card. Pick 1 to 3 opponents at the top.',mount:clashflip,levels:3,open:true,names:['vs 1','vs 2','vs 3'],isNew:true},
+  {id:'rugs',name:'Rug Market',icon:'🧶',blurb:'Steer the merchant, lay rugs and charge rivals a toll.',help:'Tap ⟲, ↑ or ⟳ to turn the merchant, then Roll. Landing on a rival\'s rug patch costs a coin per square. Then tap a square next to him to lay your rug (tap again or ⟳ Turn to rotate) and press ✓ Place.',mount:rugmarket,levels:4,open:true,names:['vs 1','vs 2','vs 3','2 Players'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game'};
 const CATS={'snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];

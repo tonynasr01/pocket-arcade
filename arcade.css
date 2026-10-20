@@ -838,3 +838,15 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .tz-ring i{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--c2);border:3px solid var(--edge);opacity:.9}
 .tz-hint{position:fixed;transform:translateX(-50%);font:800 .85rem var(--body);color:#fff;background:rgba(30,31,92,.62);padding:6px 12px;border-radius:999px;white-space:nowrap;transition:opacity .6s}
 .tz-hint.gone{opacity:0}
+/* Rug Market */
+.rg-cv{cursor:pointer}
+.rg-row{gap:8px;flex-wrap:nowrap}
+.rg-row .btn{font-size:1.2rem;padding:11px 14px;min-width:3.1em}
+.rg-row .rg-dir.rg-on{background:var(--c3);color:#1E1F5C;transform:translateY(-2px);box-shadow:0 6px 0 var(--edge)}
+.rg-row .rg-roll,.rg-row .rg-place{min-width:6.4em;font-size:1.05rem}
+.rg-row .rg-place{background:var(--c3);color:#1E1F5C}
+.rg-row .rg-turn{font-size:1.05rem}
+.rg-row .btn:disabled{opacity:.45;cursor:default;animation:none;transform:none;box-shadow:0 4px 0 var(--edge)}
+.rg-row .rg-roll.rg-go{animation:rgPulse 1.4s ease-in-out infinite}
+@keyframes rgPulse{50%{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 0 var(--edge)}}
+@media (prefers-reduced-motion:reduce){.rg-row .rg-roll.rg-go{animation:none}}
