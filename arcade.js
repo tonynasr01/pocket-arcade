@@ -6778,13 +6778,16 @@ const WRL={
     if(s.w[k]>0){const seen=new Set(A.filter(a=>a.m==null).map(a=>a.o*64+a.i*8+a.j));for(const w of WRL.wallsFor(s,k,true))if(!seen.has(w.o*64+w.i*8+w.j))A.push(w)}
     A=A.filter(a=>a.m!=null||WRL.legal(s,a.o,a.i,a.j));
     let bestA=A[0];
+    /* tie-breaks when the search sees no difference: step closer to the goal, never shuffle back to a square just left */
+    const dm=WRL.dist(s,k),here=dm[s.p[k]],trail=s.trail&&s.trail[k]||[],bonus=new Map();
+    for(const a of A)bonus.set(a,a.m==null?-.05:.2*(here-dm[a.m])-(trail.includes(a.m)?.3:0));
     for(let d=1;d<=maxD;d++){
       let al=-1e9,cur=null;const sc=[];
       for(const a of A){
-        const from=s.p[k];WRL.apply(s,k,a);
-        let v=WRL.won(s,k)?5000:-WRL.neg(s,1-k,d-1,-1e9,-al+(noise||.001),ctx);
+        const b=bonus.get(a)+Math.random()*(noise||.01),from=s.p[k];WRL.apply(s,k,a);
+        let v=WRL.won(s,k)?5000:-WRL.neg(s,1-k,d-1,-1e9,-(al-b)+.001,ctx);
         WRL.undo(s,k,a,from);if(ctx.stop)break;
-        if(a.m==null)v-=.05;v+=Math.random()*(noise||.01);sc.push([v,a]);
+        v+=b;sc.push([v,a]);
         if(v>al){al=v;cur=a}
       }
       if(ctx.stop&&d>1)break;
@@ -6803,8 +6806,9 @@ const WRL={
       if(s.w[k]&&Math.random()<.2){const c=WRL.wallCands(s,1-k,3);if(c.length)return c[rand(c.length)]}
       return step();
     }
-    if(level===3)return WRL.search(s,k,280,8)||step();
-    return WRL.search(s,k,120,2,.35)||step();
+    const a=level===3?WRL.search(s,k,280,8):WRL.search(s,k,120,2,.35);
+    if(a&&a.m!=null){s.trail=s.trail||[[],[]];const t=s.trail[k];t.push(s.p[k]);if(t.length>3)t.shift()}
+    return a||step();
   }
 };
 
