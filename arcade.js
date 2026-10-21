@@ -6754,7 +6754,7 @@ const WRL={
     const dm=WRL.dist(s,k)[s.p[k]],dop=WRL.dist(s,1-k)[s.p[1-k]],wm=s.w[k],wo=s.w[1-k];
     if(!wm&&!wo){const win=t===k?dm<=dop:dm<dop;return(win?100:-100)+(dop-dm)}
     let v=dop-dm+(t===k?.6:-.6);
-    v+=.35*(wm-wo);
+    v+=.6*(wm-wo);
     if(!wo&&wm)v+=1.5;else if(!wm&&wo)v-=1.5;
     return v;
   },
@@ -6793,6 +6793,7 @@ const WRL={
       if(ctx.stop&&d>1)break;
       if(cur)bestA=cur;sc.sort((x,y)=>y[0]-x[0]);A=sc.map(x=>x[1]).concat(A.slice(sc.length));
       if(al>900||ctx.stop)break;
+      if(al<-900&&d>2){bestA=null;break}   /* sees a forced loss: don't stall to delay it, play on with a short search */
     }
     return bestA;
   },
@@ -6806,7 +6807,8 @@ const WRL={
       if(s.w[k]&&Math.random()<.2){const c=WRL.wallCands(s,1-k,3);if(c.length)return c[rand(c.length)]}
       return step();
     }
-    const a=level===3?WRL.search(s,k,280,8):WRL.search(s,k,120,2,.35);
+    if(!s.w[k])return step();   /* no walls left: nothing to plan, just race along the shortest path */
+    const a=level===3?WRL.search(s,k,280,8)||WRL.search(s,k,120,2):WRL.search(s,k,120,2,.35);
     if(a&&a.m!=null){s.trail=s.trail||[[],[]];const t=s.trail[k];t.push(s.p[k]);if(t.length>3)t.shift()}
     return a||step();
   }
