@@ -5567,11 +5567,14 @@ function quadgame(root,S){
   const st=status(root,TWO?'Player 1 picks a piece for Player 2. Place the piece you are given, then pick one for your rival. Four in a line that share a trait wins.':'Pick a piece for the computer, then place the piece it gives you. Four in a line that share a trait (tall, dark, square or hollow, or the opposite) wins.');
   const bar=el('div','qa-bar',root);
   const chips=NM.map((n,k)=>{const e=el('div','qa-who p'+k,bar,'<i></i><b></b>');e.querySelector('b').textContent=n;return e});
-  const gm=document.querySelector('#game'),WIDE=!!gm&&gm.clientWidth>gm.clientHeight*1.25,PC=WIDE?4:8;
-  const w=el('div','qa-wrap'+(WIDE?' wide':''),root);w.dataset.ar=WIDE?1.72:1/1.58;w.dataset.max=WIDE?820:500;
+  const gm=document.querySelector('#game');let WIDE=false,PC=8;
+  const w=el('div','qa-wrap',root);
+  /* wide screens put the pieces beside the board; re-checked when the phone is rotated */
+  const shape=()=>{WIDE=!!gm&&gm.clientWidth>gm.clientHeight*1.25;PC=WIDE?4:8;w.classList.toggle('wide',WIDE);w.dataset.ar=WIDE?1.72:1/1.58;w.dataset.max=WIDE?820:500};
+  shape();S.on(window,'resize',()=>{const was=WIDE;shape();if(was!==WIDE&&typeof fit==='function')fit()});
   const bd=el('div','qa-board',w);
   const cells=[...Array(16)].map((_,i)=>{const e=el('button','qa-cell',bd);e.style.animationDelay=i*25+'ms';e.setAttribute('aria-label','Square '+(i+1));S.on(e,'click',()=>tapCell(i));return e});
-  const side=WIDE?el('div','qa-side',w):w;
+  const side=el('div','qa-side',w);
   const hand=el('div','qa-hand',side);
   const slot=el('div','qa-slot',hand),txt=el('div','qa-txt',hand,'<b></b><small></small>');
   const giveB=el('button','btn qa-give',hand,'Give');S.on(giveB,'click',()=>{if(sel>=0&&canAct()&&phase==='pick')give(sel)});
@@ -7151,15 +7154,30 @@ function shake(){restartAnim(gameEl,'shake')}
 /* ---------- fit game to the screen ---------- */
 function fit(){
   const f=gameEl.querySelector('[data-ar]');if(!f)return;
-  /* rows around the board can change height with the board's width, so repeat until the size settles:
-     the result then no longer depends on the size the board had before (e.g. after rotating the phone) */
+  const ar=+f.dataset.ar,mx=+(f.dataset.max||900);
+  const rows=()=>[...gameEl.children].filter(ch=>{if(ch===f)return false;const cs=getComputedStyle(ch);return cs.display!=='none'&&cs.position!=='absolute'});
+  const unside=()=>{if(!gameEl.classList.contains('side'))return;gameEl.classList.remove('side');gameEl.style.gridTemplateRows='';for(const ch of gameEl.children)ch.style.gridRow=''};
+  const cs=getComputedStyle(gameEl),pad=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+  const W=gameEl.clientWidth-(COMPACT.matches?2:8),H=gameEl.clientHeight-pad,lo=Math.min(120,W);
+  /* stacked: the rows above/below the board take their height, plus the gaps between all flex items
+     (rows, board and the two spacer pseudo-elements). Rows can change height with the board's width,
+     so repeat until the size settles: then it no longer depends on the size the board had before. */
+  unside();let w;
   for(let k=0;k<4;k++){
-    const gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=0,n=0;
-    for(const ch of gameEl.children){const cs=getComputedStyle(ch);if(ch===f||cs.display==='none'||cs.position==='absolute')continue;used+=ch.offsetHeight;n++}
-    used+=gap*n+20;
-    const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-(COMPACT.matches?2:8);
-    const w=Math.round(Math.max(180,Math.min(aw,ah*(+f.dataset.ar),+(f.dataset.max||900))))+'px';
-    if(f.style.width===w)break;f.style.width=w;
+    const R=rows(),gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=gap*(R.length+2)+4;
+    for(const ch of R)used+=ch.offsetHeight;
+    w=Math.round(Math.max(lo,Math.min(W,(H-used)*ar,mx)));
+    if(f.style.width===w+'px')break;f.style.width=w+'px';
+  }
+  /* phone on its side: put the other rows in a column beside the board when that gives a bigger board */
+  const R=rows();
+  if(COMPACT.matches&&R.length&&W>H*1.25){
+    gameEl.classList.add('side');gameEl.style.gridTemplateRows=`1fr repeat(${R.length},auto) 1fr`;R.forEach((ch,i)=>ch.style.gridRow=String(i+2));f.style.width=Math.min(w,W/2)+'px';
+    const g2=parseFloat(getComputedStyle(gameEl).rowGap)||0,cg=parseFloat(getComputedStyle(gameEl).columnGap)||0;
+    let sw=0,sh=g2*(R.length+1);for(const ch of R){sw=Math.max(sw,ch.offsetWidth);sh+=ch.offsetHeight}
+    const ws=Math.round(Math.max(lo,Math.min(W-sw-cg,(H-4)*ar,mx)));
+    if(sh<=H&&ws>w*1.08){f.style.width=ws+'px';return}
+    unside();f.style.width=w+'px';
   }
 }
 /* phones report the new screen size late after a rotation: fit now and again once the browser has settled,
