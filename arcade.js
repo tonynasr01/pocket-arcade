@@ -7151,13 +7151,26 @@ function shake(){restartAnim(gameEl,'shake')}
 /* ---------- fit game to the screen ---------- */
 function fit(){
   const f=gameEl.querySelector('[data-ar]');if(!f)return;
-  const gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=0,n=0;
-  for(const ch of gameEl.children){if(ch===f||getComputedStyle(ch).display==='none')continue;used+=ch.offsetHeight;n++}
-  used+=gap*n+20;
-  const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-(COMPACT.matches?2:8);
-  f.style.width=Math.max(180,Math.min(aw,ah*(+f.dataset.ar),+(f.dataset.max||900)))+'px';
+  /* rows around the board can change height with the board's width, so repeat until the size settles:
+     the result then no longer depends on the size the board had before (e.g. after rotating the phone) */
+  for(let k=0;k<4;k++){
+    const gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=0,n=0;
+    for(const ch of gameEl.children){if(ch===f||getComputedStyle(ch).display==='none')continue;used+=ch.offsetHeight;n++}
+    used+=gap*n+20;
+    const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-(COMPACT.matches?2:8);
+    const w=Math.round(Math.max(180,Math.min(aw,ah*(+f.dataset.ar),+(f.dataset.max||900))))+'px';
+    if(f.style.width===w)break;f.style.width=w;
+  }
 }
-addEventListener('resize',fit);
+/* phones report the new screen size late after a rotation: fit now and again once the browser has settled,
+   re-sending resize so games with their own layout code catch up too */
+let refitT=[];
+function refit(e){
+  if(e&&!e.isTrusted)return;fit();
+  refitT.forEach(clearTimeout);refitT=[120,350,800].map(t=>setTimeout(()=>{fit();dispatchEvent(new Event('resize'))},t));
+}
+addEventListener('resize',refit);addEventListener('orientationchange',refit);
+if(window.visualViewport)visualViewport.addEventListener('resize',refit);
 document.addEventListener('fullscreenchange',()=>requestAnimationFrame(fit));
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
 
