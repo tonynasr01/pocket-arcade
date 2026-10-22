@@ -1076,6 +1076,13 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .wr-act.pv .btn{display:inline-block}
 .wr-act.pv .wr-hint{display:none}
 .wr-hint{font:800 .92rem/1.25 var(--body);color:var(--muted);text-align:center;padding:0 8px}
+/* phone on its side: players on the left, actions on the right, so the board gets the full height */
+@media (max-height:500px) and (orientation:landscape){
+  #game:has(>.wr-board){position:relative}
+  .wr-bar{position:absolute;left:8px;top:50%;transform:translateY(-50%);flex-direction:column;width:calc((100% - min(100vh,560px))/2 - 16px);max-width:200px}
+  .wr-act{position:absolute;right:8px;top:50%;transform:translateY(-50%);flex-direction:column;width:calc((100% - min(100vh,560px))/2 - 16px);max-width:200px}
+  .wr-act .btn{width:100%}
+}
 @keyframes wr-dot{to{transform:scale(1.15)}}
 @keyframes wr-drop{0%{transform:scale(1.6);opacity:0}}
 @keyframes wr-pulse{to{opacity:.6}}

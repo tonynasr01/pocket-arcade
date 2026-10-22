@@ -7155,7 +7155,7 @@ function fit(){
      the result then no longer depends on the size the board had before (e.g. after rotating the phone) */
   for(let k=0;k<4;k++){
     const gap=parseFloat(getComputedStyle(gameEl).rowGap)||0;let used=0,n=0;
-    for(const ch of gameEl.children){if(ch===f||getComputedStyle(ch).display==='none')continue;used+=ch.offsetHeight;n++}
+    for(const ch of gameEl.children){const cs=getComputedStyle(ch);if(ch===f||cs.display==='none'||cs.position==='absolute')continue;used+=ch.offsetHeight;n++}
     used+=gap*n+20;
     const ah=gameEl.clientHeight-used,aw=gameEl.clientWidth-(COMPACT.matches?2:8);
     const w=Math.round(Math.max(180,Math.min(aw,ah*(+f.dataset.ar),+(f.dataset.max||900))))+'px';
