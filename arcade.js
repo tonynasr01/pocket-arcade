@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "jackaroo": "jackaroo.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -7070,6 +7070,379 @@ function pento(root,S){
   });
 }
 
+/* Jackaroo engine. 4 players (0 = you at the bottom, then clockwise: 1 left, 2 top = partner, 3 right);
+   players 0+2 and 1+3 are teams. The track has 76 squares (19 per side). Marble id = owner*4 + i.
+   s.m[id] is the marble's progress: -1 = in base, 0..75 = on the track counted from its owner's start
+   square (0 = sitting on its own start, which protects it), 76..79 = its four home squares. */
+const JK_START=[47,66,9,28],JK_DEAL=[5,4,4];
+const JK_RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'],JK_SU=['♠','♥','♦','♣'];
+const JK_E=(()=>{
+  const own=id=>id>>2,team=o=>o&1;
+  const absq=(id,p)=>(JK_START[id>>2]+p)%76;
+  function freshDeck(rng){const d=[];for(let s=0;s<4;s++)for(let r=1;r<=13;r++)d.push({r,s});for(let i=d.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[d[i],d[j]]=[d[j],d[i]]}return d}
+  function newGame(rng=Math.random){const s={m:Array(16).fill(-1),hands:[[],[],[],[]],deck:[],dealer:3,round:0,turn:0,last:null,winner:-1,pile:0};deal(s,rng);return s}
+  function deal(s,rng){
+    const n=JK_DEAL[s.round%3];if(s.round%3===0||s.deck.length<4*n)s.deck=freshDeck(rng);
+    for(let k=0;k<n;k++)for(let q=1;q<=4;q++)s.hands[(s.dealer+q)%4].push(s.deck.pop());
+    for(const h of s.hands)h.sort((a,b)=>a.r-b.r||a.s-b.s);
+    s.turn=(s.dealer+1)%4;
+  }
+  function occ(s){const O=Array(76).fill(-1);for(let id=0;id<16;id++){const p=s.m[id];if(p>=0&&p<=75)O[absq(id,p)]=id}return O}
+  const allHome=(s,o)=>{for(let i=0;i<4;i++)if(s.m[o*4+i]<76)return false;return true};
+  const ids=o=>[o*4,o*4+1,o*4+2,o*4+3];
+  /* marbles a player moves: their own, or their partner's once all of their own are home */
+  const controlled=(s,pl)=>allHome(s,pl)?ids((pl+2)%4):ids(pl);
+  /* move marble id n steps (negative = backward). kill: the King sends every other player's marble it
+     passes back to base. Returns {p,path,caps} or null if illegal. */
+  function walk(s,id,n,kill){
+    const o=own(id),p=s.m[id];if(p<0||n===0)return null;const O=occ(s),path=[],caps=[];let q=p;
+    if(n<0){
+      if(p>75)return null;
+      for(let k=1;k<=-n;k++){
+        q=(q+75)%76;const x=O[absq(id,q)];
+        if(x>=0&&x!==id){if(s.m[x]===0)return null;if(k===-n){if(own(x)===o)return null;caps.push(x)}}
+        path.push(q);
+      }
+      return{p:q,path,caps};
+    }
+    for(let k=1;k<=n;k++){
+      q++;if(q>79)return null;
+      if(q<=75){
+        const x=O[absq(id,q)];
+        if(x>=0&&x!==id){
+          if(s.m[x]===0)return null;/* a marble on its own start square blocks everyone */
+          if(k===n){if(own(x)===o)return null;caps.push(x)}else if(kill&&own(x)!==o)caps.push(x);
+        }
+      }else for(let j=o*4;j<o*4+4;j++)if(j!==id&&s.m[j]===q)return null;/* no jumping or landing on own marbles at home */
+      path.push(q);
+    }
+    return{p:q,path,caps};
+  }
+  function outCheck(s,id){
+    if(s.m[id]!==-1)return null;const x=occ(s)[JK_START[own(id)]];
+    if(x>=0&&own(x)===own(id))return null;return{p:0,path:[0],caps:x>=0?[x]:[]};
+  }
+  const doWalk=(s,id,w)=>{s.m[id]=w.p;for(const x of w.caps)s.m[x]=-1};
+  const onTrack=(s,id)=>s.m[id]>=1&&s.m[id]<=75;/* on the track and not protected */
+  function cardMoves(s,pl,ci){
+    const r=s.hands[pl][ci].r,C=controlled(s,pl),res=[];
+    const mv=(list,n,kill)=>{for(const id of list)if(walk(s,id,n,kill))res.push({c:ci,k:'mv',m:id,n})};
+    const out=()=>{for(const id of C)if(outCheck(s,id))res.push({c:ci,k:'out',m:id})};
+    if(r===1){out();mv(C,1);mv(C,11)}
+    else if(r===13){out();mv(C,13,true)}
+    else if(r===11){for(const a of C)if(onTrack(s,a))for(let b=0;b<16;b++)if(team(own(b))!==team(pl)&&onTrack(s,b))res.push({c:ci,k:'sw',m:a,t:b})}
+    else if(r===10){mv(C,10);if(s.hands[(pl+1)%4].length)res.push({c:ci,k:'burn'})}
+    else if(r===7){
+      for(const a of C)for(let x=7;x>=1;x--){const w=walk(s,a,x);if(!w)continue;
+        if(x===7){res.push({c:ci,k:'sp',m:a,a:7,m2:-1});continue}
+        const s2={m:s.m.slice()};doWalk(s2,a,w);
+        for(const b of controlled(s2,pl))if(b!==a&&walk(s2,b,7-x))res.push({c:ci,k:'sp',m:a,a:x,m2:b});
+      }
+    }
+    else if(r===5){const all=[];for(let id=0;id<16;id++)if(s.m[id]>=0)all.push(id);mv(all,5)}
+    else if(r===4)mv(C,-4);
+    else mv(C,r);
+    return res;
+  }
+  function legal(s,pl){
+    if(s.winner>=0)return[];let L=[];const h=s.hands[pl];
+    for(let ci=0;ci<h.length;ci++)L=L.concat(cardMoves(s,pl,ci));
+    if(!L.length)for(let ci=0;ci<h.length;ci++)L.push({c:ci,k:'dis'});
+    return L;
+  }
+  const mkey=v=>[v.c,v.k,v.m,v.n,v.t,v.a,v.m2].join(',');
+  /* the marble part of a move. Returns animation groups: [[{id,ps:[p...],jump}]] */
+  function effect(s,pl,v){
+    const G=[],caps=w=>w.caps.length&&G.push(w.caps.map(x=>({id:x,ps:[s.m[x],-1],jump:true})));
+    const go=(id,n,kill)=>{const w=walk(s,id,n,kill),p0=s.m[id];G.push([{id,ps:[p0,...w.path]}]);caps(w);doWalk(s,id,w)};
+    if(v.k==='mv')go(v.m,v.n,s.hands[pl][v.c]?.r===13||v.kill);
+    else if(v.k==='out'){const w=outCheck(s,v.m);G.push([{id:v.m,ps:[-1,0],jump:true}]);caps(w);doWalk(s,v.m,w)}
+    else if(v.k==='sw'){const a=v.m,b=v.t,A=absq(a,s.m[a]),B=absq(b,s.m[b]);
+      const pa=(B-JK_START[own(a)]+76)%76,pb=(A-JK_START[own(b)]+76)%76;G.push([{id:a,ps:[s.m[a],pa],jump:true},{id:b,ps:[s.m[b],pb],jump:true}]);s.m[a]=pa;s.m[b]=pb}
+    else if(v.k==='sp'){go(v.m,v.a);if(v.a<7)go(v.m2,7-v.a)}
+    return G;
+  }
+  function checkWin(s){for(let t=0;t<2;t++)if(allHome(s,t)&&allHome(s,t+2))s.winner=t}
+  function advance(s,rng){
+    if(s.winner>=0)return;
+    for(let k=1;k<=4;k++){const q=(s.turn+k)%4;if(s.hands[q].length){s.turn=q;return}}
+    s.round++;s.dealer=(s.dealer+1)%4;deal(s,rng);
+  }
+  /* play a legal move for the player whose turn it is. Returns {groups,card,burned,round} */
+  function apply(s,v,rng=Math.random){
+    const pl=s.turn;if(!legal(s,pl).some(x=>mkey(x)===mkey(v)))throw new Error('illegal move '+mkey(v));
+    const card=s.hands[pl][v.c],round=s.round;let burned=null;
+    const groups=v.k==='dis'||v.k==='burn'?[]:effect(s,pl,v);
+    s.hands[pl].splice(v.c,1);s.pile++;
+    if(v.k==='burn'){const h=s.hands[(pl+1)%4];burned=h.splice(Math.floor(rng()*h.length),1)[0];s.pile++}
+    s.last={card,pl,k:v.k,burned};
+    checkWin(s);advance(s,rng);
+    return{groups,card,burned,newRound:s.round!==round};
+  }
+  /* ---------- computer players ---------- */
+  function threat(m,id,T){
+    /* rough chance that the other team can hit marble id on their next turns */
+    const p=m[id];if(p<1||p>75)return 0;const A=absq(id,p);let r=0;const seen=new Set();
+    for(let x=0;x<16;x++){if(team(own(x))===T||m[x]<0||m[x]>75)continue;
+      const d=(A-absq(x,m[x])+76)%76;if(d>=1&&d<=13&&d!==11&&!seen.has(d)){seen.add(d);r+=d===7?.05:.1}
+      if(d===72)r+=.06;/* 4 squares behind them: a backward 4 hits */
+    }
+    for(let o=0;o<4;o++)if(team(o)!==T&&A===JK_START[o]&&ids(o).some(j=>m[j]<0))r+=.25;/* sitting on their start */
+    return Math.min(.7,r);
+  }
+  function evalM(m,pl,lvl){
+    const T=team(pl),s={m};let sc=0;
+    if(allHome(s,T)&&allHome(s,T+2))return 1e6;
+    if(allHome(s,1-T)&&allHome(s,3-T))return-1e6;
+    for(let id=0;id<16;id++){
+      const o=own(id),p=m[id],mine=team(o)===T;
+      let v=p<0?0:p>75?118+(p-76)*3:24+p+(p>=64?4:0);
+      if(lvl>=3&&p>=1&&p<=75){const r=threat(m,id,team(o));v-=r*(24+p)*(mine?.7:.35)}
+      sc+=mine?v:-v;
+    }
+    if(lvl>=3)for(const t of[T,T+2]){const st=ids(t).find(j=>m[j]===0);if(st!=null&&ids(t).some(j=>m[j]<0))sc-=3}
+    return sc;
+  }
+  function cardCost(s,pl,r){
+    const base=controlled(s,pl).filter(j=>s.m[j]<0).length;
+    return r===1||r===13?(base?7:2.5):r===11?3:r===7?3:r===5?2:r===4?2.5:r===10?1.5:0;
+  }
+  function choose(s,pl,lvl,rng=Math.random){
+    const L=legal(s,pl),h=s.hands[pl];
+    if(L[0].k==='dis'){let bi=0,bc=1e9;for(let i=0;i<h.length;i++){const c=(lvl>=2?cardCost(s,pl,h[i].r):0)+rng()*(lvl>=2?.5:5);if(c<bc){bc=c;bi=i}}return L[bi]}
+    if(lvl===1&&rng()<.4)return L[Math.floor(rng()*L.length)];
+    const base=evalM(s.m,pl,lvl),seen=new Set();let best=L[0],bs=-Infinity;
+    for(const v of L){
+      const r=h[v.c].r,k=r+','+[v.k,v.m,v.n,v.t,v.a,v.m2].join(',');if(seen.has(k))continue;seen.add(k);
+      let val;
+      if(v.k==='burn')val=lvl>=3?8+(s.hands[(pl+1)%4].length<=2?3:0):5;
+      else{const t={m:s.m.slice(),hands:s.hands};effect(t,pl,v);val=evalM(t.m,pl,lvl)-base}
+      if(lvl>=3)val-=cardCost(s,pl,r);
+      val+=rng()*(lvl===1?30:lvl===2?4:.4);
+      if(val>bs){bs=val;best=v}
+    }
+    return best;
+  }
+  return{newGame,legal,apply,walk,outCheck,controlled,allHome,occ,absq,choose,evalM,mkey,cardMoves,deal,effect};
+})();
+
+function jackaroo(root,S){
+  const L=S.level,E=JK_E,NM=['You','Fahad','Noura','Saad'];
+  const st=status(root,'You and your partner Noura (top) race all 8 marbles home. Pick a card, then tap a glowing marble.');
+  const W=400,{c,x}=canvas(root,W,W);c.classList.add('jk-cv');c.dataset.max=700;
+  const hand=el('div','jk-hand',root),opt=el('div','jk-opt',root),leg=el('div','jk-leg',root);
+  leg.innerHTML=[['A','out · 1 · 11'],['K','out · 13, burns all it passes'],['Q','12'],['J','swap with a rival'],['10','10 or burn next card'],['7','split 7'],['5','move any marble 5'],['4','back 4']].map(([a,b])=>`<span><b>${a}</b> ${b}</span>`).join('')+'<span><b>2–9</b> move that many</span>';
+  const M=6,CS=(W-2*M)/20,RAD=CS*.42;
+  const COL=()=>{const P=pal();return[P.c4,P.c1,P.c3,P.c6]};
+  /* geometry: 20x20 grid, ring of 76 squares, everything for player k is player 0's layout turned k*90° */
+  const rot=(r,c,k)=>{for(let i=0;i<k;i++)[r,c]=[c,19-r];return[r,c]};
+  const RING=[];for(let c2=0;c2<20;c2++)RING.push([0,c2]);for(let r=1;r<20;r++)RING.push([r,19]);for(let c2=18;c2>=0;c2--)RING.push([19,c2]);for(let r=18;r>=1;r--)RING.push([r,0]);
+  const XY=(r,c2)=>({x:M+(c2+.5)*CS,y:M+(r+.5)*CS});
+  const BASE0=[[16,7],[16,8],[17,7],[17,8]],HOME0=[[18,11],[17,11],[16,11],[15,11]],LBL0=[13.75,9.5];
+  function posOf(id,p){const o=id>>2;
+    if(p<0){const[r,c2]=rot(...BASE0[id&3],o);return XY(r,c2)}
+    if(p>75){const[r,c2]=rot(...HOME0[p-76],o);return XY(r,c2)}
+    return XY(...RING[(JK_START[o]+p)%76]);
+  }
+  let SP=1,s=E.newGame(),sel=-1,mode=0,pick1=-1,busy=false,anims=[],deals=[],dirty=true,over=false,focus=0,legalCache=null;
+  const me=()=>s.turn===0&&!busy&&!over;
+  const legalMine=()=>legalCache||(legalCache=E.legal(s,0));
+  const cardsOf=ci=>legalMine().filter(v=>v.c===ci);
+  /* ---------- selection ---------- */
+  function cands(){
+    if(sel<0||!me())return[];const ms=cardsOf(sel),r=s.hands[0][sel].r;
+    if(ms[0]&&ms[0].k==='dis')return[];
+    if(r===1)return ms.filter(v=>v.k==='out'||v.n===mode);
+    if(r===7)return pick1<0?ms.filter(v=>v.a===mode):ms.filter(v=>v.m===pick1&&v.a===mode);
+    if(r===11)return pick1<0?ms:ms.filter(v=>v.m===pick1);
+    return ms.filter(v=>v.k!=='burn');
+  }
+  const candIds=()=>{const cs=cands(),r=sel>=0?s.hands[0][sel].r:0;return[...new Set(cs.map(v=>pick1>=0?(r===7?v.m2:v.t):v.m))]};
+  function pickCard(ci){
+    if(!me())return;const L=legalMine();
+    if(L[0].k==='dis'){play(L.find(v=>v.c===ci));return}
+    if(sel===ci){sel=-1;pick1=-1;render();return}
+    const ms=cardsOf(ci);if(!ms.length){beep(180,90,'square');S.fx.toast('No move for that card');return}
+    sel=ci;pick1=-1;focus=0;const r=s.hands[0][ci].r;
+    if(r===1)mode=ms.some(v=>v.n===1)?1:11;
+    else if(r===7)mode=[7,6,5,4,3,2,1].find(a=>ms.some(v=>v.a===a));
+    beep(520,50);render();
+  }
+  function tapMarble(id){
+    if(!me()||sel<0)return;const cs=cands(),r=s.hands[0][sel].r;
+    if(pick1>=0&&id===pick1){pick1=-1;render();return}
+    if(pick1>=0){const v=cs.find(v=>(r===7?v.m2:v.t)===id);if(v)play(v);return}
+    const mine=cs.filter(v=>v.m===id);if(!mine.length)return;
+    if(r===11||(r===7&&mode<7)){pick1=id;beep(600,50);render();return}
+    play(mine[0]);
+  }
+  /* ---------- rendering of the DOM rows ---------- */
+  function cardHTML(cd,extra){const red=cd.s===1||cd.s===2;return`<span class="jk-r">${JK_RN[cd.r]}</span><span class="jk-s${red?' jk-red':''}">${JK_SU[cd.s]}</span>${extra||''}`}
+  const MEAN={1:'out/1/11',13:'out/13',12:'12',11:'swap',10:'10/burn',7:'split',5:'any 5',4:'back 4'};
+  let handSig='';
+  function render(){
+    legalCache=null;dirty=true;const L=me()?legalMine():[],dis=L[0]&&L[0].k==='dis';
+    const sig=s.round+'|'+s.hands[0].map(c2=>c2.r+'.'+c2.s).join(',');
+    if(sig!==handSig){const fresh=!handSig||handSig.split('|')[0]!==String(s.round);handSig=sig;hand.innerHTML='';
+      s.hands[0].forEach((cd,i)=>{const b=el('button','jk-card'+(fresh?' jk-deal':''),hand,cardHTML(cd,`<span class="jk-t">${MEAN[cd.r]||'move '+cd.r}</span>`));b.style.setProperty('--i',i);S.on(b,'click',()=>pickCard(i))});
+      if(!s.hands[0].length)el('div','jk-empty',hand,'No cards left this round');
+    }
+    [...hand.children].forEach((b,i)=>{if(!b.classList.contains('jk-card'))return;b.classList.toggle('jk-sel',i===sel);b.classList.toggle('jk-on',me()&&!dis&&L.some(v=>v.c===i));b.classList.toggle('jk-off',me()&&!dis&&!L.some(v=>v.c===i));b.classList.toggle('jk-burn',me()&&dis);b.disabled=!me()});
+    opt.innerHTML='';
+    if(over){el('span','jk-hint',opt,s.winner===0?'You and Noura win! Press ↻ for a new game.':'Fahad and Saad win this time. Press ↻ to try again.');return}
+    if(!me()){el('span','jk-hint',opt,busy&&s.turn===0?'…':`<i style="background:${COL()[s.turn]}"></i>${NM[s.turn]} is playing…`);return}
+    if(dis){el('span','jk-hint',opt,'No legal move: tap a card to burn it');return}
+    if(sel<0){el('span','jk-hint',opt,'Your turn: pick a card');return}
+    const r=s.hands[0][sel].r,ms=cardsOf(sel);
+    if(r===1&&ms.some(v=>v.n===1)&&ms.some(v=>v.n===11))[1,11].forEach(n=>{const b=el('button','btn jk-b'+(mode===n?' jk-act':''),opt,'Move '+n);S.on(b,'click',()=>{mode=n;render()})});
+    if(r===7&&pick1<0){const as=[7,6,5,4,3,2,1].filter(a=>ms.some(v=>v.a===a));if(as.length>1)as.forEach(a=>{const b=el('button','btn jk-b jk-sm'+(mode===a?' jk-act':''),opt,a===7?'7':a+'+'+(7-a));S.on(b,'click',()=>{mode=a;render()})})}
+    const bu=ms.find(v=>v.k==='burn');
+    if(bu){const b=el('button','btn jk-b jk-fire',opt,'🔥 Burn '+NM[1]+"'s card");S.on(b,'click',()=>play(bu))}
+    const hasM=cands().length;
+    const hint=pick1>=0?(r===7?`Now tap a marble to move ${7-mode}`:'Now tap a rival marble to swap with'):
+      !hasM?'':r===11?'Tap your marble to swap':r===7&&mode<7?`Tap a marble to move ${mode}`:r===1||r===13?(ms.some(v=>v.k==='out')?'Tap a marble (base = bring out)':'Tap a glowing marble'):'Tap a glowing marble';
+    if(hint)el('span','jk-hint',opt,hint);
+    if(pick1>=0){const b=el('button','btn ghost jk-b jk-sm',opt,'✕');S.on(b,'click',()=>{pick1=-1;render()})}
+  }
+  /* ---------- playing a move ---------- */
+  function play(v){
+    if(!v)return;busy=true;const pl=s.turn,before=s.m.slice(),myCards=s.hands[0].length;
+    const res=E.apply(s,v);sel=-1;pick1=-1;
+    let t0=0;
+    for(const g of res.groups){let mx=0;
+      for(const a of g){const pts=a.ps.map(p=>posOf(a.id,p)),dur=(a.jump?.42:Math.max(.16,(pts.length-1)*.11))*SP;
+        anims.push({id:a.id,pts,t:-t0,dur,jump:a.jump});mx=Math.max(mx,dur);}
+      t0+=mx+.05*SP;
+    }
+    const lastP=res.card;
+    sounds(res,before,pl);
+    if(res.burned)S.after(300,()=>{beep(220,160,'sawtooth');if((pl+1)%4===0)S.fx.toast(NM[pl]+' burned your '+JK_RN[res.burned.r]+'!');else st(`${NM[pl]} burned a card from ${NM[(pl+1)%4]}`)});
+    if(v.k==='dis')st(`${NM[pl]} had no move and burned a ${JK_RN[lastP.r]}`);
+    render();
+    S.after(t0*1000+120*SP,()=>{busy=false;
+      if(s.winner>=0){finish();return}
+      if(res.newRound)dealAnim();else next();
+    });
+  }
+  function sounds(res,before,pl){
+    let t=0;for(const g of res.groups){for(const a of g){if(!a.jump)for(let i=1;i<a.ps.length;i++)S.after((t+(i-1)*.11)*1000,()=>beep(440+i*30,40));else S.after(t*1000,()=>beep(a.ps[1]<0?200:660,90,a.ps[1]<0?'square':'triangle'))}t+=Math.max(...g.map(a=>a.jump?.42:(a.ps.length-1)*.11))+.05}
+    const capd=[];res.groups.forEach(g=>g.forEach(a=>{if(a.jump&&a.ps[1]===-1&&a.ps[0]>=0)capd.push(a.id)}));
+    if(capd.length){const mineHit=capd.filter(id=>((id>>2)&1)===0).length,theirs=capd.length-mineHit;
+      if(mineHit&&pl!==0)st(`${NM[pl]} sent ${mineHit>1?mineHit+' of your team\'s marbles':'a marble of your team'} home`);
+      else if(theirs&&(pl===0||pl===2))st(`${NM[pl]} sent ${theirs>1?theirs+' rival marbles':'a rival marble'} back to base!`);
+      S.after(t*1000-200,()=>{if(pl===0&&theirs)S.shake()})}
+  }
+  function finish(){
+    over=true;render();
+    if(s.winner===0){st('You and Noura got all 8 marbles home!');S.next()}
+    else{st('Fahad and Saad got all their marbles home first. Press ↻ to play again.');S.fx.banner('Rivals win','Press ↻ to play again');beep(200,300,'sawtooth')}
+  }
+  function dealAnim(){
+    busy=true;const n=s.hands[0].length;
+    for(let k=0;k<4*Math.max(n,1);k++){const q=(s.dealer+1+k)%4;deals.push({q,t:-k*.06,dur:.32})}
+    beep(700,40);handSig='';render();
+    S.after((4*n*.06+.4)*1000*SP,()=>{busy=false;next()});
+  }
+  function next(){
+    render();if(over)return;
+    if(s.turn===0){st(legalMine()[0].k==='dis'?'Your turn, but no card can move: burn one':'Your turn: pick a card');return}
+    busy=true;render();
+    S.after((L===1?650:560)*SP,()=>{busy=false;const v=E.choose(s,s.turn,s.turn===2?3:L);play(v)});
+  }
+  /* ---------- drawing ---------- */
+  function marble(X,Y,col,P,ring,sc=1){
+    const r=RAD*sc;
+    x.beginPath();x.arc(X,Y+1.5,r,0,7);x.fillStyle='rgba(0,0,0,.25)';x.fill();
+    x.beginPath();x.arc(X,Y,r,0,7);x.fillStyle=col;x.fill();x.lineWidth=2;x.strokeStyle=P.edge;x.stroke();
+    x.beginPath();x.arc(X-r*.32,Y-r*.35,r*.3,0,7);x.fillStyle='rgba(255,255,255,.6)';x.fill();
+    if(ring){x.beginPath();x.arc(X,Y,r+3.2,0,7);x.lineWidth=2.6;x.strokeStyle=ring;x.stroke()}
+  }
+  function drawCard(cx,cy,w,h,cd,P,border){
+    rr(x,cx-w/2,cy-h/2,w,h,7);x.fillStyle='#FFFDF5';x.fill();x.lineWidth=3;x.strokeStyle=border||P.edge;x.stroke();
+    if(!cd){rr(x,cx-w/2+5,cy-h/2+5,w-10,h-10,4);x.fillStyle=P.c5;x.fill();return}
+    const red=cd.s===1||cd.s===2;x.fillStyle=red?'#E0284A':'#1E1F5C';x.textAlign='center';x.textBaseline='middle';
+    x.font=`${h*.36}px ${DISPLAY}`;x.fillText(JK_RN[cd.r],cx,cy-h*.12);x.font=`${h*.3}px sans-serif`;x.fillText(JK_SU[cd.s],cx,cy+h*.24);
+  }
+  function lblPos(o){const[r,c2]=rot(LBL0[0],LBL0[1],o);return XY(r,c2)}
+  function draw(t){
+    const P=pal(),C=COL();x.clearRect(0,0,W,W);
+    rr(x,0,0,W,W,16);x.fillStyle=P.board;x.fill();
+    /* side tints */
+    for(let o=0;o<4;o++){const[r,c2]=rot(...BASE0[0],o),[r2,c3]=rot(...BASE0[3],o),a=XY(r,c2),b=XY(r2,c3);
+      const x0=Math.min(a.x,b.x)-CS*.62,y0=Math.min(a.y,b.y)-CS*.62,w=Math.abs(a.x-b.x)+CS*1.24,h=Math.abs(a.y-b.y)+CS*1.24;
+      rr(x,x0,y0,w,h,9);x.globalAlpha=.22;x.fillStyle=C[o];x.fill();x.globalAlpha=1;x.lineWidth=2;x.strokeStyle=C[o];x.stroke();
+      for(let i=0;i<4;i++){const q=posOf(o*4+i,-1);x.beginPath();x.arc(q.x,q.y,RAD*.62,0,7);x.fillStyle=P.line;x.fill()}
+      /* home lane */
+      for(let i=0;i<4;i++){const q=posOf(o*4,76+i);x.beginPath();x.arc(q.x,q.y,RAD*.92,0,7);x.globalAlpha=.3;x.fillStyle=C[o];x.fill();x.globalAlpha=1;x.lineWidth=2;x.strokeStyle=C[o];x.stroke()}
+    }
+    /* track */
+    for(let i=0;i<76;i++){const q=XY(...RING[i]),so=JK_START.indexOf(i);
+      x.beginPath();x.arc(q.x,q.y,so>=0?RAD*.95:RAD*.55,0,7);
+      if(so>=0){x.fillStyle=C[so];x.globalAlpha=.4;x.fill();x.globalAlpha=1;x.lineWidth=2.5;x.strokeStyle=C[so];x.stroke()}else{x.fillStyle=P.line;x.fill()}
+      if(JK_START.includes((i+1)%76)){const so2=JK_START.indexOf((i+1)%76),h=posOf(so2*4,76);x.beginPath();x.moveTo(q.x,q.y);x.lineTo(h.x,h.y);x.lineWidth=2;x.setLineDash([2,3]);x.strokeStyle=C[so2];x.stroke();x.setLineDash([])}
+    }
+    /* center pile */
+    const mid=W/2,cw=CS*3,ch=CS*4.1;
+    if(s.last){drawCard(mid+3,mid+3,cw,ch,null,P);drawCard(mid,mid,cw,ch,s.last.card,P,C[s.last.pl]);
+      x.font='800 10px sans-serif';x.fillStyle=P.muted;x.textAlign='center';x.fillText(s.last.k==='dis'?NM[s.last.pl]+' burned':NM[s.last.pl]+' played',mid,mid-ch/2-9);
+      if(s.last.k==='dis'||s.last.k==='burn'){x.font=`${CS*1.1}px sans-serif`;x.fillText('🔥',mid+cw/2-2,mid-ch/2+4)}
+    }else{rr(x,mid-cw/2,mid-ch/2,cw,ch,7);x.setLineDash([4,4]);x.lineWidth=2;x.strokeStyle=P.line;x.stroke();x.setLineDash([])}
+    x.font='800 10px sans-serif';x.fillStyle=P.muted;x.textAlign='center';x.fillText(`Round ${s.round+1} · ${JK_DEAL[s.round%3]} cards`,mid,mid+ch/2+12);
+    /* labels */
+    for(let o=0;o<4;o++){const q=lblPos(o),w=CS*4.7,h=CS*1.5,on=!over&&s.turn===o;
+      rr(x,q.x-w/2,q.y-h/2,w,h,h/2);x.fillStyle=on?C[o]:P.board;x.fill();x.lineWidth=on?3:2;x.strokeStyle=on?P.edge:C[o];x.stroke();
+      if(on){x.save();x.globalAlpha=.35+.25*Math.sin(t*6);rr(x,q.x-w/2-3,q.y-h/2-3,w+6,h+6,h/2+3);x.lineWidth=2;x.strokeStyle=C[o];x.stroke();x.restore()}
+      x.textAlign='left';x.textBaseline='middle';x.font='800 11px sans-serif';x.fillStyle=on?'#1E1F5C':P.ink;x.fillText(NM[o],q.x-w/2+8,q.y+.5);
+      const n=s.hands[o].length;rr(x,q.x+w/2-21,q.y-h/2+4,14,h-8,3);x.fillStyle=P.c5;x.fill();x.lineWidth=1.5;x.strokeStyle=P.edge;x.stroke();
+      x.textAlign='center';x.font='11px '+DISPLAY;x.fillStyle='#fff';x.fillText(n,q.x+w/2-14,q.y+1);
+      if(o===2){x.font='8px sans-serif';x.fillText('🤝',q.x+w/2-31,q.y+1)}
+    }
+    /* marbles */
+    const animating=new Set(anims.filter(a=>a.t<a.dur).map(a=>a.id));
+    const ci=me()?candIds():[],fid=ci.length?ci[((focus%ci.length)+ci.length)%ci.length]:-1;
+    const pulse=.5+.5*Math.sin(t*7);
+    for(let id=0;id<16;id++){if(animating.has(id))continue;const q=posOf(id,s.m[id]);
+      let ring=null;if(id===pick1)ring=P.ink;else if(ci.includes(id))ring=`rgba(255,197,61,${.55+.45*pulse})`;
+      marble(q.x,q.y,C[id>>2],P,ring);
+      if(id===fid&&kbUsed){x.beginPath();x.arc(q.x,q.y,RAD+6.5,0,7);x.lineWidth=2;x.setLineDash([3,3]);x.strokeStyle=P.ink;x.stroke();x.setLineDash([])}
+    }
+    for(const a of anims){if(a.t>=a.dur)continue;const u=clamp(a.t/a.dur,0,1),n=a.pts.length-1;let X,Y,lift;
+      if(a.jump){const e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;X=a.pts[0].x+(a.pts[n].x-a.pts[0].x)*e;Y=a.pts[0].y+(a.pts[n].y-a.pts[0].y)*e;lift=Math.sin(u*Math.PI)*22}
+      else{const f=u*n,k=Math.min(n-1,Math.floor(f)),g=f-k;X=a.pts[k].x+(a.pts[k+1].x-a.pts[k].x)*g;Y=a.pts[k].y+(a.pts[k+1].y-a.pts[k].y)*g;lift=Math.sin(g*Math.PI)*7}
+      marble(X,Y-lift,C[a.id>>2],P,null,1+lift/90);
+    }
+    /* deal: card backs fly from the middle to each player */
+    for(const d of deals){if(d.t<0||d.t>=d.dur)continue;const u=d.t/d.dur,q=lblPos(d.q),e=1-Math.pow(1-u,3);
+      x.save();x.translate(mid+(q.x-mid)*e,mid+(q.y-mid)*e);x.rotate(u*3);drawCard(0,0,CS*1.3,CS*1.8,null,P);x.restore()}
+  }
+  let T=0,kbUsed=false;
+  S.loop(dt=>{
+    T+=dt;let act=false;
+    for(const a of anims){a.t+=dt;if(a.t<a.dur)act=true}anims=anims.filter(a=>a.t<a.dur+.05);
+    for(const d of deals){d.t+=dt;if(d.t<d.dur)act=true}deals=deals.filter(d=>d.t<d.dur);
+    draw(T);
+  });
+  /* ---------- input ---------- */
+  S.on(c,'click',e=>{
+    if(!me()||sel<0)return;const p=c.pos(e),ids=candIds().concat(pick1>=0?[pick1]:[]);let best=-1,bd=CS*1.05;
+    for(const id of ids){const q=posOf(id,s.m[id]),d=Math.hypot(q.x-p.x,q.y-p.y);if(d<bd){bd=d;best=id}}
+    if(best>=0)tapMarble(best);
+  });
+  S.on(window,'keydown',e=>{
+    if(!me())return;const k=e.key;
+    if(/^[1-5]$/.test(k)&&+k<=s.hands[0].length){pickCard(+k-1);return}
+    if(k==='Escape'){if(pick1>=0)pick1=-1;else sel=-1;render();return}
+    const ci=candIds();if(!ci.length)return;
+    if(k==='ArrowRight'||k==='ArrowDown'||k==='Tab'){focus++;kbUsed=true;e.preventDefault()}
+    else if(k==='ArrowLeft'||k==='ArrowUp'){focus--;kbUsed=true;e.preventDefault()}
+    else if(k==='Enter'||k===' '){e.preventDefault();tapMarble(ci[((focus%ci.length)+ci.length)%ci.length])}
+  });
+  S.on(window,'resize',()=>dirty=true);
+  /* test hook */
+  root.jk={set speed(v){SP=v},get s(){return s},play,pickCard,tapMarble,cands:()=>candIds(),posOf,get busy(){return busy},get over(){return over}};
+  dealAnim();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -7119,11 +7492,12 @@ const GAMES=[
   {id:'quantik',name:'Shape Grid',icon:'🔷',blurb:'Place shapes and be first to fill a line with all four kinds.',help:'Pick a shape from your tray, then tap a glowing square (or use 1–4, arrows and Enter). You can\'t place a shape where the other side already has that shape in the row, column or 2×2 zone. Complete a row, column or zone with 4 different shapes to win.',mount:quantik,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'qawale',name:'Stone Sow',icon:'🪨',blurb:'Stack, sow and line up four stones of your colour on top.',help:'Tap a stack to add your stone, then tap glowing squares one by one to sow the whole stack, bottom stone first (arrow keys work too, Undo or Backspace steps back). Get 4 of your colour on top in a row, column or diagonal.',mount:qawale,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'walls',name:'Wall Race',icon:'🧱',blurb:'Race to the far side and block your rival with walls.',help:'Tap a glowing square to move your pawn, or tap a gap between squares to preview a wall, then tap ✓ Place (tap the same gap again or ⟲ Turn to rotate it). Pick Easy, Medium, Hard, or 2 Players at the top.',mount:walls,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
-  {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true}
+  {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true},
+  {id:'jackaroo',name:'Jackaroo',icon:'🃏',blurb:'Team card-and-marble race. Play cards, swap, burn and get home.',help:'Tap a card from your hand, then tap a glowing marble. A brings out or moves 1/11, K brings out or moves 13 burning marbles it passes, J swaps, 7 splits, 5 moves any marble, 4 goes back, 10 moves or burns the next card. Pick Easy, Medium or Hard at the top.',mount:jackaroo,levels:3,open:true,names:['Easy','Medium','Hard'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game'};
 const CATS={'wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
