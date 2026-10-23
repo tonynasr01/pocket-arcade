@@ -393,6 +393,7 @@ function zones(parent,S,opts){
     if(p.k==='move'){ring.hidden=true;opts.onMove&&opts.onMove(0)}else send(p.b,'pointerup',e)};
   S.on(stage,'pointerup',up,true);S.on(stage,'pointercancel',up,true);
 }
+/* the on-screen ring is kept invisible (it covered the game); sliding still steers */
 /* touch controls with a remembered choice: whole-screen touch zones (default on touch screens),
    the joystick wheel, or arrow buttons */
 const TOUCHDEV=matchMedia('(pointer:coarse)').matches;
