@@ -1167,3 +1167,16 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 }
 @media (prefers-reduced-motion:reduce){.jk-card.jk-deal{animation:none}}
 @media (min-width:601px) and (min-height:501px){.jk-leg{max-width:980px}.jk-opt{max-width:700px}}
+/* Wahoo */
+.wh-cv{border-radius:16px;cursor:pointer}
+.wh-row{gap:10px;align-items:center;flex-wrap:nowrap}
+.wh-pill{display:flex;align-items:center;gap:8px;min-width:0;max-width:15.5em;min-height:46px;padding:6px 14px 6px 8px;border:3px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);font:800 .95rem/1.15 var(--body);box-shadow:0 4px 0 var(--edge)}
+.wh-pill i{flex:none;width:22px;height:22px;border-radius:50%;border:2.5px solid var(--edge);background:#FF4D6D;transition:background .25s}
+.wh-pill span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.wh-row .wh-roll{flex:none;background:var(--c3);color:#1E1F5C;font-size:1.05rem;min-width:7em}
+.wh-row .wh-roll.wh-go{animation:whPulse 1.3s ease-in-out infinite}
+.wh-row .wh-roll:disabled{background:var(--board);color:var(--muted);animation:none;cursor:default}
+@keyframes whPulse{50%{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 0 var(--edge)}}
+@media (prefers-reduced-motion:reduce){.wh-row .wh-roll.wh-go{animation:none}}
+#game.side .wh-row{flex-direction:column;flex-wrap:nowrap}
+#game.side .wh-pill{max-width:12em}
