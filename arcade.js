@@ -1911,7 +1911,9 @@ function blast(root,S){
   reset();
   const rate=()=>(7.5+Math.min(7,el/25))*(1+.15*up.rate)*(pw.rapid>0?2:1),dmg=()=>Math.max(1,Math.round((1+Math.floor(el/40))*(1+.25*up.dmg)))*(pw.power>0?2:1);
   const upLeft=()=>Object.keys(BLASTUP).filter(q=>up[q]<BLASTUP[q].max),GUNX=[[0],[-6,6],[-9,0,9]];
-  const hpFor=s=>Math.max(2,Math.round((3+el*.42)*[0,.35,.65,1,1.55][s]*(.7+Math.random()*.6)));
+  /* rocks toughen with time and with the cannon's permanent upgrades, so upgrades help but never make rocks melt */
+  const upPow=()=>up.guns*(1+.15*up.rate)*(1+.25*up.dmg);
+  const hpFor=s=>Math.max(2,Math.round((3+el*.5)*upPow()**.8*[0,.35,.65,1,1.55][s]*(.7+Math.random()*.6)));
   function start(){if(state==='ready'){state='play';beep(660,80);st('Keep moving! Rocks get tougher every few seconds.')}}
   function spawn(){
     const big=el>70&&Math.random()<Math.min(.45,(el-70)/200)?4:el>20&&Math.random()<.55?3:2;
@@ -1946,8 +1948,8 @@ function blast(root,S){
     if(tx!=null&&state==='play'){const d=tx-cx,m=Math.min(Math.abs(d),Math.max(Math.abs(d)*35,300)*dt,3200*dt);cx+=Math.sign(d)*m;if(Math.abs(tx-cx)<.5){cx=tx;if(dragX==null)tx=null}}
     if(state==='play'){
       el+=dt;upT-=dt;for(const p in pw)pw[p]=Math.max(0,pw[p]-dt);
-      const cap=Math.min(8,2+Math.floor(el/50)),bigCount=balls.filter(b=>b.s>=2).length;
-      spawnT-=dt;if(spawnT<=0&&bigCount<cap){spawn();spawnT=Math.max(2,4.8-el/70)*(.8+Math.random()*.4)}
+      const cap=Math.min(9,2+Math.floor(el/40)),bigCount=balls.filter(b=>b.s>=2).length;
+      spawnT-=dt;if(spawnT<=0&&bigCount<cap){spawn();spawnT=Math.max(1.7,4.5-el/60)*(.8+Math.random()*.4)}
       fireT-=dt;while(fireT<=0){
         const tri=pw.triple>0;for(const gx of GUNX[up.guns-1])bullets.push({x:cx+gx,y:CY-44,vx:0});if(tri){bullets.push({x:cx,y:CY-44,vx:-150});bullets.push({x:cx,y:CY-44,vx:150})}
         fireT+=1/rate();
