@@ -1133,6 +1133,20 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 @keyframes pn-glow{to{box-shadow:0 0 0 3px var(--edge),0 0 calc(var(--u)*.8) calc(var(--u)*.3) #FFC53D}}
 @keyframes pn-go{to{transform:scale(1.08)}}
 @media (prefers-reduced-motion:reduce){.pn-p{transition:none}}
+
+/* Wahoo */
+.wh-cv{border-radius:16px;cursor:pointer}
+.wh-row{gap:10px;align-items:center;flex-wrap:nowrap}
+.wh-pill{display:flex;align-items:center;gap:8px;min-width:0;max-width:15.5em;min-height:46px;padding:6px 14px 6px 8px;border:3px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);font:800 .95rem/1.15 var(--body);box-shadow:0 4px 0 var(--edge)}
+.wh-pill i{flex:none;width:22px;height:22px;border-radius:50%;border:2.5px solid var(--edge);background:#FF4D6D;transition:background .25s}
+.wh-pill span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.wh-row .wh-roll{flex:none;background:var(--c3);color:#1E1F5C;font-size:1.05rem;min-width:7em}
+.wh-row .wh-roll.wh-go{animation:whPulse 1.3s ease-in-out infinite}
+.wh-row .wh-roll:disabled{background:var(--board);color:var(--muted);animation:none;cursor:default}
+@keyframes whPulse{50%{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 0 var(--edge)}}
+@media (prefers-reduced-motion:reduce){.wh-row .wh-roll.wh-go{animation:none}}
+#game.side .wh-row{flex-direction:column;flex-wrap:nowrap}
+#game.side .wh-pill{max-width:12em}
 /* Jackaroo */
 .jk-cv{border-radius:16px;border:3px solid var(--edge);box-shadow:0 5px 0 var(--edge);cursor:pointer;box-sizing:border-box}
 .jk-hand{display:flex;gap:8px;justify-content:center;flex:none;min-height:92px;align-items:flex-end;padding-top:4px}
@@ -1167,16 +1181,12 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 }
 @media (prefers-reduced-motion:reduce){.jk-card.jk-deal{animation:none}}
 @media (min-width:601px) and (min-height:501px){.jk-leg{max-width:980px}.jk-opt{max-width:700px}}
-/* Wahoo */
-.wh-cv{border-radius:16px;cursor:pointer}
-.wh-row{gap:10px;align-items:center;flex-wrap:nowrap}
-.wh-pill{display:flex;align-items:center;gap:8px;min-width:0;max-width:15.5em;min-height:46px;padding:6px 14px 6px 8px;border:3px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);font:800 .95rem/1.15 var(--body);box-shadow:0 4px 0 var(--edge)}
-.wh-pill i{flex:none;width:22px;height:22px;border-radius:50%;border:2.5px solid var(--edge);background:#FF4D6D;transition:background .25s}
-.wh-pill span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.wh-row .wh-roll{flex:none;background:var(--c3);color:#1E1F5C;font-size:1.05rem;min-width:7em}
-.wh-row .wh-roll.wh-go{animation:whPulse 1.3s ease-in-out infinite}
-.wh-row .wh-roll:disabled{background:var(--board);color:var(--muted);animation:none;cursor:default}
-@keyframes whPulse{50%{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 0 var(--edge)}}
-@media (prefers-reduced-motion:reduce){.wh-row .wh-roll.wh-go{animation:none}}
-#game.side .wh-row{flex-direction:column;flex-wrap:nowrap}
-#game.side .wh-pill{max-width:12em}
+/* pass-and-play cover */
+.jk-pass{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:var(--bg);background-image:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--pc) 30%,transparent),transparent 65%);cursor:pointer;animation:jkFade .25s ease-out}
+@keyframes jkFade{from{opacity:0}}
+.jk-pbox{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 32px;border:3px solid var(--edge);border-radius:22px;background:var(--board);box-shadow:0 6px 0 var(--edge);text-align:center;animation:jkPop .4s var(--spring)}
+@keyframes jkPop{from{transform:scale(.8);opacity:0}}
+.jk-pbox i{width:56px;height:56px;border-radius:50%;background:var(--pc);border:4px solid var(--edge);box-shadow:inset -6px -8px 0 rgba(0,0,0,.18),inset 6px 6px 0 rgba(255,255,255,.35)}
+.jk-pbox b{font:400 1.7rem/1.1 var(--display);color:var(--ink)}
+.jk-pbox span{color:var(--muted);font-weight:800}
+.jk-pbox .btn{font-size:1.1rem;padding:14px 24px}
