@@ -7968,6 +7968,26 @@ function poker(root,S){
   const bar=el('div','pk-bar',root,`<div class="pk-q"><button data-q="min">Min</button><button data-q="half">½ Pot</button><button data-q="pot">Pot</button><button data-q="all">All-in</button></div>
     <div class="pk-sl"><div class="pk-tr"><div class="pk-fill"></div><div class="pk-th"></div></div><b class="pk-amt">0</b></div>
     <div class="pk-acts"><button class="btn pk-fold">Fold</button><button class="btn pk-call">Check</button><button class="btn pk-raise">Raise</button></div>`);
+  /* turn clock: each human gets 60 s per decision (the pass screen counts too); at 0 they check if they can, else fold */
+  const TURN=60,clockEl=el('div','pk-clock',null,'<i></i><b></b>');bar.prepend(clockEl);clockEl.style.visibility='hidden';let clock=null;
+  function startClock(i){if(clock&&clock.i===i&&clock.hand===s.hand&&clock.street===s.board.length)return;clock={i,hand:s.hand,street:s.board.length,end:performance.now()+TURN*1000,last:TURN+1};tickClock()}
+  function stopClock(){clock=null;clockEl.style.visibility='hidden';const pc=$('.pk-ptime',cover);if(pc)pc.textContent=''}
+  function tickClock(){
+    if(!clock)return;
+    if(!s||over||s.phase!=='bet'||s.toAct!==clock.i||s.hand!==clock.hand){stopClock();return}
+    const left=Math.max(0,(clock.end-performance.now())/1000),sec=Math.ceil(left);
+    clockEl.style.visibility='';clockEl.classList.toggle('low',left<=10);clockEl.style.setProperty('--t',left/TURN);
+    $('b',clockEl).textContent=(MP?s.P[clock.i].name+' · ':'')+'⏱ '+sec+'s';
+    const pc=$('.pk-ptime',cover);if(pc)pc.textContent='⏱ '+sec+'s';
+    if(sec<clock.last){clock.last=sec;if(sec<=10&&sec>0)beep(sec<=3?900:700,40)}
+    if(left<=0){
+      const i=clock.i;stopClock();
+      if(passing===i){passing=-1;cover.hidden=true}
+      const Lg=E.legal(s);S.fx.toast(`⏱ ${MP?s.P[i].name+' ran':'You ran'} out of time: ${Lg.canCheck?'check':'fold'}`);
+      busy=false;doAct(Lg.canCheck?{t:'check'}:{t:'fold'});
+    }
+  }
+  S.every(200,tickClock);
   const [bFold,bCall,bRaise]=[...bar.querySelectorAll('.pk-acts .btn')],track=$('.pk-tr',bar),thumb=$('.pk-th',bar),fill=$('.pk-fill',bar),amt=$('.pk-amt',bar),quick=[...bar.querySelectorAll('.pk-q button')];
   const who=$('.pk-who',hi),info=$('.pk-info',hi),hn=$('.pk-hn',hi),logEl=$('.pk-log',hi);
   let s=null,V=MP?-1:0,passing=-1,lastHum=-1,busy=false,over=false,SP=1,dealN=99,order=[],rv=0,thinking=-1,boardShown=0,seats=[],bets=[],sigs=[],holeSig='',best=null;
@@ -8033,6 +8053,7 @@ function poker(root,S){
     if(s.phase==='bet'){
       const i=s.toAct,p=s.P[i];
       if(p.human){
+        startClock(i);
         if(MP&&V!==i){if(lastHum===i){V=i}else{showPass(i);return}}
         const Lg=E.legal(s);rv=Lg.minTo;render();
         const tx=Lg.canCheck?'check or bet':`${fmt(Lg.call)} to call`;if(!MP)st('Your turn: '+tx);else if(!COMPACT.matches)st(`${p.name}'s turn: ${tx}`);beep(660,60);return;
@@ -8052,7 +8073,7 @@ function poker(root,S){
     }
   }
   function doAct(a){
-    const i=s.toAct;E.act(s,a);
+    stopClock();const i=s.toAct;E.act(s,a);
     const p=s.P[i];beep(a.t==='fold'?220:a.t==='check'?500:a.t==='call'?620:760,a.t==='raise'?110:60,a.t==='fold'?'sine':'triangle');
     const tg=$('.pk-tag',seats[i]);restartAnim(tg,'pk-pop');
     if(MP&&p.human){V=-1;lastHum=i}
@@ -8094,7 +8115,7 @@ function poker(root,S){
   function showPass(q){
     passing=q;V=-1;render();const p=s.P[q];
     cover.style.setProperty('--pc',`var(${p.col})`);
-    cover.innerHTML=`<div class="pk-pbox"><i>${p.name[0]}</i><b>Pass to ${p.name}</b><span>${fmt(p.chips)} chips · ${E.legal(s).canCheck?'check or bet':fmt(E.legal(s).call)+' to call'}</span><button class="btn">Tap when ready</button></div>`;
+    cover.innerHTML=`<div class="pk-pbox"><i>${p.name[0]}</i><b>Pass to ${p.name}</b><span>${fmt(p.chips)} chips · ${E.legal(s).canCheck?'check or bet':fmt(E.legal(s).call)+' to call'}</span><button class="btn">Tap when ready</button><small class="pk-ptime"></small></div>`;
     cover.hidden=false;beep(520,80);
   }
   function reveal(){if(passing<0)return;const q=passing;passing=-1;cover.hidden=true;V=q;lastHum=q;beep(780,60);step()}
@@ -8253,7 +8274,7 @@ const GAMES=[
   {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true},
   {id:'wahoo',name:'Wahoo',icon:'🎯',blurb:'Race four marbles around the cross and fill your home first.',help:'Tap Roll, then tap a glowing marble to move it. A 1 or 6 brings a marble out and a 6 rolls again. Land on a rival to send it back; the center hole is a shortcut you leave with a 1.',mount:wahoo,levels:4,open:true,names:['Easy','Hard','2 Players','4 Players'],isNew:true},
   {id:'jackaroo',name:'Jackaroo',icon:'🃏',blurb:'Team card-and-marble race. Play cards, swap, burn and get home.',help:'Tap a card, then a glowing marble. A: out or 1/11, K: out or 13 burning marbles it passes, J swaps, 7 splits, 5 moves any marble, 4 goes back, 10 moves or burns the next card. Pick Easy, Medium, Hard, or 2/4 Players to pass one device around.',mount:jackaroo,levels:5,open:true,names:['Easy','Medium','Hard','2 Players','4 Players'],isNew:true},
-  {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true}
+  {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun. Each player has 60 seconds per move; when time runs out you check if you can, otherwise fold.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];

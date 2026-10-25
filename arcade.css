@@ -1269,6 +1269,12 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .pk-log div:last-child{color:var(--ink)}
 /* action bar */
 .pk-bar{display:flex;flex-direction:column;gap:8px;width:min(100%,520px);padding:0 8px;flex:none}
+.pk-clock{position:relative;height:20px;border:2px solid var(--edge);border-radius:999px;background:var(--board);overflow:hidden}
+.pk-clock i{position:absolute;inset:0;transform-origin:left;transform:scaleX(var(--t,1));background:var(--c3);transition:transform .2s linear}
+.pk-clock.low i{background:var(--c1)}
+.pk-clock b{position:relative;display:block;text-align:center;font:800 .78rem/16px var(--body);color:var(--ink)}
+.pk-clock.low b{animation:pulse 1s infinite}
+.pk-ptime{display:block;margin-top:8px;font-weight:800;color:var(--muted)}
 .pk-q{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .pk-q button{font:800 .85rem/1 var(--body);padding:8px 0;border:2px solid var(--edge);border-radius:999px;background:var(--board);color:var(--ink);cursor:pointer;box-shadow:0 2px 0 var(--edge)}
 .pk-q button.on{background:var(--c2);color:#1E1F5C}
