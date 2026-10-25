@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -7700,6 +7700,507 @@ function jackaroo(root,S){
   dealAnim();
 }
 
+/* ---------- Texas Hold'em (no-limit, play chips) ---------- */
+const POKER_RN=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const POKER_RW=['Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King','Ace'];
+const POKER_RP=['Twos','Threes','Fours','Fives','Sixes','Sevens','Eights','Nines','Tens','Jacks','Queens','Kings','Aces'];
+const POKER_SU=['♣','♦','♥','♠'];
+const POKER_BLINDS=[[10,20],[15,30],[25,50],[50,100],[75,150],[100,200],[150,300],[200,400],[300,600],[400,800],[500,1000],[750,1500],[1000,2000],[1500,3000],[2000,4000],[3000,6000],[5000,10000]];
+const POKER_EVERY=6;
+/* seat spots (x%,y%) clockwise from the bottom, kept out of the band where the board sits */
+const POKER_LAYT={2:[[50,89],[50,13]],3:[[50,89],[19,27],[81,27]],4:[[50,89],[17,31],[50,13],[83,31]],5:[[50,89],[16,70],[21,25],[79,25],[84,70]],6:[[50,89],[15,70],[17,32],[50,13],[83,32],[85,70]]};
+const POKER_LAYW={2:[[50,86],[50,16]],3:[[50,86],[14,28],[86,28]],4:[[50,86],[13,31],[50,16],[87,31]],5:[[50,86],[13,72],[17,26],[83,26],[87,72]],6:[[50,86],[13,72],[16,29],[50,16],[84,29],[87,72]]};
+/* opponents: loose = plays more hands, aggr = bets/raises instead of calling, bluff = bets without a hand */
+const POKER_BOTS=[
+  {name:'Rosa',av:'🦊',loose:.3,aggr:.8,bluff:.3},
+  {name:'Milo',av:'🐻',loose:.8,aggr:.2,bluff:.08},
+  {name:'Kenji',av:'🐯',loose:.72,aggr:.85,bluff:.55},
+  {name:'Ada',av:'🦉',loose:.12,aggr:.35,bluff:.05},
+  {name:'Omar',av:'🐼',loose:.5,aggr:.55,bluff:.25}
+];
+const POKER_E=(()=>{
+  const now=()=>(typeof performance!=='undefined'?performance.now():Date.now());
+  /* ---------- hand evaluation: a score where higher wins; category*2^20 + up to 5 ranks of 4 bits ---------- */
+  function sHi(m){const x=(m<<1)|((m>>12)&1);for(let h=13;h>=4;h--)if(((x>>(h-4))&31)===31)return h-1;return -1}
+  function top(m,n){const o=[];for(let r=12;r>=0&&o.length<n;r--)if(m>>r&1)o.push(r);return o}
+  function pack(cat,rs){let v=cat;for(let i=0;i<5;i++)v=v*16+(rs[i]||0);return v}
+  function ev(cs){
+    const cnt=[0,0,0,0,0,0,0,0,0,0,0,0,0],sm=[0,0,0,0],sc=[0,0,0,0];let m=0;
+    for(const c of cs){const r=c>>2,s=c&3;cnt[r]++;sm[s]|=1<<r;sc[s]++;m|=1<<r}
+    for(let s=0;s<4;s++)if(sc[s]>=5){const h=sHi(sm[s]);return h>=0?pack(8,[h]):pack(5,top(sm[s],5))}
+    let q=-1;const t=[],p=[];
+    for(let r=12;r>=0;r--){if(cnt[r]===4)q=r;else if(cnt[r]===3)t.push(r);else if(cnt[r]===2)p.push(r)}
+    if(q>=0)return pack(7,[q,top(m&~(1<<q),1)[0]]);
+    if(t.length&&(t.length>1||p.length))return pack(6,[t[0],Math.max(t[1]??-1,p[0]??-1)]);
+    const h=sHi(m);if(h>=0)return pack(4,[h]);
+    if(t.length)return pack(3,[t[0],...top(m&~(1<<t[0]),2)]);
+    if(p.length>1)return pack(2,[p[0],p[1],top(m&~(1<<p[0])&~(1<<p[1]),1)[0]]);
+    if(p.length)return pack(1,[p[0],...top(m&~(1<<p[0]),3)]);
+    return pack(0,top(m,5));
+  }
+  const cat=v=>Math.floor(v/1048576),rk=(v,i)=>Math.floor(v/Math.pow(16,4-i))%16;
+  function name(v){
+    const a=rk(v,0),b=rk(v,1);
+    switch(cat(v)){
+      case 8:return a===12?'Royal Flush':'Straight Flush, '+POKER_RW[a]+' high';
+      case 7:return'Four of a Kind, '+POKER_RP[a];
+      case 6:return'Full House, '+POKER_RP[a]+' over '+POKER_RP[b];
+      case 5:return'Flush, '+POKER_RW[a]+' high';
+      case 4:return'Straight, '+POKER_RW[a]+' high';
+      case 3:return'Three of a Kind, '+POKER_RP[a];
+      case 2:return'Two Pair, '+POKER_RP[a]+' and '+POKER_RP[b];
+      case 1:return'Pair of '+POKER_RP[a];
+      default:return'High Card, '+POKER_RW[a];
+    }
+  }
+  function best5(cs){
+    const v=ev(cs),n=cs.length;
+    for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++)for(let e=d+1;e<n;e++){
+      const f=[cs[a],cs[b],cs[c],cs[d],cs[e]];if(ev(f)===v)return f}
+    return cs.slice(0,5);
+  }
+  /* ---------- table state ---------- */
+  function newGame(players,chips=1000){
+    return{P:players.map(p=>({...p,chips,hole:[],bet:0,total:0,folded:false,allin:false,out:false,acted:false,actedBet:0,last:''})),
+      btn:-1,hand:0,level:0,agg:players.map(()=>({n:0,r:0})),lastAgg:-1,board:[],deck:[],street:0,toAct:-1,cur:0,minR:0,phase:'idle',log:[],result:null,sbI:-1,bbI:-1};
+  }
+  const blinds=s=>POKER_BLINDS[Math.min(s.level,POKER_BLINDS.length-1)];
+  const alive=s=>s.P.map((p,i)=>i).filter(i=>!s.P[i].out);
+  const nextAlive=(s,i)=>{const n=s.P.length;for(let k=1;k<=n;k++){const j=(i+k+n)%n;if(!s.P[j].out)return j}return -1};
+  const live=s=>s.P.map((p,i)=>i).filter(i=>!s.P[i].out&&!s.P[i].folded);
+  const potTotal=s=>s.P.reduce((a,p)=>a+p.total,0);
+  const needs=(s,p)=>!p.out&&!p.folded&&!p.allin&&(!p.acted||p.bet<s.cur);
+  function firstNeeding(s,from){
+    const can=s.P.filter(p=>!p.out&&!p.folded&&!p.allin);
+    if(!can.length||(can.length===1&&can[0].bet>=s.cur))return -1;
+    const n=s.P.length;for(let k=0;k<n;k++){const j=(from+k)%n;if(needs(s,s.P[j]))return j}return -1;
+  }
+  function put(s,p,amt){amt=Math.min(amt,p.chips);p.chips-=amt;p.bet+=amt;p.total+=amt;if(p.chips===0)p.allin=true;return amt}
+  const vb=(p,a,b)=>p.name==='You'?b:a;
+  function log(s,t){s.log.push(t);if(s.log.length>40)s.log.shift()}
+  function shuffled(rng){const d=[];for(let i=0;i<52;i++)d.push(i);for(let i=51;i>0;i--){const j=Math.floor(rng()*(i+1));[d[i],d[j]]=[d[j],d[i]]}return d}
+  function startHand(s,rng=Math.random){
+    const al=alive(s);if(al.length<2)return false;
+    s.hand++;const lv=Math.floor((s.hand-1)/POKER_EVERY),up=lv>s.level&&s.hand>1;s.level=lv;
+    s.btn=s.btn<0?al[Math.floor(rng()*al.length)]:nextAlive(s,s.btn);
+    for(const p of s.P){p.hole=[];p.bet=0;p.total=0;p.folded=p.out;p.allin=false;p.acted=false;p.actedBet=0;p.last=''}
+    const[sb,bb]=blinds(s);
+    s.sbI=al.length===2?s.btn:nextAlive(s,s.btn);s.bbI=nextAlive(s,s.sbI);
+    s.deck=shuffled(rng);s.board=[];s.street=0;s.result=null;
+    put(s,s.P[s.sbI],sb);put(s,s.P[s.bbI],bb);s.P[s.sbI].last='SB';s.P[s.bbI].last='BB';
+    for(let r=0;r<2;r++){let i=s.sbI;do{s.P[i].hole.push(s.deck.pop());i=nextAlive(s,i)}while(i!==s.sbI)}
+    s.cur=bb;s.minR=bb;s.lastAgg=s.bbI;
+    log(s,`Hand ${s.hand}: blinds ${sb}/${bb}`);s.blindsUp=up;
+    s.toAct=firstNeeding(s,nextAlive(s,s.bbI));s.phase=s.toAct<0?'collect':'bet';
+    return true;
+  }
+  function legal(s){
+    const p=s.P[s.toAct],toCall=Math.max(0,s.cur-p.bet),stackTo=p.bet+p.chips;
+    const others=s.P.some(q=>q!==p&&!q.out&&!q.folded&&!q.allin);
+    const reopen=!p.acted||s.cur-p.actedBet>=s.minR;
+    const canRaise=stackTo>s.cur&&reopen&&others;
+    const minTo=Math.min(s.cur+s.minR,stackTo);
+    return{i:s.toAct,p,toCall,call:Math.min(toCall,p.chips),canCheck:toCall===0,canRaise,minTo,maxTo:stackTo,pot:potTotal(s),bb:blinds(s)[1]};
+  }
+  const fmt=n=>n.toLocaleString('en-US');
+  /* apply an action {t:'fold'|'check'|'call'|'raise',to}; throws on anything illegal */
+  function act(s,a){
+    if(s.phase!=='bet')throw new Error('not betting');
+    const L=legal(s),p=L.p,i=s.toAct;
+    if(a.t==='fold'){if(L.canCheck)throw new Error('fold when check is free');p.folded=true;p.last='Fold';log(s,p.name+vb(p,' folds',' fold'))}
+    else if(a.t==='check'){if(!L.canCheck)throw new Error('cannot check');p.last='Check';log(s,p.name+vb(p,' checks',' check'))}
+    else if(a.t==='call'){if(L.canCheck)throw new Error('nothing to call');put(s,p,L.call);p.last=p.allin?'All-in':'Call '+fmt(L.call);log(s,p.name+vb(p,' calls',' call')+(p.allin?' all-in ':' ')+fmt(L.call))}
+    else if(a.t==='raise'){
+      const to=a.to;if(!L.canRaise)throw new Error('cannot raise');
+      if(!Number.isInteger(to)||to<L.minTo||to>L.maxTo)throw new Error('bad raise '+to+' ['+L.minTo+','+L.maxTo+']');
+      const inc=to-s.cur,was=s.cur;put(s,p,to-p.bet);if(inc>=s.minR)s.minR=inc;s.cur=to;
+      const w=was===0?vb(p,'bets','bet'):vb(p,'raises to','raise to');p.last=p.allin?'All-in':(was===0?'Bet ':'Raise ')+fmt(to);
+      log(s,p.name+(p.allin?vb(p,' is',' are')+' all-in for '+fmt(to):' '+w+' '+fmt(to)));
+    }else throw new Error('unknown action');
+    p.acted=true;p.actedBet=s.cur;const ag=s.agg[i];ag.n++;if(a.t==='raise'){ag.r++;s.lastAgg=i}
+    if(live(s).length===1){s.phase='collect';s.toAct=-1;return}
+    s.toAct=firstNeeding(s,(i+1)%s.P.length);if(s.toAct<0)s.phase='collect';
+  }
+  /* side pots from what everyone put in; eligible = players still in the hand */
+  function pots(s,useBets=true){
+    const c=s.P.map(p=>p.total-(useBets?0:p.bet)),out=[];
+    for(let g=0;g<20&&c.some(v=>v>0);g++){
+      const el=live(s).filter(i=>c[i]>0);
+      if(!el.length){const rest=c.reduce((a,v)=>a+v,0);if(out.length)out[out.length-1].amount+=rest;c.fill(0);break}
+      const lv=Math.min(...el.map(i=>c[i]));let amt=0;
+      for(let i=0;i<c.length;i++){const t=Math.min(c[i],lv);amt+=t;c[i]-=t}
+      const last=out[out.length-1];
+      if(last&&last.elig.join()===el.join())last.amount+=amt;else out.push({amount:amt,elig:el});
+    }
+    return out;
+  }
+  /* end of a betting round: return any uncalled chips, then deal the next street or settle the hand */
+  function collect(s){
+    const bets=s.P.map(p=>p.bet),mx=Math.max(...bets),who=bets.indexOf(mx),second=Math.max(...bets.filter((b,i)=>i!==who));
+    let refund=0;
+    if(mx>second){refund=mx-second;const p=s.P[who];p.bet-=refund;p.total-=refund;p.chips+=refund;if(p.chips>0)p.allin=false}
+    for(const p of s.P){p.bet=0;p.acted=false;p.actedBet=0;if(p.last!=='Fold'&&p.last!=='All-in')p.last=''}
+    s.cur=0;s.minR=blinds(s)[1];
+    const L=live(s);
+    if(L.length===1){
+      const w=L[0],amt=potTotal(s);s.P[w].chips+=amt;
+      s.result={walk:true,pots:[{amount:amt,winners:[w],elig:[w]}],gain:{[w]:amt},refund};
+      log(s,s.P[w].name+vb(s.P[w],' wins ',' win ')+fmt(amt));for(const p of s.P)p.total=0;s.phase='done';return;
+    }
+    if(s.street===3)return showdown(s);
+    s.street++;s.deck.pop();
+    const n=s.street===1?3:1;for(let k=0;k<n;k++)s.board.push(s.deck.pop());
+    log(s,['','Flop','Turn','River'][s.street]+': '+s.board.slice(-n).map(c=>POKER_RN[c>>2]+POKER_SU[c&3]).join(' '));
+    s.toAct=firstNeeding(s,nextAlive(s,s.btn));s.phase=s.toAct<0?'collect':'bet';
+  }
+  function showdown(s){
+    const L=live(s),sc={};for(const i of L)sc[i]=ev(s.P[i].hole.concat(s.board));
+    const n=s.P.length,order=[];for(let k=1;k<=n;k++)order.push((s.btn+k)%n);
+    const ps=pots(s),gain={};
+    for(const pot of ps){
+      const b=Math.max(...pot.elig.map(i=>sc[i]));const W=order.filter(i=>pot.elig.includes(i)&&sc[i]===b);
+      const share=Math.floor(pot.amount/W.length);let odd=pot.amount-share*W.length;
+      for(const i of W){const g=share+(odd>0?1:0);if(odd>0)odd--;s.P[i].chips+=g;gain[i]=(gain[i]||0)+g}
+      pot.winners=W;pot.score=b;
+    }
+    for(const p of s.P)p.total=0;
+    s.result={walk:false,pots:ps,gain,scores:sc};
+    for(const pot of ps)log(s,pot.winners.map(i=>s.P[i].name).join(' & ')+(pot.winners.length>1?' split ':vb(s.P[pot.winners[0]],' wins ',' win '))+fmt(pot.amount)+' with '+name(pot.score));
+    s.phase='done';
+  }
+  function finishHand(s){const gone=[];for(const [i,p] of s.P.entries())if(!p.out&&p.chips===0){p.out=true;p.folded=true;gone.push(i)}s.phase='idle';return gone}
+  /* ---------- computer players ---------- */
+  function chen(h){
+    let a=h[0]>>2,b=h[1]>>2;if(a<b)[a,b]=[b,a];const v=r=>r===12?10:r===11?8:r===10?7:r===9?6:(r+2)/2;
+    let x=v(a);if(a===b)return Math.max(5,x*2);
+    if((h[0]&3)===(h[1]&3))x+=2;const g=a-b-1;x-=g===0?0:g===1?1:g===2?2:g===3?4:5;
+    if(g<=1&&a<10)x+=1;return Math.ceil(x);
+  }
+  function equity(hole,board,nOpp,rng=Math.random,ms=25,maxIt=3000){
+    const used=new Set(hole.concat(board)),rest=[];for(let c=0;c<52;c++)if(!used.has(c))rest.push(c);
+    const need=5-board.length,k=need+2*nOpp,t0=now();let it=0,win=0;
+    while(it<maxIt){
+      if(it>=40&&(it&31)===0&&now()-t0>ms)break;
+      for(let j=0;j<k;j++){const r=j+Math.floor(rng()*(rest.length-j)),t=rest[j];rest[j]=rest[r];rest[r]=t}
+      const bd=board.concat(rest.slice(0,need)),my=ev(hole.concat(bd));let ties=0,lose=false;
+      for(let o=0;o<nOpp;o++){const v=ev([rest[need+2*o],rest[need+2*o+1]].concat(bd));if(v>my){lose=true;break}if(v===my)ties++}
+      if(!lose)win+=1/(ties+1);it++;
+    }
+    return it?win/it:0;
+  }
+  /* pick an action for the player to act; always returns a legal one */
+  function choose(s,rng=Math.random,o={}){
+    const L=legal(s),p=L.p,st=p.style||POKER_BOTS[4],bb=L.bb,i=L.i;
+    const opp=live(s).length-1,dealt=s.P.filter(q=>!q.out).length;
+    const R=(f,lo,hi)=>{const step=Math.max(1,blinds(s)[0]);let to=Math.round(f/step)*step;to=clamp2(to,L.minTo,L.maxTo);if(to>L.maxTo*.72)to=L.maxTo;return{t:'raise',to}};
+    const pass=()=>L.canCheck?{t:'check'}:{t:'fold'},call=()=>L.canCheck?{t:'check'}:{t:'call'};
+    const raise=to=>L.canRaise?R(to):call();
+    const ra=s.lastAgg>=0&&s.lastAgg!==i?s.agg[s.lastAgg]:null,wild=ra?clamp2((ra.r+1)/(ra.n+3)-.38,0,.6):0;/* how often the bettor raises: loosen up against maniacs */
+    let a;
+    if(s.street===0){
+      const n=s.P.length;let pos=0;for(let k=1;k<=n;k++){const j=(s.btn-k+n+1)%n;if(j===i){pos=k-1;break}}/* 0 = button */
+      const late=dealt<=2?1:pos<=1?1:pos===2?.4:0;
+      const c=chen(p.hole)+(rng()-.5)*2.2,stackBB=(p.chips+p.bet)/bb,facing=s.cur/bb;
+      const playTh=(dealt<=2?2.5:dealt<=4?6:7.5)-st.loose*2.6-late*1.2;
+      const raiseTh=playTh+4-st.aggr*2.2;
+      const big=L.toCall>=(p.chips+p.bet)*.4&&L.toCall>bb*3;
+      if(big){/* facing a huge bet or all-in: pot odds against an estimate of the bettor's range */
+        const rf=ra?clamp2((ra.r+1)/(ra.n+3),0,1):.3,e=equity(p.hole,[],Math.max(1,opp),rng,o.ms??25,o.iters??3000)-.16*(1-rf)*(opp>1?1.3:1);
+        const po=L.call/(L.pot+L.call);a=e>=po+.01-st.loose*.05?(e>.7&&L.canRaise?{t:'raise',to:L.maxTo}:{t:'call'}):pass();
+      }else if(stackBB<=12){
+        const push=(dealt<=2?4.5:7)-st.loose*1.5-late*.8+(facing>1.01?Math.max(0,2.2+Math.min(3,facing/6)-wild*10):0);
+        a=c>=push?{t:'raise',to:L.maxTo}:(L.toCall<=bb*.5&&c>=push-3?call():pass());
+        if(a.t==='raise'&&!L.canRaise)a={t:'call'};
+      }else if(facing<=1.01){
+        const limpers=s.P.filter(q=>!q.out&&!q.folded&&q.bet>=bb&&q!==p).length-1;
+        if(c>=raiseTh||(c>=playTh+1&&rng()<st.aggr*.3))a=raise(bb*(2.3+rng()*1.2)+Math.max(0,limpers)*bb);
+        else if(c>=playTh||L.canCheck||(L.toCall<=bb/2&&c>=playTh-2))a=call();
+        else a=pass();
+      }else{
+        const need=playTh+2+Math.log2(Math.max(1,facing/2.5))*1.7-wild*8;
+        const three=13.5-st.aggr*2.8+Math.log2(Math.max(1,facing/3));
+        if(c>=three)a=raise(s.cur*(2.6+rng()*.8));
+        else if(c>=need)a=call();
+        else if(L.canRaise&&rng()<st.bluff*.06&&c>=4)a=raise(s.cur*3);
+        else a=pass();
+      }
+    }else{
+      let e=equity(p.hole,s.board,Math.max(1,opp),rng,o.ms??25,o.iters??3000);
+      const pot=L.pot,po=L.toCall/(pot+L.toCall);
+      if(L.toCall>0)e-=.12*Math.min(1.5,L.toCall/Math.max(1,pot-L.toCall))*(1-wild*1.6);/* a big bet usually means a real hand */
+      const frac=(lo,hi)=>pot*(lo+rng()*(hi-lo));
+      if(L.canCheck){
+        if(e>.9&&rng()<.25)a={t:'check'};
+        else if(e>.72-st.aggr*.1&&rng()<.5+st.aggr*.45)a=raise(frac(.55,.9));
+        else if(e>.52&&rng()<st.aggr*.5)a=raise(frac(.4,.6));
+        else if(s.street<3&&e>.3&&rng()<st.bluff*.35)a=raise(frac(.45,.7));
+        else if(opp<=2&&rng()<st.bluff*.18)a=raise(frac(.4,.6));
+        else a={t:'check'};
+      }else{
+        const callTh=po+.02-st.loose*.06;
+        if(L.canRaise&&(e>.82||(e>.66&&rng()<st.aggr*.55)))a=raise(s.cur+(pot+L.toCall)*(.6+rng()*.4));
+        else if(e>=callTh)a={t:'call'};
+        else if(L.canRaise&&s.street<3&&rng()<st.bluff*.06)a=raise(s.cur+(pot+L.toCall)*.7);
+        else a={t:'fold'};
+      }
+    }
+    if(a.t==='raise'&&(!L.canRaise||a.to<L.minTo||a.to>L.maxTo))a=call();
+    if(a.t==='fold'&&L.canCheck)a={t:'check'};
+    if(a.t==='call'&&L.canCheck)a={t:'check'};
+    return a;
+  }
+  function clamp2(v,a,b){return Math.max(a,Math.min(b,v))}
+  /* play a whole hand with a chooser (for tests) */
+  function runHand(s,pick,rng=Math.random){
+    if(!startHand(s,rng))return false;
+    for(let g=0;g<500&&s.phase!=='done';g++){if(s.phase==='bet')act(s,pick(s));else collect(s)}
+    return finishHand(s);
+  }
+  return{ev,name,best5,cat,newGame,startHand,legal,act,collect,pots,finishHand,chen,equity,choose,blinds,alive,live,nextAlive,potTotal,runHand,fmt};
+})();
+function poker(root,S){
+  const L=S.level,MP=L===4,E=POKER_E,fmt=E.fmt;
+  const st=status(root,MP?'Pass & Play: 2 to 6 players share one device. Chips are just for fun.':`No-limit hold'em against ${['','1 computer player','3 computer players','5 computer players'][L]}. Everyone starts with 1,000 chips, just for fun.`);
+  const COLS=['--c4','--c1','--c3','--c6','--c5','--c2'],PPN=['Blue','Red','Green','Orange','Purple','Yellow'];
+  const tbl=el('div','pk-tbl',root),felt=el('div','pk-felt',tbl);
+  const mid=el('div','pk-mid',tbl),potEl=el('div','pk-pot',mid),boardEl=el('div','pk-board',mid),msg=el('div','pk-msg',mid);
+  const hand=el('div','pk-hand',root),hole=el('div','pk-hole',hand),hi=el('div','pk-hi',hand,'<div class="pk-top"><span class="pk-who"></span><span class="pk-info"></span></div><div class="pk-hn"></div><div class="pk-log"></div>');
+  const bar=el('div','pk-bar',root,`<div class="pk-q"><button data-q="min">Min</button><button data-q="half">½ Pot</button><button data-q="pot">Pot</button><button data-q="all">All-in</button></div>
+    <div class="pk-sl"><div class="pk-tr"><div class="pk-fill"></div><div class="pk-th"></div></div><b class="pk-amt">0</b></div>
+    <div class="pk-acts"><button class="btn pk-fold">Fold</button><button class="btn pk-call">Check</button><button class="btn pk-raise">Raise</button></div>`);
+  const [bFold,bCall,bRaise]=[...bar.querySelectorAll('.pk-acts .btn')],track=$('.pk-tr',bar),thumb=$('.pk-th',bar),fill=$('.pk-fill',bar),amt=$('.pk-amt',bar),quick=[...bar.querySelectorAll('.pk-q button')];
+  const who=$('.pk-who',hi),info=$('.pk-info',hi),hn=$('.pk-hn',hi),logEl=$('.pk-log',hi);
+  let s=null,V=MP?-1:0,passing=-1,lastHum=-1,busy=false,over=false,SP=1,dealN=99,order=[],rv=0,thinking=-1,boardShown=0,seats=[],bets=[],sigs=[],holeSig='',best=null;
+  /* ---------- layout ---------- */
+  function setAR(){
+    let ar;if(!COMPACT.matches)ar=1.5;else if(innerWidth>innerHeight)ar=1.32;
+    else{const res=hand.offsetHeight+bar.offsetHeight+30;ar=400/tall(400,400,620,res)}
+    tbl.dataset.ar=ar.toFixed(4);tbl.style.aspectRatio=ar.toFixed(4);tbl.dataset.max=COMPACT.matches?900:820;place();
+  }
+  function place(){
+    if(!s)return;const n=s.P.length,ar=+tbl.dataset.ar,W=100*ar,m=Math.max(Math.min(W,100)/100,Math.min(1.3,.85*W/100)),wide=ar>1.1;
+    const lay=(wide?POKER_LAYW:POKER_LAYT)[n];
+    s.P.forEach((p,i)=>{
+      const[x,y]=lay[i];seats[i].style.left=x+'%';seats[i].style.top=y+'%';
+      const px=x*W/100;let bx,by;
+      if(Math.abs(x-50)<15){bx=px+19*m;by=y+(y>50?-5:5)*m}
+      else{const dx=W/2-px,dy=(50-y)*.3,d=Math.hypot(dx,dy)||1;bx=px+dx/d*20*m;by=y+dy/d*20*m}
+      bets[i].style.left=bx/W*100+'%';bets[i].style.top=by+'%';
+    });
+  }
+  /* ---------- cards ---------- */
+  function card(c,cls=''){
+    if(c==null)return`<div class="pk-c pk-back ${cls}"></div>`;
+    const r=c>>2,su=c&3;return`<div class="pk-c${su===1||su===2?' pk-red':''} ${cls}" data-c="${c}"><b>${POKER_RN[r]}</b><u>${POKER_SU[su]}</u><i>${POKER_SU[su]}</i></div>`;
+  }
+  const pre=h=>{let[a,b]=h.map(c=>c>>2);if(a<b)[a,b]=[b,a];return a===b?'Pocket '+POKER_RP[a]:POKER_RW[a]+'-'+POKER_RW[b]+((h[0]&3)===(h[1]&3)?' suited':'')};
+  /* ---------- game setup ---------- */
+  function begin(nPP){
+    const P=MP?Array.from({length:nPP},(_,i)=>({name:PPN[i],human:true,col:COLS[i],av:''})):
+      [{name:'You',human:true,col:COLS[0],av:'🙂'}].concat(POKER_BOTS.slice(0,[0,1,3,5][L]).map((b,i)=>({name:b.name,human:false,style:b,col:COLS[i+1],av:b.av})));
+    s=E.newGame(P,1000);
+    tbl.querySelectorAll('.pk-seat,.pk-bet').forEach(e=>e.remove());seats=[];bets=[];sigs=[];
+    s.P.forEach((p,i)=>{
+      const se=el('div','pk-seat',tbl,`<div class="pk-sc"></div><div class="pk-pl"><span class="pk-av">${p.av||p.name[0]}</span><span class="pk-nm"></span><span class="pk-ch"></span><span class="pk-d" hidden>D</span><span class="pk-bl" hidden></span></div><span class="pk-tag" hidden></span>`);
+      se.style.setProperty('--pc',`var(${p.col})`);seats.push(se);sigs.push('');
+      const b=el('div','pk-bet',tbl,'<i></i><span></span>');b.hidden=true;b.style.setProperty('--pc',`var(${p.col})`);bets.push(b);
+    });
+    setAR();if(typeof fit==='function')fit();place();newHand();
+  }
+  function setup(){
+    const box=el('div','pk-setup',tbl,`<div class="pk-sbox"><b>How many players?</b><div class="pk-nums"></div><span>Pass the device around. Each player sees only their own cards.</span><button class="btn">Deal</button></div>`);
+    let n=clamp(store.get('poker:pp')||3,2,6);const nums=$('.pk-nums',box);
+    for(let k=2;k<=6;k++){const b=el('button','pk-n',nums,k);b.dataset.n=k;S.on(b,'click',()=>{n=k;beep(520,40);mark()})}
+    const mark=()=>[...nums.children].forEach(b=>b.classList.toggle('on',+b.dataset.n===n));mark();
+    const go=()=>{if(!box.isConnected)return;store.set('poker:pp',n);box.remove();begin(n)};
+    S.on($('.btn',box),'click',go);
+    S.on(window,'keydown',e=>{if(!box.isConnected)return;if(/^[2-6]$/.test(e.key)){n=+e.key;mark()}else if(e.key==='Enter'){e.preventDefault();go()}});
+    root.pk.setup=k=>{n=k;mark();go()};
+  }
+  /* ---------- flow ---------- */
+  const me=()=>s&&s.phase==='bet'&&!busy&&!over&&passing<0&&s.P[s.toAct].human&&V===s.toAct;
+  const humanIn=()=>s.P.some(p=>p.human&&!p.folded);
+  function newHand(){
+    if(!E.startHand(s))return;best=null;boardShown=0;
+    if(s.blindsUp){const[sb,bb]=E.blinds(s);S.fx.toast('Blinds up',`${sb} / ${bb}`)}
+    if(MP){V=-1;lastHum=-1}
+    order=[];for(let r=0;r<2;r++){let i=s.sbI;do{order.push(i);i=E.nextAlive(s,i)}while(i!==s.sbI)}
+    dealN=0;busy=true;render();
+    order.forEach((q,k)=>S.after(k*85*SP,()=>{flyCard(q);beep(300+k*25,30);S.after(250*SP,()=>{dealN++;render();if(dealN===order.length){busy=false;step()}})}));
+  }
+  function step(){
+    render();if(over||!s)return;
+    if(s.phase==='bet'){
+      const i=s.toAct,p=s.P[i];
+      if(p.human){
+        if(MP&&V!==i){if(lastHum===i){V=i}else{showPass(i);return}}
+        const Lg=E.legal(s);rv=Lg.minTo;render();
+        const tx=Lg.canCheck?'check or bet':`${fmt(Lg.call)} to call`;if(!MP)st('Your turn: '+tx);else if(!COMPACT.matches)st(`${p.name}'s turn: ${tx}`);beep(660,60);return;
+      }
+      const hd=s.hand;busy=true;thinking=i;render();
+      S.after((humanIn()?620+Math.random()*500:300)*SP,()=>{
+        S.after(10,()=>{busy=false;thinking=-1;if(s.phase!=='bet'||s.toAct!==i||s.hand!==hd){step();return}doAct(E.choose(s,Math.random,{ms:25}))});
+      });
+    }else if(s.phase==='collect'){
+      busy=true;gather();
+      S.after(380*SP,()=>{
+        const n0=s.board.length;E.collect(s);
+        if(s.board.length>n0)beep(440,50);
+        if(s.phase==='done'){busy=false;showResult();return}
+        render();S.after((s.phase==='collect'?850:200)*SP,()=>{busy=false;step()});
+      });
+    }
+  }
+  function doAct(a){
+    const i=s.toAct;E.act(s,a);
+    const p=s.P[i];beep(a.t==='fold'?220:a.t==='check'?500:a.t==='call'?620:760,a.t==='raise'?110:60,a.t==='fold'?'sine':'triangle');
+    const tg=$('.pk-tag',seats[i]);restartAnim(tg,'pk-pop');
+    if(MP&&p.human){V=-1;lastHum=i}
+    step();
+  }
+  function human(a){if(!me())return;const Lg=E.legal(s);
+    if(a.t==='raise'){if(!Lg.canRaise)return;a.to=clamp(a.to,Lg.minTo,Lg.maxTo)}
+    if(a.t==='fold'&&Lg.canCheck)return;if(a.t==='call'&&Lg.canCheck)a={t:'check'};
+    doAct(a);
+  }
+  function showResult(){
+    const R=s.result;let text='';
+    if(R.walk){const w=R.pots[0].winners[0];text=`${s.P[w].name} win${w===0&&!MP?'':'s'} ${fmt(R.pots[0].amount)}`}
+    else{
+      text=R.pots.map((pt,k)=>{const ws=pt.winners.map(i=>s.P[i].name).join(' & '),pl=pt.winners.length>1||(!MP&&pt.winners[0]===0);
+        return`${R.pots.length>1?(k?'Side pot':'Main pot')+': ':''}${ws} ${pt.winners.length>1?'split':pl?'win':'wins'} ${fmt(pt.amount)}${k?'':' · '+E.name(pt.score)}`}).join('<br>');
+      const w=R.pots[0].winners[0];best=new Set(E.best5(s.P[w].hole.concat(s.board)));
+    }
+    msg.innerHTML=text;restartAnim(msg,'pk-pop');
+    const winners=Object.keys(R.gain).map(Number);
+    winners.forEach((w,k)=>S.after(k*120,()=>flyChips(potEl,seats[w])));
+    render();
+    const youWon=!MP&&R.gain[0]>0;
+    if(youWon){beep(660,90);S.after(110,()=>beep(990,140));if(!R.walk&&R.pots[0].amount>=400)S.fx.confetti(40)}else beep(330,120,'sine');
+    if(MP||youWon||!COMPACT.matches)st(msg.textContent);
+    const k=s.hand;S.after((R.walk?1700:3800)*SP*(humanIn()||MP?1:.6),()=>{if(s.hand===k)finish()});
+  }
+  function finish(){
+    if(!s||s.phase!=='done'||over)return;
+    const gone=E.finishHand(s);best=null;
+    gone.forEach((i,k)=>S.after(k*400,()=>S.fx.toast(s.P[i].name+(MP||i?' is out':' are out'))));
+    const al=E.alive(s);
+    if(!MP&&s.P[0].out){over=true;render();msg.textContent='Out of chips! Press ↻ to play again.';st('You are out of chips. Press ↻ to play again.');S.shake();beep(196,300,'sawtooth');S.after(300,()=>S.fx.banner('Busted!','Press ↻ for a new game'));return}
+    if(al.length===1){over=true;render();const w=s.P[al[0]];msg.textContent=MP?`${w.name} wins all ${fmt(w.chips)} chips!`:`You won all ${fmt(w.chips)} chips!`;st(msg.textContent+' Press ↻ to play again.');S.next();return}
+    newHand();
+  }
+  /* pass-and-play cover (same look as Jackaroo's) */
+  const cover=el('div','pk-pass',document.querySelector('#stage')||root);cover.hidden=true;S.cleanup(()=>cover.remove());
+  function showPass(q){
+    passing=q;V=-1;render();const p=s.P[q];
+    cover.style.setProperty('--pc',`var(${p.col})`);
+    cover.innerHTML=`<div class="pk-pbox"><i>${p.name[0]}</i><b>Pass to ${p.name}</b><span>${fmt(p.chips)} chips · ${E.legal(s).canCheck?'check or bet':fmt(E.legal(s).call)+' to call'}</span><button class="btn">Tap when ready</button></div>`;
+    cover.hidden=false;beep(520,80);
+  }
+  function reveal(){if(passing<0)return;const q=passing;passing=-1;cover.hidden=true;V=q;lastHum=q;beep(780,60);step()}
+  S.on(cover,'click',reveal);
+  /* ---------- animation helpers ---------- */
+  function rel(e){const r=e.getBoundingClientRect(),t=tbl.getBoundingClientRect();return{x:r.left+r.width/2-t.left,y:r.top+r.height/2-t.top}}
+  function fly(html,cls,from,to,dur){
+    if(REDUCED||SP<.2)return;const f=el('div','pk-fly '+cls,tbl,html),a=rel(from),b=to.nodeType?rel(to):to;
+    f.style.left=a.x+'px';f.style.top=a.y+'px';
+    f.animate([{transform:'translate(-50%,-50%) scale(.7) rotate(-20deg)',opacity:.6},{transform:`translate(calc(-50% + ${b.x-a.x}px),calc(-50% + ${b.y-a.y}px)) scale(1) rotate(0)`,opacity:1}],{duration:dur*SP,easing:'cubic-bezier(.2,.8,.3,1)',fill:'forwards'});
+    S.after(dur*SP+30,()=>f.remove());
+  }
+  function flyCard(q){const t=q===V?hole:$('.pk-sc',seats[q]);fly(card(null),'pk-flyc',boardEl,t,260)}
+  function flyChips(from,to){for(let k=0;k<4;k++)S.after(k*60,()=>fly('<i></i>','pk-flyx',from,$('.pk-pl',to),420))}
+  function gather(){bets.forEach((b,i)=>{if(!b.hidden){fly('<i></i>','pk-flyx',b,potEl,330);b.style.visibility='hidden'}});beep(560,40)}
+  /* ---------- render ---------- */
+  function render(){
+    if(!s)return;const[sb,bb]=E.blinds(s),R=s.result,done=s.phase==='done';
+    info.textContent=`Hand ${s.hand} · ${sb}/${bb}`;
+    /* pots */
+    const col=s.P.reduce((a,p)=>a+p.total-p.bet,0);
+    potEl.hidden=over;
+    if(done)potEl.innerHTML=`<span>Pot ${fmt(R.pots.reduce((a,p)=>a+p.amount,0))}</span>`;
+    else{const ps=s.P.some(p=>p.allin)?E.pots(s,false):[];
+      potEl.innerHTML=ps.length>1?ps.map((p,k)=>`<span>${k?'Side':'Main'} ${fmt(p.amount)}</span>`).join(''):`<span>Pot ${fmt(E.potTotal(s))}</span>`}
+    /* board */
+    if(boardEl.children.length!==5||boardShown!==s.board.length||boardEl.dataset.best!==String(!!best)){
+      boardEl.innerHTML=[0,1,2,3,4].map(k=>{const c=s.board[k];if(c==null)return'<div class="pk-slot"></div>';
+        return card(c,(k>=boardShown?'pk-flip ':'')+(best?best.has(c)?'pk-best':'pk-dim':'')).replace('<div ',`<div style="--k:${Math.max(0,k-boardShown)}" `)}).join('');
+      boardShown=s.board.length;boardEl.dataset.best=String(!!best);
+    }
+    if(!done&&!over)msg.textContent=thinking>=0?`${s.P[thinking].name} is thinking…`:s.log[s.log.length-1]||'';
+    /* seats */
+    const dealtTo=i=>dealN>=order.length?2:order.slice(0,dealN).filter(q=>q===i).length;
+    s.P.forEach((p,i)=>{
+      const se=seats[i],show=done&&!R.walk&&!p.folded&&p.hole.length;
+      se.classList.toggle('pk-out',p.out);se.classList.toggle('pk-sfold',p.folded&&!p.out);
+      se.classList.toggle('pk-turn',s.phase==='bet'&&s.toAct===i&&!over);se.classList.toggle('pk-allin',p.allin&&!p.folded);
+      se.classList.toggle('pk-win',done&&R.gain[i]>0);
+      $('.pk-nm',se).textContent=p.name;$('.pk-ch',se).textContent=p.out?'out':fmt(p.chips);
+      const d=$('.pk-d',se);d.hidden=s.btn!==i||p.out;
+      const bl=$('.pk-bl',se),bt=i===s.bbI?'BB':i===s.sbI&&s.sbI!==s.btn?'SB':'';bl.hidden=!bt||p.out;bl.textContent=bt;
+      const tg=$('.pk-tag',se),tt=thinking===i?'···':p.allin&&!p.folded?'All-in':p.last==='SB'||p.last==='BB'?'':p.last;tg.hidden=!tt||p.out;tg.textContent=tt;
+      tg.className='pk-tag'+(tt==='Fold'?' pk-tf':tt==='All-in'?' pk-ta':/^(Bet|Raise)/.test(tt)?' pk-tr2':'');
+      let cs=[];const n=Math.min(p.hole.length,dealtTo(i));
+      if(!p.out&&!p.folded&&i!==V)cs=show?p.hole:Array(n).fill(null);
+      if(i===V&&show)cs=[];
+      const sig=cs.map(c=>c==null?'x':c+(best&&best.has(c)?'b':'')).join()+(show?'s':'');
+      if(sig!==sigs[i]){sigs[i]=sig;$('.pk-sc',se).classList.toggle('pk-show',!!show);$('.pk-sc',se).innerHTML=cs.map(c=>card(c,(show?'pk-flip ':'')+(show&&best?best.has(c)?'pk-best':'pk-dim':''))).join('')}
+      const b=bets[i];b.hidden=!p.bet||p.out;b.style.visibility='';$('span',b).textContent=fmt(p.bet);
+    });
+    /* your cards */
+    const hv=V>=0&&!s.P[V].out?s.P[V]:null,hc=hv?hv.hole.slice(0,dealtTo(V)):[];
+    const sig2=V+'|'+hc.join()+'|'+(best?[...best].join():'')+'|'+(hv&&hv.folded);
+    if(sig2!==holeSig){const fresh=holeSig.split('|')[0]!==String(V)||holeSig.split('|')[1]!==hc.join();holeSig=sig2;
+      hole.innerHTML=hc.length?hc.map(c=>card(c,(fresh?'pk-flip ':'')+(best?best.has(c)?'pk-best':'pk-dim':''))).join(''):card(null,'pk-ghost')+card(null,'pk-ghost');
+      hole.classList.toggle('pk-mucked',!!(hv&&hv.folded));}
+    who.textContent=MP?(V>=0?`${s.P[V].name}'s cards`:passing>=0?`Pass to ${s.P[passing].name}`:'Cards hidden'):'Your cards';
+    who.style.color=V>=0?`var(${s.P[V].col})`:'';
+    hn.textContent=hv&&hc.length===2?(hv.folded?'Folded':s.board.length>=3?E.name(E.ev(hv.hole.concat(s.board))):pre(hv.hole)):MP&&!over?'🂠 Hidden until your turn':'';
+    logEl.innerHTML=s.log.slice(-3).map(t=>`<div>${t.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`).join('');
+    renderBar();
+  }
+  function quickVal(q,Lg){const step=E.blinds(s)[0],pot=Lg.pot;let v=q==='min'?Lg.minTo:q==='all'?Lg.maxTo:q==='half'?s.cur+(pot+Lg.toCall)/2:s.cur+pot+Lg.toCall;
+    if(q==='half'||q==='pot')v=Math.round(v/step)*step;return clamp(Math.round(v),Lg.minTo,Lg.maxTo)}
+  function renderBar(){
+    const on=me(),Lg=on?E.legal(s):null,done=s.phase==='done'&&!over;
+    bFold.disabled=!on||Lg.canCheck;
+    if(done){bCall.disabled=false;bCall.textContent='Next hand ▶';bCall.classList.add('pk-next')}
+    else{bCall.classList.remove('pk-next');bCall.disabled=!on;bCall.textContent=!on?'Call':Lg.canCheck?'Check':(Lg.call>=Lg.p.chips?'All-in ':'Call ')+fmt(Lg.call)}
+    const can=on&&Lg.canRaise;bRaise.disabled=!can;quick.forEach(b=>b.disabled=!can);
+    track.classList.toggle('off',!can);
+    if(can){rv=clamp(rv,Lg.minTo,Lg.maxTo);const span=Lg.maxTo-Lg.minTo,t=span?Math.sqrt((rv-Lg.minTo)/span):1;
+      thumb.style.left=fill.style.width=(t*100)+'%';amt.textContent=fmt(rv);
+      bRaise.textContent=(rv===Lg.maxTo?'All-in ':s.cur===0?'Bet ':'Raise to ')+fmt(rv);
+      quick.forEach(b=>b.classList.toggle('on',quickVal(b.dataset.q,Lg)===rv));
+    }else{thumb.style.left=fill.style.width='0%';amt.textContent='–';bRaise.textContent=on&&!Lg.canRaise?'Raise':'Raise';quick.forEach(b=>b.classList.remove('on'))}
+  }
+  /* ---------- input ---------- */
+  S.on(bFold,'click',()=>human({t:'fold'}));
+  S.on(bCall,'click',()=>{if(s&&s.phase==='done'&&!over){finish();return}human({t:'call'})});
+  S.on(bRaise,'click',()=>human({t:'raise',to:rv}));
+  quick.forEach(b=>S.on(b,'click',()=>{if(!me())return;const Lg=E.legal(s);if(!Lg.canRaise)return;rv=quickVal(b.dataset.q,Lg);beep(700,30);renderBar()}));
+  let drag=false;
+  function slide(e){if(!me())return;const Lg=E.legal(s);if(!Lg.canRaise)return;const r=track.getBoundingClientRect(),t=clamp((e.clientX-r.left)/r.width,0,1);
+    const step=E.blinds(s)[0];let v=Lg.minTo+(Lg.maxTo-Lg.minTo)*t*t;v=t>=.995?Lg.maxTo:Math.round(v/step)*step;const o=rv;rv=clamp(v,Lg.minTo,Lg.maxTo);if(rv!==o)beep(500+t*500,12);renderBar()}
+  S.on(track,'pointerdown',e=>{drag=true;try{track.setPointerCapture(e.pointerId)}catch(_){}slide(e)});
+  S.on(track,'pointermove',e=>{if(drag)slide(e)});
+  ['pointerup','pointercancel'].forEach(t=>S.on(track,t,()=>drag=false));
+  S.on(window,'keydown',e=>{
+    if(passing>=0){if(e.key==='Enter'||e.key===' '){e.preventDefault();reveal()}return}
+    if(!s)return;const k=e.key.toLowerCase();
+    if(s.phase==='done'&&!over&&(k==='enter'||k===' '||k==='n')){e.preventDefault();finish();return}
+    if(!me())return;const Lg=E.legal(s);
+    if(k==='f'){human({t:'fold'})}else if(k==='c'||k===' '||k==='k'){e.preventDefault();human({t:'call'})}
+    else if(k==='r'||k==='enter'||k==='b'){e.preventDefault();human({t:'raise',to:rv})}
+    else if(k==='a'&&Lg.canRaise){rv=Lg.maxTo;renderBar()}
+    else if(Lg.canRaise&&(k==='arrowright'||k==='arrowup'||k==='+'||k==='=')){e.preventDefault();rv=clamp(rv+Lg.bb,Lg.minTo,Lg.maxTo);renderBar()}
+    else if(Lg.canRaise&&(k==='arrowleft'||k==='arrowdown'||k==='-')){e.preventDefault();rv=clamp(rv-Lg.bb,Lg.minTo,Lg.maxTo);renderBar()}
+  });
+  S.on(window,'resize',()=>S.after(60,()=>{setAR();if(typeof fit==='function')fit();render()}));
+  /* test hook */
+  root.pk={get s(){return s},set speed(v){SP=v},get busy(){return busy},get over(){return over},get passing(){return passing},get view(){return V},me,reveal,act:human,finish,get rv(){return rv}};
+  if(MP){setAR();setup()}else begin();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -7751,11 +8252,12 @@ const GAMES=[
   {id:'walls',name:'Wall Race',icon:'🧱',blurb:'Race to the far side and block your rival with walls.',help:'Tap a glowing square to move your pawn, or tap a gap between squares to preview a wall, then tap ✓ Place (tap the same gap again or ⟲ Turn to rotate it). Pick Easy, Medium, Hard, or 2 Players at the top.',mount:walls,levels:4,open:true,names:['Easy','Medium','Hard','2 Players'],isNew:true},
   {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true},
   {id:'wahoo',name:'Wahoo',icon:'🎯',blurb:'Race four marbles around the cross and fill your home first.',help:'Tap Roll, then tap a glowing marble to move it. A 1 or 6 brings a marble out and a 6 rolls again. Land on a rival to send it back; the center hole is a shortcut you leave with a 1.',mount:wahoo,levels:4,open:true,names:['Easy','Hard','2 Players','4 Players'],isNew:true},
-  {id:'jackaroo',name:'Jackaroo',icon:'🃏',blurb:'Team card-and-marble race. Play cards, swap, burn and get home.',help:'Tap a card, then a glowing marble. A: out or 1/11, K: out or 13 burning marbles it passes, J swaps, 7 splits, 5 moves any marble, 4 goes back, 10 moves or burns the next card. Pick Easy, Medium, Hard, or 2/4 Players to pass one device around.',mount:jackaroo,levels:5,open:true,names:['Easy','Medium','Hard','2 Players','4 Players'],isNew:true}
+  {id:'jackaroo',name:'Jackaroo',icon:'🃏',blurb:'Team card-and-marble race. Play cards, swap, burn and get home.',help:'Tap a card, then a glowing marble. A: out or 1/11, K: out or 13 burning marbles it passes, J swaps, 7 splits, 5 moves any marble, 4 goes back, 10 moves or burns the next card. Pick Easy, Medium, Hard, or 2/4 Players to pass one device around.',mount:jackaroo,levels:5,open:true,names:['Easy','Medium','Hard','2 Players','4 Players'],isNew:true},
+  {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer'};
 const CATS={'poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
