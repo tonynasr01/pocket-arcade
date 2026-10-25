@@ -8041,7 +8041,7 @@ function poker(root,S){
   const me=()=>s&&s.phase==='bet'&&!busy&&!over&&passing<0&&s.P[s.toAct].human&&V===s.toAct;
   const humanIn=()=>s.P.some(p=>p.human&&!p.folded);
   function newHand(){
-    if(!E.startHand(s))return;best=null;boardShown=0;
+    if(!E.startHand(s))return;best=null;boardShown=0;boardEl.innerHTML='';   /* clear last hand's cards (forces the board to redraw empty) */
     if(s.blindsUp){const[sb,bb]=E.blinds(s);S.fx.toast('Blinds up',`${sb} / ${bb}`)}
     if(MP){V=-1;lastHum=-1}
     order=[];for(let r=0;r<2;r++){let i=s.sbI;do{order.push(i);i=E.nextAlive(s,i)}while(i!==s.sbI)}
