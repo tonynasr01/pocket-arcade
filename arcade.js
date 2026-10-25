@@ -8346,6 +8346,8 @@ function refit(e){
   refitT.forEach(clearTimeout);refitT=[120,350,800].map(t=>setTimeout(()=>{fit();dispatchEvent(new Event('resize'))},t));
 }
 addEventListener('resize',refit);addEventListener('orientationchange',refit);
+/* a game whose rows grow after it starts (longer text, a new row) would push its buttons off screen: refit when that happens */
+setInterval(()=>{if(document.body.classList.contains('playing')&&gameEl.scrollHeight-gameEl.clientHeight>2&&gameEl.querySelector('[data-ar]'))fit()},700);
 if(window.visualViewport)visualViewport.addEventListener('resize',refit);
 document.addEventListener('fullscreenchange',()=>requestAnimationFrame(fit));
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);

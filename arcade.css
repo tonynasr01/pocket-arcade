@@ -1263,8 +1263,8 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .pk-top{display:flex;justify-content:space-between;align-items:center;gap:6px}
 .pk-info{font:800 .72rem/1 var(--body);color:var(--muted);border:2px solid var(--line);border-radius:999px;padding:2px 7px;white-space:nowrap}
 .pk-who{font:800 .78rem/1.1 var(--body);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.pk-hn{font:400 1rem/1.15 var(--display);color:var(--ink);min-height:1.15em}
-.pk-log{font:700 .74rem/1.3 var(--body);color:var(--muted);min-height:3.9em}
+.pk-hn{font:400 1rem/1.15 var(--display);color:var(--ink);height:1.15em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-log{font:700 .74rem/1.3 var(--body);color:var(--muted);height:3.9em;overflow:hidden}
 .pk-log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pk-log div:last-child{color:var(--ink)}
 /* action bar */
