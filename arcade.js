@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -8222,6 +8222,771 @@ function poker(root,S){
   if(MP){setAR();setup()}else begin();
 }
 
+/* ---------- Mafia (pass-and-play social deduction, the app is the narrator) ---------- */
+const MAFIA_ROLES={
+  mafia:{t:'Mafia',ic:'🔪',col:'--c1',d:'Each night, pick a townsperson to eliminate with your fellow Mafia. By day, blend in and avoid suspicion. You win when the Mafia are as many as everyone else.'},
+  doctor:{t:'Doctor',ic:'🩺',col:'--c3',d:'Each night, choose one player to protect (you may pick yourself). If the Mafia attack them, they survive. You cannot protect the same player two nights in a row.'},
+  detective:{t:'Detective',ic:'🔍',col:'--c4',d:'Each night, investigate one player and secretly learn whether they are Mafia. Use what you learn to steer the town vote, without getting yourself killed.'},
+  villager:{t:'Villager',ic:'🏠',col:'--c5',d:'You have no night power. Listen, ask questions and vote out the Mafia by day. The town wins when every Mafia member is gone.'}
+};
+/* pure rules, kept free of the DOM so they can be tested on their own */
+const MAFIA_L=(()=>{
+  const defMafia=n=>n<=5?1:n<=8?2:3;
+  const maxMafia=n=>Math.max(1,Math.floor((n-1)/2));
+  function deal(n,o,rng=Math.random){
+    const r=[];for(let i=0;i<o.mafia;i++)r.push('mafia');
+    if(o.doctor)r.push('doctor');if(o.detective)r.push('detective');
+    while(r.length<n)r.push('villager');
+    for(let i=r.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[r[i],r[j]]=[r[j],r[i]]}
+    return r;
+  }
+  /* plurality of the votes cast (null/undefined ignored); a tie is broken at random among the tied */
+  function plural(votes,rng=Math.random){
+    const c=new Map();for(const v of votes)if(v!=null&&v>=0)c.set(v,(c.get(v)||0)+1);
+    if(!c.size)return null;const mx=Math.max(...c.values());const tied=[...c.keys()].filter(k=>c.get(k)===mx).sort((a,b)=>a-b);
+    return tied[Math.floor(rng()*tied.length)];
+  }
+  const canSave=(lastSave,i)=>i!==lastSave;
+  /* resolve a night: mafia votes pick the target, the doctor's save cancels the kill */
+  function night(st,act,rng=Math.random){
+    const target=plural(act.votes||[],rng);
+    const save=act.save!=null&&canSave(st.lastSave,act.save)?act.save:null;
+    const saved=target!=null&&save===target;
+    return{target,saved,killed:saved?null:target,lastSave:act.save!=null?act.save:null,
+      inspect:act.inspect!=null?{who:act.inspect,mafia:st.roles[act.inspect]==='mafia'}:null};
+  }
+  /* day vote: -1 = skip. The player with strictly the most votes (more than any other player and than skips) is out; a tie means nobody */
+  function tally(votes,n){
+    const c=Array(n).fill(0);let skip=0;for(const v of votes){if(v==null||v<0)skip++;else c[v]++}
+    const mx=Math.max(...c);const top=c.map((v,i)=>v===mx?i:-1).filter(i=>i>=0);
+    const out=mx>0&&top.length===1&&mx>skip?top[0]:null;
+    return{counts:c,skip,out,tie:out==null&&mx>0&&(top.length>1||mx===skip)};
+  }
+  function win(roles,alive){
+    let m=0,t=0;roles.forEach((r,i)=>{if(alive[i]){if(r==='mafia')m++;else t++}});
+    return m===0?'town':m>=t?'mafia':null;
+  }
+  return{defMafia,maxMafia,deal,plural,canSave,night,tally,win};
+})();
+function mafia(root,S){
+  const L=MAFIA_L,R=MAFIA_ROLES;
+  status(root,'Pass the phone around so everyone secretly sees their role. At night the Mafia, Doctor and Detective act in secret turns; by day the town talks and votes someone out.');
+  const cfg=Object.assign({n:6,names:[],mafia:2,doctor:true,detective:true,reveal:true,voice:true,vote:'open',talk:120},store.get('mafia:cfg')||{});
+  cfg.n=clamp(cfg.n|0||6,4,12);cfg.mafia=clamp(cfg.mafia|0||L.defMafia(cfg.n),1,L.maxMafia(cfg.n));cfg.talk=clamp(cfg.talk|0||120,30,600);
+  if(!Array.isArray(cfg.names))cfg.names=[];
+  const save=()=>store.set('mafia:cfg',cfg);
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+  const P=el('div','mf',root);
+  let G=null,phase='setup';
+  const nm=i=>G.names[i],col=i=>`var(--c${i%6+1})`;
+  const av=i=>`<i class="mf-av" style="--pc:${col(i)}">${esc(nm(i).trim()[0]||'?').toUpperCase()}</i>`;
+  /* ---------- narrator voice ---------- */
+  function say(t){if(!cfg.voice)return;try{const u=new SpeechSynthesisUtterance(t);u.rate=.95;u.pitch=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
+  S.cleanup(()=>{try{speechSynthesis.cancel()}catch(e){}});
+  /* ---------- pass-and-play cover (same look as Jackaroo / Hold'em) ---------- */
+  const cov=el('div','mf-pass',document.querySelector('#stage')||root);cov.hidden=true;S.cleanup(()=>cov.remove());
+  let covFn=null,covAt=0;
+  function cover(pc,ic,title,sub,btn,fn){
+    P.innerHTML='';phase='cover';
+    cov.style.setProperty('--pc',pc);
+    cov.innerHTML=`<div class="mf-pbox"><i>${ic}</i><b>${title}</b><span>${sub}</span><button class="btn">${btn}</button></div>`;
+    cov.hidden=false;covFn=fn;covAt=performance.now();beep(520,80);
+  }
+  const pass=(i,sub,fn)=>cover(col(i),esc(nm(i).trim()[0]||'?').toUpperCase(),`Pass to ${esc(nm(i))}`,sub,'Tap when ready',fn);
+  S.on(cov,'click',()=>{if(!covFn||performance.now()-covAt<450)return;const f=covFn;covFn=null;cov.hidden=true;beep(780,60);f()});
+  /* ---------- small building blocks ---------- */
+  function head(sub,title,voice){
+    P.innerHTML='';
+    const h=el('div','mf-hd',P,`<div><small>${sub}</small><b>${title}</b></div>`);
+    if(voice&&'speechSynthesis' in window){const b=el('button','mf-vo',h,cfg.voice?'🔊':'🔇');b.title='Narrator voice';
+      S.on(b,'click',()=>{cfg.voice=!cfg.voice;save();b.textContent=cfg.voice?'🔊':'🔇';if(!cfg.voice)try{speechSynthesis.cancel()}catch(e){}})}
+    return h;
+  }
+  const go=(txt,fn,cls='')=>{const b=el('button','btn mf-go '+cls,P,txt);S.on(b,'click',()=>{if(!b.disabled)fn()});return b};
+  /* a grid of every player; ok(i) says who can be picked, onPick(i) runs on a tap */
+  function grid(ok,onPick,par=P){
+    const g=el('div','mf-grid',par);const bs=[];
+    G.names.forEach((n,i)=>{
+      const b=el('button','mf-pl'+(G.alive[i]?'':' mf-dead'),g,`${av(i)}<span>${esc(n)}</span>`);bs.push(b);
+      if(!ok(i))b.disabled=true;
+      S.on(b,'click',()=>{if(b.disabled)return;bs.forEach(x=>x.classList.toggle('on',x===b));beep(600,40);onPick(i,b)});
+    });
+    return{g,bs,lock(){bs.forEach(b=>b.disabled=true)}};
+  }
+  function roster(par=P){
+    const r=el('div','mf-ros',par);
+    G.names.forEach((n,i)=>{const d=!G.alive[i];const show=d&&cfg.reveal;
+      el('span','mf-chip'+(d?' mf-dead':''),r,`${av(i)}${esc(n)}${show?` <em>${R[G.roles[i]].ic}</em>`:d?' <em>✝</em>':''}`)});
+    return r;
+  }
+  function logBox(par=P){
+    if(!G.log.length)return;
+    const d=el('details','mf-log',par,`<summary>Game log</summary><ol>${G.log.map(t=>`<li>${t}</li>`).join('')}</ol>`);
+    return d;
+  }
+  const roleName=i=>`${R[G.roles[i]].ic} ${R[G.roles[i]].t}`;
+  const was=i=>({mafia:'in the ',villager:'a '}[G.roles[i]]||'the ');
+  const tm=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  /* ---------- setup ---------- */
+  function setup(){
+    phase='setup';cov.hidden=true;P.innerHTML='';
+    const n=cfg.n,m=cfg.mafia,v=n-m-(cfg.doctor?1:0)-(cfg.detective?1:0);
+    const c=el('div','mf-card mf-setup',P);
+    el('div','mf-title',c,'<span>🕵️</span> Mafia');
+    const row=(lab,html)=>el('div','mf-row',c,`<span>${lab}</span>${html}`);
+    const step=(k,val)=>`<div class="mf-step" data-k="${k}"><button data-d="-1" aria-label="less">−</button><b>${val}</b><button data-d="1" aria-label="more">+</button></div>`;
+    const tog=(k)=>`<button class="mf-tog${cfg[k]?' on':''}" data-t="${k}" aria-pressed="${!!cfg[k]}"><i></i></button>`;
+    row('Players',step('n',n));
+    const nb=el('div','mf-names',c);
+    for(let i=0;i<n;i++){const inp=el('input','mf-in',nb);inp.maxLength=14;inp.placeholder='Player '+(i+1);inp.value=cfg.names[i]||'';inp.setAttribute('aria-label','Name of player '+(i+1));
+      S.on(inp,'input',()=>{cfg.names[i]=inp.value.trim();save()})}
+    row('🔪 Mafia',step('mafia',m));
+    row('🩺 Doctor',tog('doctor'));
+    row('🔍 Detective',tog('detective'));
+    row('⏱️ Discussion',step('talk',tm(cfg.talk)));
+    row('🗳️ Day vote',`<div class="mf-seg"><button data-v="open" class="${cfg.vote==='open'?'on':''}">Open</button><button data-v="secret" class="${cfg.vote==='secret'?'on':''}">Secret</button></div>`);
+    row('🎭 Reveal role on death',tog('reveal'));
+    if('speechSynthesis' in window)row('🔊 Narrator voice',tog('voice'));
+    el('p','mf-sum',c,`<b>${n} players</b>: ${m} Mafia${cfg.doctor?' · 1 Doctor':''}${cfg.detective?' · 1 Detective':''} · ${v} Villager${v===1?'':'s'}`);
+    c.querySelectorAll('.mf-step button').forEach(b=>S.on(b,'click',()=>{
+      const k=b.parentNode.dataset.k,d=+b.dataset.d;beep(520+d*60,40);
+      if(k==='n'){cfg.n=clamp(cfg.n+d,4,12);cfg.mafia=L.defMafia(cfg.n)}
+      else if(k==='mafia')cfg.mafia=clamp(cfg.mafia+d,1,L.maxMafia(cfg.n));
+      else cfg.talk=clamp(cfg.talk+d*30,30,600);
+      save();setup();
+    }));
+    c.querySelectorAll('.mf-tog').forEach(b=>S.on(b,'click',()=>{cfg[b.dataset.t]=!cfg[b.dataset.t];beep(600,40);save();setup()}));
+    c.querySelectorAll('.mf-seg button').forEach(b=>S.on(b,'click',()=>{cfg.vote=b.dataset.v;beep(600,40);save();setup()}));
+    const g=el('button','btn mf-go',c,'Deal the roles');S.on(g,'click',start);
+  }
+  /* ---------- game ---------- */
+  function start(){
+    const n=cfg.n;
+    G={names:Array.from({length:n},(_,i)=>(cfg.names[i]||'').trim()||'Player '+(i+1)),roles:L.deal(n,cfg),alive:Array(n).fill(true),lastSave:null,round:1,log:[],det:[]};
+    reveal(0);
+  }
+  function reveal(i){
+    if(i>=G.names.length){
+      cover('var(--c6)','🌙','Everyone has a role','Put the phone in the middle of the group.','Night falls',nightStart);return;
+    }
+    pass(i,'Look at your secret role. Keep it hidden!',()=>{
+      phase='reveal';head(`Role ${i+1} of ${G.names.length}`,esc(nm(i)));
+      const r=G.roles[i],ro=R[r];
+      const card=el('button','mf-role',P,`<div class="mf-face mf-back"><b>?</b><span>Tap to see your role</span></div><div class="mf-face mf-front" style="--rc:var(${ro.col})"><em>${ro.ic}</em><b>${ro.t}</b><p>${ro.d}</p>${r==='mafia'?`<small>${G.roles.filter(x=>x==='mafia').length>1?'Your fellow Mafia: '+G.roles.map((x,j)=>x==='mafia'&&j!==i?esc(nm(j)):null).filter(Boolean).join(', '):'You are the only Mafia member.'}</small>`:''}</div>`);
+      const b=go('Hide & pass on',()=>reveal(i+1));b.disabled=true;
+      S.on(card,'click',()=>{card.classList.toggle('flip');beep(card.classList.contains('flip')?700:500,60);b.disabled=false});
+    });
+  }
+  let N=null;
+  function nightStart(){
+    phase='night';N={votes:{},save:null,inspect:null,order:G.names.map((_,i)=>i).filter(i=>G.alive[i])};
+    say(`Night ${G.round}. The town falls asleep. Pass the phone around, everyone takes a secret turn.`);
+    cover('var(--c6)','🌙',`Night ${G.round}`,'The phone goes around the circle. Every player takes a secret turn, so nobody can tell who has a power.','Start the night',()=>nightTurn(0));
+  }
+  function nightTurn(k){
+    if(k>=N.order.length){cover('var(--c2)','🌅','The night is over','Put the phone in the middle where everyone can see it.','Wake up the town',morning);return}
+    const p=N.order[k];
+    pass(p,`Night ${G.round} · your secret turn`,()=>{
+      phase='turn';const r=G.roles[p],ro=R[r];
+      const h=head(`Night ${G.round} · ${esc(nm(p))}`,`${ro.ic} ${ro.t}`);h.style.setProperty('--rc',`var(${ro.col})`);h.classList.add('mf-rhd');
+      const msg=el('p','mf-msg',P);let picked=false,done;
+      const note=el('p','mf-note',P);
+      if(r==='mafia'){
+        msg.textContent='Choose tonight\'s victim.';
+        const mates=N.order.filter(j=>j!==p&&G.roles[j]==='mafia');
+        const show=()=>{note.innerHTML=mates.length?mates.map(j=>`${esc(nm(j))}: ${N.votes[j]!=null?'<b>'+esc(nm(N.votes[j]))+'</b>':'not picked yet'}`).join(' · ')+'<br>Most Mafia votes wins; a tie is settled at random.':'You act alone tonight.'};
+        show();grid(i=>G.alive[i]&&G.roles[i]!=='mafia',i=>{N.votes[p]=i;picked=true;done.disabled=false});
+      }else if(r==='doctor'){
+        msg.textContent='Choose someone to protect tonight.';
+        note.textContent=G.lastSave!=null&&G.alive[G.lastSave]?`You protected ${nm(G.lastSave)} last night, so not them again tonight.`:'You may protect yourself.';
+        grid(i=>G.alive[i]&&L.canSave(G.lastSave,i),i=>{N.save=i;picked=true;done.disabled=false});
+      }else if(r==='detective'){
+        msg.textContent='Choose someone to investigate.';
+        note.innerHTML=G.det.length?'Your notes: '+G.det.map(d=>`${esc(nm(d.who))} ${d.mafia?'<b class="mf-bad">Mafia</b>':'not Mafia'}`).join(' · '):'Only you will see the answer.';
+        const gr=grid(i=>G.alive[i]&&i!==p,i=>{
+          N.inspect=i;picked=true;gr.lock();const m=G.roles[i]==='mafia';G.det.push({who:i,mafia:m});
+          const res=el('div','mf-res'+(m?' mf-bad':''),P,`${av(i)}<span>${esc(nm(i))} is <b>${m?'MAFIA':'not Mafia'}</b></span>`);P.insertBefore(res,done);
+          beep(m?220:880,160);done.disabled=false;
+        });
+      }else{
+        msg.textContent='Who do you suspect? Tap any name.';
+        note.textContent='Nothing happens: this just keeps the night secret for everyone.';
+        grid(i=>G.alive[i]&&i!==p,()=>{picked=true;done.disabled=false;note.textContent='Noted. Nothing happens.'});
+      }
+      done=go('Done, hide & pass',()=>nightTurn(k+1));done.disabled=!picked;
+    });
+  }
+  function morning(){
+    phase='morning';
+    const votes=N.order.filter(i=>G.roles[i]==='mafia').map(i=>N.votes[i]);
+    const res=L.night({roles:G.roles,lastSave:G.lastSave},{votes,save:N.save,inspect:N.inspect});
+    const docAlive=N.order.some(i=>G.roles[i]==='doctor');
+    G.lastSave=docAlive?res.lastSave:null;
+    let line,sub='',spoken;
+    if(res.killed!=null){
+      G.alive[res.killed]=false;const v=esc(nm(res.killed));
+      line=`The Mafia struck in the night. <b>${v}</b> was found dead.`;spoken=`The Mafia struck in the night. ${nm(res.killed)} was found dead.`;
+      if(cfg.reveal){sub=`${v} was ${was(res.killed)}${roleName(res.killed)}.`;spoken+=` They were ${was(res.killed)}${R[G.roles[res.killed]].t}.`}
+      G.log.push(`Night ${G.round}: ${v} was killed${cfg.reveal?` (${roleName(res.killed)})`:''}.`);
+    }else if(res.saved){
+      line='The Mafia attacked, but <b>the Doctor saved the victim!</b> Nobody died.';spoken='The Mafia attacked, but the Doctor saved the victim. Nobody died tonight.';
+      G.log.push(`Night ${G.round}: the Doctor saved someone.`);
+    }else{line='A quiet night. Nobody died.';spoken=line;G.log.push(`Night ${G.round}: nobody died.`)}
+    head(`Morning · Day ${G.round}`,'The town wakes up',true);
+    el('div','mf-sky',P,'<span class="mf-moon">🌙</span><span class="mf-sun">☀️</span>');
+    const news=el('div','mf-news',P,`<p>${line}</p>${sub?`<p class="mf-sub">${sub}</p>`:''}`);
+    if(res.killed!=null){news.classList.add('mf-blood');beep(196,300,'sawtooth');S.after(250,()=>S.shake())}else beep(880,200);
+    say('Good morning, everyone. '+spoken);
+    const w=L.win(G.roles,G.alive);
+    if(w)go('Reveal the winner',()=>end(w));else go('Start the discussion',day);
+    roster();logBox();
+  }
+  function day(){
+    phase='day';let left=cfg.talk,run=true,last=performance.now(),acc=0,over=false;
+    head(`Day ${G.round} · Discussion`,'Who is the Mafia?',true);
+    const t=el('div','mf-timer',P,`<b>${tm(left)}</b><span>Talk it over, then vote.</span>`);
+    const bar=el('div','mf-tbar',P,'<i></i>');
+    const ctl=el('div','mf-ctl',P);
+    const mk=(txt,f)=>{const b=el('button','btn ghost',ctl,txt);S.on(b,'click',f);return b};
+    const draw=()=>{t.firstChild.textContent=tm(Math.max(0,Math.ceil(left)));bar.firstChild.style.width=(100*Math.max(0,left)/cfg.talk)+'%';t.classList.toggle('mf-low',left<=10)};
+    mk('−30s',()=>{left=Math.max(1,left-30);draw()});
+    const pb=mk('⏸ Pause',()=>{run=!run;pb.textContent=run?'⏸ Pause':'▶ Resume'});
+    mk('+30s',()=>{left+=30;over=false;draw()});
+    const g=go('Go to the vote',vote);
+    say(`Day ${G.round}. Discuss who you think is in the Mafia.`);
+    S.every(200,()=>{
+      const now=performance.now(),dt=(now-last)/1000;last=now;
+      if(phase!=='day'||!run||over)return;
+      const before=Math.ceil(left);left-=dt;if(Math.ceil(left)!==before&&left<=10&&left>0)beep(660,50);
+      if(left<=0){left=0;over=true;beep(330,400,'square');g.classList.add('mf-pulse');t.lastChild.textContent='Time is up! Time to vote.';say('Time is up. Time to vote.')}
+      draw();
+    });
+    roster();logBox();
+  }
+  function vote(){
+    phase='vote';
+    if(cfg.vote==='secret'){
+      const order=G.names.map((_,i)=>i).filter(i=>G.alive[i]),votes=[];
+      say('Secret vote. Pass the phone around, everyone votes in private.');
+      const turn=k=>{
+        if(k>=order.length){cover('var(--c2)','🗳️','All votes are in','Put the phone in the middle where everyone can see it.','Count the votes',()=>{const r=L.tally(votes,G.names.length);verdict(r.out,r)});return}
+        const p=order[k];
+        pass(p,`Day ${G.round} · secret vote`,()=>{
+          phase='ballot';head(`Day ${G.round} · ${esc(nm(p))}`,'Your secret vote');
+          el('p','mf-msg',P,'Who should be eliminated?');let pick=null;
+          const gr=grid(i=>G.alive[i]&&i!==p,i=>{pick=i;sk.classList.remove('on');d.disabled=false});
+          const sk=el('button','mf-pl mf-skip',P,'<span>🙅 Skip (nobody)</span>');
+          S.on(sk,'click',()=>{pick=-1;gr.bs.forEach(b=>b.classList.remove('on'));sk.classList.add('on');beep(600,40);d.disabled=false});
+          const d=go('Cast vote, hide & pass',()=>{votes.push(pick);turn(k+1)});d.disabled=true;
+        });
+      };
+      turn(0);return;
+    }
+    head(`Day ${G.round} · Open vote`,'Time to vote',true);
+    el('p','mf-msg',P,'Vote as a group (raise hands), then tap the player with the most votes.');
+    let pick=null;
+    grid(i=>G.alive[i],i=>{pick=i;e.disabled=false;e.textContent='Eliminate '+nm(i)});
+    const e=go('Pick a player',()=>verdict(pick));e.disabled=true;
+    go('Tie or no majority: nobody',()=>verdict(null),'ghost');
+    say('Time to vote. Raise your hands, then tap the player with the most votes.');
+  }
+  function verdict(out,t){
+    phase='verdict';head(`Day ${G.round} · Verdict`,'The town has spoken',true);
+    if(t){const rows=G.names.map((n,i)=>t.counts[i]?`<li>${av(i)}<span>${esc(n)}</span><b>${t.counts[i]}</b></li>`:'').join('')+(t.skip?`<li><i class="mf-av">🙅</i><span>Skip</span><b>${t.skip}</b></li>`:'');
+      el('ol','mf-tally',P,rows)}
+    const news=el('div','mf-news',P);let spoken;
+    if(out!=null){
+      G.alive[out]=false;const v=esc(nm(out));
+      news.innerHTML=`<p><b>${v}</b> is eliminated.</p>`+(cfg.reveal?`<div class="mf-flip" style="--rc:var(${R[G.roles[out]].col})"><em>${R[G.roles[out]].ic}</em><span>${v} was ${was(out)}<b>${R[G.roles[out]].t}</b></span></div>`:'');
+      spoken=`The town has spoken. ${nm(out)} is eliminated.`+(cfg.reveal?` ${nm(out)} was ${was(out)}${R[G.roles[out]].t}.`:'');
+      G.log.push(`Day ${G.round}: ${v} was voted out${cfg.reveal?` (${roleName(out)})`:''}.`);
+      beep(196,350,'sawtooth');news.classList.add('mf-blood');
+    }else{
+      news.innerHTML=`<p>${t&&t.tie?'A tie!':'No decision.'} <b>Nobody</b> is eliminated today.</p>`;spoken='The vote is undecided. Nobody is eliminated today.';
+      G.log.push(`Day ${G.round}: nobody was voted out.`);beep(440,200);
+    }
+    say(spoken);
+    const w=L.win(G.roles,G.alive);
+    if(w)go('Reveal the winner',()=>end(w));else go('Night falls',()=>{G.round++;nightStart()});
+    roster();logBox();
+  }
+  function end(w){
+    phase='end';const town=w==='town';
+    head('Game over',town?'Town wins!':'Mafia wins!',true).classList.add(town?'mf-win-t':'mf-win-m');
+    el('div','mf-big',P,town?'🏆':'🔪');
+    el('p','mf-msg',P,town?'Every Mafia member has been found. The town is safe!':'The Mafia now match the town. The town has fallen.');
+    const l=el('ul','mf-all',P);
+    G.names.forEach((n,i)=>el('li',(G.roles[i]==='mafia'?'mf-m':'')+(G.alive[i]?'':' mf-dead'),l,`${av(i)}<span>${esc(n)}</span><b style="--rc:var(${R[G.roles[i]].col})">${roleName(i)}</b>`));
+    G.log.push(town?'The town wins.':'The Mafia win.');
+    const row=el('div','mf-ctl',P);
+    const a=el('button','btn mf-go',row,'Play again');S.on(a,'click',start);
+    const b=el('button','btn ghost',row,'Change setup');S.on(b,'click',setup);
+    logBox();
+    say(town?'The town wins! Every member of the Mafia has been caught.':'The Mafia wins! The town has fallen.');
+    S.fx.confetti();S.fx.banner(town?'Town wins!':'Mafia wins!',`After ${G.round} day${G.round>1?'s':''}`);
+    beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,220));
+  }
+  /* keyboard: Enter / Space opens a cover or presses the main button */
+  S.on(window,'keydown',e=>{
+    if(e.target.closest&&e.target.closest('input'))return;
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    if(!cov.hidden){e.preventDefault();cov.click();return}
+    const b=[...P.querySelectorAll('.mf-go')].find(x=>!x.disabled);if(b&&e.key==='Enter'){e.preventDefault();b.click()}
+  });
+  root.mf={get G(){return G},set G(v){},phase:()=>phase,L};
+  setup();
+}
+
+/* ---------- Code Words: themed word bank (category lines start with @; "CLUE: members") ---------- */
+const CW_DATA=`@sea
+OCEAN: wave shark coral tide whale reef seaweed dolphin octopus jellyfish
+PIRATE: treasure parrot captain plank cannon flag sword hook eyepatch island
+BEACH: sand towel umbrella shell sunscreen bucket surfboard lifeguard pier sandcastle
+FISHING: rod bait net worm reel lake catch tackle float
+SUBMARINE: periscope sonar torpedo hatch dive pressure crew propeller
+HARBOR: dock anchor lighthouse ferry crane cargo pier buoy
+AQUARIUM: tank fish turtle starfish seahorse glass eel
+@space
+SPACE: rocket planet comet astronaut orbit galaxy meteor satellite
+PLANETS: mars venus jupiter saturn mercury neptune earth pluto
+ROBOT: metal circuit battery laser antenna gear android bolt sensor
+ALIEN: saucer martian tentacle invasion beam spaceship green antenna
+TELESCOPE: lens star moon sky observatory constellation night eclipse
+@weather
+STORM: thunder lightning rain wind cloud hail flood tornado gust
+WINTER: snow ice sled scarf mitten frost igloo snowman blizzard icicle
+SUMMER: sun heat pool vacation sunglasses fan lemonade sprinkler
+AUTUMN: leaf pumpkin harvest acorn rake sweater orchard squirrel
+SPRING: blossom tulip nest bud showers puddle daffodil rainbow
+ARCTIC: penguin walrus seal iceberg narwhal glacier tundra husky
+@food
+BREAKFAST: pancake waffle cereal toast egg bacon juice syrup coffee
+DESSERT: cake pie cookie pudding brownie candy cupcake sundae
+FRUIT: apple banana orange grape lemon cherry peach pear mango plum
+VEGETABLE: carrot potato onion pea corn lettuce broccoli cabbage bean
+ITALY: pizza pasta cheese tomato olive basil garlic lasagna spaghetti
+BAKERY: bread flour oven dough loaf bagel croissant muffin yeast
+SANDWICH: ham lettuce mustard mayo pickle bun turkey slice
+SPICY: pepper chili salsa curry jalapeno mustard ginger wasabi
+CANDY: lollipop gum chocolate caramel toffee jellybean marshmallow licorice
+DRINKS: milk tea soda water lemonade juice smoothie cocoa
+BARBECUE: grill burger sausage charcoal steak ketchup tongs
+SOUP: bowl spoon broth noodle tomato chicken ladle
+@kitchen
+KITCHEN: pan pot spoon fork knife plate bowl sink stove kettle
+PICNIC: basket blanket sandwich ant grass cooler napkin
+RESTAURANT: menu waiter table chef bill tip reservation booth
+SUPERMARKET: cart aisle cashier receipt shelf checkout coupon freezer
+@animals
+FARM: cow pig sheep goat horse chicken barn tractor hay duck
+JUNGLE: tiger monkey vine snake jaguar gorilla canopy toucan
+SAFARI: lion zebra giraffe elephant rhino hippo jeep savanna cheetah
+INSECT: ant bee beetle butterfly moth wasp ladybug cricket grasshopper
+PET: dog cat hamster goldfish rabbit leash collar kitten puppy
+BIRD: feather wing beak eagle owl robin sparrow pigeon
+ZOO: cage keeper panda flamingo kangaroo koala crocodile peacock
+REPTILE: lizard turtle crocodile iguana gecko chameleon scales tortoise
+STABLE: horse pony saddle hay hoof mane bridle
+HIVE: bee honey wax queen buzz sting
+@music
+ORCHESTRA: violin cello flute trumpet harp conductor oboe tuba clarinet
+ROCK: guitar amplifier drummer concert stage band microphone speaker
+DANCE: ballet tango waltz salsa disco twirl tutu
+SONG: lyric chorus verse melody tune rhythm note karaoke
+PIANO: keys pedal bench sheet scale chord grand
+@sports
+SOCCER: goal kick referee striker penalty field keeper corner
+BASEBALL: bat glove pitcher homerun umpire inning diamond catcher
+BASKETBALL: hoop dunk court dribble rebound jersey layup
+TENNIS: racket serve ace volley umpire baseline deuce
+GOLF: club tee putt hole green caddie birdie course
+SWIMMING: lane goggles dive stroke lap freestyle backstroke
+OLYMPICS: medal torch gold silver bronze podium athlete
+BOXING: punch ring round knockout jab bell champion
+SKIING: slope lift pole goggles boot lodge powder chairlift
+BICYCLE: pedal chain wheel helmet spoke brake saddle
+SKATEBOARD: ramp trick deck kickflip grind halfpipe wheels
+FOOTBALL: helmet touchdown quarterback tackle stadium whistle
+KARATE: belt kick dojo punch chop sensei
+RACE: finish lap track sprint trophy stopwatch
+@school
+SCHOOL: teacher desk chalk homework classroom recess locker principal
+MATH: number plus minus equation fraction angle triangle calculator
+SCIENCE: lab experiment microscope beaker atom formula magnet
+LIBRARY: book shelf librarian page novel quiet bookmark
+ART: paint brush canvas easel sketch crayon palette sculpture
+WRITING: pen pencil paper ink eraser notebook letter diary
+GEOGRAPHY: map globe atlas continent country border compass
+@home
+SLEEP: dream pillow bed snore nap yawn
+BEDROOM: nightlight pillow blanket closet dresser lamp alarm pajamas
+BATHROOM: tub towel soap shower mirror toothbrush sink shampoo
+GARDEN: flower seed hose shovel soil weed rose fence gnome
+GARAGE: car toolbox ladder wrench hammer drill bike workbench
+LAUNDRY: washer dryer sock basket detergent iron hanger
+COUCH: cushion remote television blanket pillow nap
+CLEANING: broom mop vacuum dust sponge bucket duster
+BABY: diaper crib bottle rattle stroller pacifier lullaby
+@build
+CONSTRUCTION: crane brick cement hammer hardhat bulldozer drill beam
+CARPENTER: wood saw nail plank glue sandpaper chisel workbench
+PLUMBER: pipe leak faucet wrench drain plunger toilet valve
+@transport
+TRAIN: track station ticket carriage engine whistle platform tunnel
+AIRPORT: plane runway pilot gate luggage passport terminal security
+CAR: wheel tire engine brake horn seatbelt steering gas trunk
+ROAD: highway lane traffic bridge sign toll map
+BOAT: sail anchor deck oar mast harbor dock canoe
+FLIGHT: wing pilot cloud jet airplane parachute balloon
+@health
+HOSPITAL: doctor nurse bandage medicine needle ambulance patient stretcher
+DENTIST: tooth floss braces cavity smile toothpaste filling
+FACE: eye nose mouth ear cheek chin eyebrow lips
+GYM: weights treadmill sweat muscle workout mat dumbbell
+SICK: sneeze tissue cough fever thermometer medicine soup
+@fantasy
+CASTLE: king queen knight tower moat throne crown drawbridge
+WIZARD: wand spell potion hat robe broom cauldron magic
+FAIRY: wings dust glitter pixie wish sparkle toadstool
+HALLOWEEN: ghost witch bat skeleton costume spider cobweb mummy
+DRAGON: fire scales cave treasure claw egg lair wings
+SUPERHERO: cape mask villain power sidekick shield flight
+MERMAID: tail fin shell pearl lagoon trident siren
+PRINCESS: tiara castle gown frog slipper tower crown
+@party
+BIRTHDAY: cake candle balloon present party gift card wish
+CHRISTMAS: tree star stocking reindeer sleigh elf ornament carol
+WEDDING: bride groom ring veil dance bouquet church
+CIRCUS: clown juggler acrobat tent ringmaster trapeze unicycle
+FIREWORKS: rocket sparkler bang smoke boom fuse sky
+EASTER: bunny egg basket chick chocolate hunt
+VALENTINE: heart rose card chocolate cupid kiss
+@jobs
+POLICE: badge siren officer handcuffs patrol detective
+FIREFIGHTER: hose ladder truck smoke rescue axe hydrant
+FARMER: tractor field crop barn seed hay plow scarecrow
+CHEF: knife apron recipe oven menu sauce whisk
+MAIL: letter stamp envelope postman postcard package parcel
+MAGICIAN: rabbit hat wand cards trick cape
+@nature
+MOUNTAIN: peak summit cliff rock climb trail valley avalanche
+FOREST: tree bear deer moss mushroom log pine fox
+DESERT: cactus camel dune oasis scorpion mirage lizard
+VOLCANO: lava ash eruption magma crater smoke
+RIVER: bank stream bridge canoe current waterfall delta
+CAVE: bat stalactite dark tunnel echo crystal
+ISLAND: palm coconut beach lagoon shipwreck raft
+GEOLOGY: crystal pebble stone boulder gem marble
+FLOWER: rose tulip daisy petal stem bee bouquet lily orchid
+TREE: trunk branch bark root leaf acorn oak
+@tech
+COMPUTER: keyboard mouse screen monitor laptop printer file internet
+PHONE: call text app camera battery charger ringtone
+VIDEOGAME: controller level console joystick player score boss pixel
+CAMERA: lens flash photo film zoom tripod selfie album
+INTERNET: website email password link download browser
+ELECTRICITY: wire plug battery switch bulb current spark power
+LIGHT: lamp bulb sun candle torch shadow glow lantern
+@clothes
+WARDROBE: shirt pants dress skirt sock jacket coat hat
+SHOES: boot sneaker heel lace sandal slipper sole
+JEWELRY: necklace ring bracelet earring diamond pearl gold
+HAT: cap helmet crown beanie bonnet sombrero
+@city
+CITY: skyscraper subway taxi street traffic apartment park
+HOTEL: room key lobby suite elevator bellhop pool
+MOVIE: popcorn ticket screen actor director trailer seat
+THEATER: stage curtain actor script costume audience spotlight
+PARK: bench pond fountain duck picnic jogger
+FAIR: rollercoaster carousel popcorn prize ticket ride
+BANK: money coin vault safe teller cash loan
+@history
+EGYPT: pyramid pharaoh mummy sphinx desert nile tomb
+MEDIEVAL: knight armor castle sword shield jousting catapult
+ROME: emperor gladiator colosseum chariot toga senate
+VIKING: longship axe helmet raid shield beard fjord
+COWBOY: horse lasso saddle ranch boots sheriff rodeo
+DINOSAUR: fossil bone extinct egg rex claw
+MUSEUM: painting statue exhibit gallery fossil curator
+CAVEMAN: club fire spear mammoth stone flint hunt
+@toys
+TOYS: doll teddy yoyo kite puzzle block robot ball
+CARDS: deck ace king queen jack joker shuffle spade
+CHESS: board pawn knight bishop rook king queen checkmate
+CAMPING: tent campfire marshmallow lantern backpack compass
+BOARDGAME: dice token spinner card turn piece
+@misc
+COLOR: red blue green yellow purple orange pink
+SHAPE: circle square triangle oval star diamond heart
+CLOCK: hour minute second hand alarm tick watch
+COUNT: one two three four five ten hundred
+PAPER: origami notebook envelope scissors tape glue
+LOCK: key door bolt combination safe chain
+@spy
+MYSTERY: detective clue suspect magnifier footprint alibi
+SPY: secret agent code disguise gadget mission`;
+const CW_T=(()=>{const T=[];let cat='';for(const l of CW_DATA.trim().split('\n')){if(l[0]==='@'){cat=l.slice(1).trim();continue}const k=l.indexOf(':');T.push({cat,clue:l.slice(0,k).trim(),w:l.slice(k+1).trim().split(/\s+/)})}return T})();
+/* word -> indexes of the themes that use it */
+const CW_IDX=(()=>{const m=new Map();CW_T.forEach((t,i)=>t.w.forEach(w=>{if(!m.has(w))m.set(w,[]);m.get(w).push(i)}));return m})();
+/* Party bank: every theme word (sorted so a code gives the same board everywhere), short words only, no plural twins */
+const CW_BANK=(()=>{const s=new Set();for(const t of CW_T)for(const w of t.w)if(w.length<=11)s.add(w);return[...s].filter(w=>!(w.endsWith('s')&&s.has(w.slice(0,-1)))).sort()})();
+/* categories that are close enough in meaning that Solo never mixes them on one board */
+const CW_NEAR=(()=>{const m={};for(const p of 'sea-nature sea-animals weather-nature animals-nature food-kitchen food-party home-kitchen home-build jobs-kitchen jobs-build jobs-animals jobs-health fantasy-history fantasy-party space-tech city-transport history-nature party-music sports-health toys-party spy-tech jobs-food misc-school'.split(' ')){const[a,b]=p.split('-');(m[a]=m[a]||[]).push(b);(m[b]=m[b]||[]).push(a)}return m})();
+const CW_ALPH='23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+function CW_rng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function CW_hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function CW_code(rnd=Math.random){let s='';for(let i=0;i<4;i++)s+=CW_ALPH[Math.floor(rnd()*CW_ALPH.length)];return s}
+function CW_norm(c){c=String(c||'').toUpperCase().replace(/[^0-9A-Z]/g,'');return c.length===4&&[...c].every(ch=>CW_ALPH.includes(ch))?c:null}
+function CW_shuf(a,rnd){for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+const CW_OTHER=t=>t==='R'?'B':'R';
+/* two words are "related" (can't share a board / can't be a clue) if equal or one contains the other */
+function CW_rel(a,b){a=a.toLowerCase();b=b.toLowerCase();return a===b||(a.length>=3&&b.includes(a))||(b.length>=3&&a.includes(b))}
+/* Party / Spymaster key: everything comes from the 4-character code */
+function CW_board(code){
+  const rnd=CW_rng(CW_hash('codewords1:'+code)),pool=CW_BANK.slice(),words=[];
+  while(words.length<25){const j=Math.floor(rnd()*pool.length),w=pool.splice(j,1)[0];if(!words.some(x=>CW_rel(x,w)))words.push(w)}
+  const start=rnd()<.5?'R':'B',key=[];
+  for(let i=0;i<25;i++)key.push(i<9?start:i<17?CW_OTHER(start):i<24?'N':'A');
+  CW_shuf(key,rnd);return{code,words,key,start};
+}
+/* Solo: your 9 red agents come from 2-4 themes; every other card comes from themes in unrelated categories */
+function CW_solo(rnd=Math.random){
+  const SPL=[[5,4],[3,3,3],[4,3,2],[3,2,2,2]];
+  for(let tries=0;tries<500;tries++){
+    const sp=SPL[Math.floor(rnd()*SPL.length)],order=CW_shuf(CW_T.map((_,i)=>i),rnd),pick=[],cats=new Set();
+    for(const i of order){if(pick.length===sp.length)break;if(cats.has(CW_T[i].cat))continue;pick.push(i);cats.add(CW_T[i].cat)}
+    if(pick.length<sp.length)continue;
+    const clues=pick.map(i=>CW_T[i].clue),agents=[],groups=[];let ok=true;
+    pick.forEach((ti,g)=>{
+      if(!ok)return;
+      const cand=CW_shuf(CW_T[ti].w.filter(w=>w.length<=11&&!clues.some(c=>CW_rel(c,w))&&!pick.some(o=>o!==ti&&CW_T[o].w.includes(w))),rnd),got=[];
+      for(const w of cand){if(got.length===sp[g])break;if(!agents.concat(got).some(x=>CW_rel(x,w)))got.push(w)}
+      if(got.length<sp[g]){ok=false;return}
+      agents.push(...got);groups.push(got);
+    });
+    if(!ok)continue;
+    const avoid=new Set(cats);cats.forEach(c=>(CW_NEAR[c]||[]).forEach(n=>avoid.add(n)));
+    const dist=CW_shuf(CW_BANK.filter(w=>CW_IDX.get(w).every(ti=>!avoid.has(CW_T[ti].cat))&&!clues.some(c=>CW_rel(c,w))&&!agents.some(a=>CW_rel(a,w))),rnd),others=[];
+    for(const w of dist){if(others.length===16)break;if(!others.some(x=>CW_rel(x,w)))others.push(w)}
+    if(others.length<16)continue;
+    const cards=agents.map((w,k)=>({w,t:'R',g:groups.findIndex(gr=>gr.includes(w))})).concat(others.map((w,k)=>({w,t:k<8?'B':k<15?'N':'A',g:-1})));
+    CW_shuf(cards,rnd);
+    return{words:cards.map(c=>c.w),key:cards.map(c=>c.t),start:'R',themes:pick.map((ti,g)=>({clue:CW_T[ti].clue,idx:cards.map((c,i)=>c.g===g?i:-1).filter(i=>i>=0)}))};
+  }
+  return null;
+}
+/* ---------- rules ---------- */
+function CW_game(b){return{words:b.words,key:b.key,start:b.start,rev:b.words.map(()=>false),turn:b.start,phase:'clue',clue:null,left:0,guessed:0,winner:null,why:''}}
+function CW_count(s,t){let n=0;s.key.forEach((k,i)=>{if(k===t&&!s.rev[i])n++});return n}
+function CW_checkClue(s,word,n){
+  const w=String(word||'').trim().toLowerCase();
+  if(!w)return'Type a clue word';
+  if(!/^[a-z]+(-[a-z]+)?$/.test(w))return'One word, letters only';
+  if(!(n>=0&&n<=9&&n===Math.floor(n)))return'Pick a number from 0 to 9';
+  for(let i=0;i<25;i++){if(s.rev[i])continue;const b=s.words[i];if(w===b||w===b+'s'||b===w+'s'||w===b+'es'||(w.length>=4&&b.includes(w))||(b.length>=4&&w.includes(b)))return'That word is on the board'}
+  return null;
+}
+/* n=0 means "zero": unlimited guesses */
+function CW_setClue(s,word,n){s.clue={word:String(word).trim().toUpperCase(),n};s.left=n===0?99:n+1;s.guessed=0;s.phase='guess'}
+function CW_giveClue(s,word,n){if(s.phase!=='clue')return'Not time for a clue';const e=CW_checkClue(s,word,n);if(e)return e;CW_setClue(s,word,n);return null}
+function CW_endTurn(s){if(s.phase==='over')return;s.turn=CW_OTHER(s.turn);s.phase='clue';s.clue=null;s.left=0;s.guessed=0}
+/* returns {t:type, ended:turn passed, over} or null if the tap isn't allowed */
+function CW_reveal(s,i){
+  if(s.phase!=='guess'||s.rev[i]||i<0||i>24)return null;
+  s.rev[i]=true;s.guessed++;const t=s.key[i],me=s.turn;
+  if(t==='A'){s.winner=CW_OTHER(me);s.why='assassin';s.phase='over';return{t,ended:true,over:true}}
+  for(const team of [t==='R'||t==='B'?t:null].filter(Boolean))if(CW_count(s,team)===0){s.winner=team;s.why='agents';s.phase='over';return{t,ended:true,over:true}}
+  if(t===me){s.left--;if(s.left<=0){CW_endTurn(s);return{t,ended:true,over:false}}return{t,ended:false,over:false}}
+  CW_endTurn(s);return{t,ended:true,over:false};
+}
+/* Solo spymaster: clue the theme with the most unrevealed red agents */
+function CW_soloClue(s,themes){
+  let best=null;
+  themes.forEach(th=>{const n=th.idx.filter(i=>!s.rev[i]).length;if(n&&(!best||n>best.n))best={word:th.clue,n,theme:th}});
+  return best;
+}
+/* ---------- the game ---------- */
+function codewords(root,S){
+  const L=S.level,SOLO=L===1,PARTY=L===2,KEY=L===3;
+  const st=status(root,SOLO?'The computer is your spymaster. Find all 9 red agents before Blue finds its 8. Tap a card twice to guess it.':PARTY?'Two teams, each with a spymaster. Spymasters give a one-word clue and a number; teammates tap the words.':'Type the 4-character game code to see the key card for that board.');
+  const TN={R:'Red',B:'Blue'};
+  const top=el('div','cw-top',root,`<div class="cw-sc cw-sr"><b></b><small>red left</small></div><div class="cw-mid"><div class="cw-turn"></div><div class="cw-clue"></div></div><div class="cw-sc cw-sb"><b></b><small>blue left</small></div>`);
+  const wrap=el('div','cw-wrap',root),grid=el('div','cw-grid',wrap),ctl=el('div','cw-ctl',root);
+  const turnEl=$('.cw-turn',top),clueEl=$('.cw-clue',top),rEl=$('.cw-sr b',top),bEl=$('.cw-sb b',top);
+  let curTh=null,s=null,board=null,keyView=false,sel=-1,cur=-1,busy=false,code=null,t0=0,tEnd=0,overDone=false,themes=null;
+  const cards=[];
+  for(let i=0;i<25;i++){const c=el('button','cw-card',grid,'<span class="cw-fl"><span class="cw-f"><span class="cw-w"></span></span><span class="cw-bk"><span class="cw-w"></span></span></span>');c.type='button';c.dataset.i=i;cards.push(c)}
+  /* ---------- layout ---------- */
+  function setAR(){
+    let ar;if(!COMPACT.matches)ar=1.62;else if(innerWidth>innerHeight)ar=1.55;
+    else{const res=top.offsetHeight+ctl.offsetHeight+44;ar=100/tall(100,64,128,res)}
+    wrap.dataset.ar=ar.toFixed(3);wrap.style.aspectRatio=ar.toFixed(3);wrap.dataset.max=COMPACT.matches?900:880;
+  }
+  const refit=()=>{setAR();if(typeof fit==='function')fit();requestAnimationFrame(shrink)};
+  /* long words: scale the text down until it fits its card (a ratio, so it keeps fitting as the board resizes) */
+  function shrink(){for(const c of cards){const w=$('.cw-f .cw-w',c);if(!w.clientWidth)continue;c.style.setProperty('--k',1);const r=w.clientWidth/w.scrollWidth;if(r<1)c.style.setProperty('--k',(r*.96).toFixed(3))}}
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(root.isConnected)shrink()});
+  S.on(window,'resize',setAR);
+  /* ---------- drawing ---------- */
+  function setWords(words){words.forEach((w,i)=>{const c=cards[i];c.style.setProperty('--n',Math.max(5,w.length));c.querySelectorAll('.cw-w').forEach(x=>x.textContent=w.toUpperCase());c.setAttribute('aria-label',w)});requestAnimationFrame(shrink)}
+  function render(){
+    if(!s)return;
+    const over=s.phase==='over';
+    cards.forEach((c,i)=>{
+      const show=s.rev[i]||keyView||over,t=s.key[i];
+      c.className='cw-card'+(s.rev[i]?' cw-rev':'')+(show?' cw-t'+t:'')+(!s.rev[i]&&(keyView||over)?' cw-tint':'')+(i===sel?' cw-sel':'')+(i===cur?' cw-cur':'');
+      c.disabled=s.rev[i]&&!keyView;
+    });
+    grid.classList.toggle('cw-key',keyView);
+    rEl.textContent=CW_count(s,'R');bEl.textContent=CW_count(s,'B');
+    top.querySelector('.cw-sr').classList.toggle('on',s.turn==='R'&&!over);top.querySelector('.cw-sb').classList.toggle('on',s.turn==='B'&&!over);
+    top.style.setProperty('--tc',s.turn==='R'?'var(--c1)':'var(--c4)');
+    if(over){turnEl.textContent=(SOLO?(s.winner==='R'?'You win!':'Blue wins'):TN[s.winner]+' wins!');clueEl.innerHTML=s.why==='assassin'?'<span class="cw-cw">💀 Assassin</span>':'<span class="cw-cw">All agents found</span>'}
+    else if(s.phase==='clue'){turnEl.textContent=KEY?'Spymaster key':TN[s.turn]+' spymaster';clueEl.innerHTML='<span class="cw-wait">thinking of a clue…</span>'}
+    else{turnEl.textContent=SOLO?(s.turn==='R'?'Your turn':'Blue is searching…'):TN[s.turn]+' team guessing';
+      const n=s.clue.n,lf=s.left>=99?'∞':s.left;clueEl.innerHTML=`<span class="cw-cw"></span><span class="cw-cn">${n===0?'0':n}</span><span class="cw-gl">${lf} ${s.left===1?'guess':'guesses'} left</span>`;$('.cw-cw',clueEl).textContent=s.clue.word}
+    renderCtl();
+  }
+  /* ---------- controls row ---------- */
+  let ctlSig='';
+  function renderCtl(){
+    const sig=s?[s.phase,s.turn,keyView,s.guessed>0,busy].join():'none';if(sig===ctlSig)return;ctlSig=sig;
+    ctl.innerHTML='';
+    if(KEY)return;
+    if(s.phase==='over'){const b=el('button','btn cw-new',ctl,SOLO?'New board':'New game');S.on(b,'click',()=>S.restart());if(SOLO)bestEl();refit();return}
+    if(PARTY&&s.phase==='clue'){
+      const f=el('form','cw-form',ctl,`<input class="inp cw-cin" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send" placeholder="Clue word" aria-label="Clue word"><span class="cw-num"><button type="button" data-d="-1" aria-label="Fewer">−</button><b>${cn}</b><button type="button" data-d="1" aria-label="More">+</button></span><button class="btn cw-give">Give clue</button>`);
+      const inp=$('.cw-cin',f),nb=$('.cw-num b',f);
+      f.querySelectorAll('.cw-num button').forEach(b=>S.on(b,'click',()=>{cn=clamp(cn+ +b.dataset.d,0,9);nb.textContent=cn;beep(500+cn*30,30)}));
+      S.on(f,'submit',e=>{e.preventDefault();const err=CW_giveClue(s,inp.value,cn);if(err){restartAnim(inp,'nope');S.fx.toast(err);beep(200,120,'sine');return}
+        inp.blur();keyView=false;sel=-1;beep(660,70);S.after(80,()=>beep(880,90));st(`${TN[s.turn]} clue: ${s.clue.word} ${cn}`);cn=1;render();refit()});
+      const r2=el('div','cw-row2',ctl);
+      const kb=el('button','btn cw-kv',r2,keyView?'🙈 Hide key':'🗝️ Spymaster view');S.on(kb,'click',()=>{if(keyView){keyView=false;render()}else showPass()});
+      const cb=el('button','btn cw-codeb',r2,`🔑 ${code}`);cb.title='Key on another phone';S.on(cb,'click',showCode);
+      refit();return;
+    }
+    if(SOLO&&(s.turn!=='R'||busy)){el('span','cw-wait',ctl,'Blue is searching…');tmEl=el('span','cw-time',ctl);tick();refit();return}
+    const eb=el('button','btn cw-end',ctl,'End turn');eb.disabled=!s.guessed;S.on(eb,'click',endTurn);
+    if(PARTY){const cb=el('button','btn cw-codeb',ctl,`🔑 ${code}`);S.on(cb,'click',showCode)}
+    if(SOLO){tmEl=el('span','cw-time',ctl);tick();bestEl()}
+    refit();
+  }
+  let cn=1,tmEl=null;
+  const fmtT=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+  function bestEl(){const b=store.get('best:codewords');if(b!=null)el('span','cw-best',ctl,'🏆 '+fmtT(b))}
+  function tick(){if(tmEl&&s)tmEl.textContent='⏱ '+fmtT(((tEnd||performance.now())-t0)/1000)}
+  if(SOLO)S.every(250,tick);
+  /* ---------- guessing ---------- */
+  function tap(i){
+    if(!s||busy||s.phase!=='guess'||s.rev[i]||(SOLO&&s.turn!=='R'))return;
+    if(sel!==i){sel=i;cur=i;beep(520,30);render();return}
+    sel=-1;guess(i);
+  }
+  function guess(i){
+    const team=s.turn,r=CW_reveal(s,i);if(!r)return;
+    const c=cards[i];restartAnim(c,'cw-pop');
+    if(r.t==='A'){beep(150,400,'sawtooth');S.shake()}else if(r.t===team){beep(700,70);S.after(70,()=>beep(940,90))}else beep(r.t==='N'?330:260,140,'sine');
+    const msg=r.t===team?(SOLO?'Agent found!':'Correct!'):r.t==='N'?'Bystander. Turn over.':r.t==='A'?'The assassin!':(SOLO?'That was a Blue agent.':`Oops, a ${TN[r.t]} agent.`);
+    render();
+    if(r.over){finish();return}
+    if(r.t!==team||r.ended)st(r.t===team?'Out of guesses. Turn over.':msg);
+    else if(SOLO&&curTh&&curTh.idx.every(j=>s.rev[j]))st('Clue done! Take a bonus guess or End turn.');else st(msg);
+    if(SOLO&&r.ended)blueMove();
+  }
+  function endTurn(){if(!s||busy||s.phase!=='guess'||!s.guessed)return;sel=-1;CW_endTurn(s);beep(420,80);st(SOLO?'Turn over.':`${TN[s.turn]} spymaster, your clue.`);render();if(SOLO)blueMove()}
+  /* Solo: the opponent finds one of its agents per turn, then your spymaster gives the next clue */
+  function blueMove(){
+    busy=true;render();
+    S.after(900,()=>{
+      if(!s||s.phase==='over')return;
+      const left=s.key.map((k,i)=>k==='B'&&!s.rev[i]?i:-1).filter(i=>i>=0),j=left[rand(left.length)];
+      s.rev[j]=true;restartAnim(cards[j],'cw-pop');beep(300,120,'square');
+      if(CW_count(s,'B')===0){s.winner='B';s.why='agents';s.phase='over';busy=false;render();finish();return}
+      S.fx.toast('Blue found an agent',`${CW_count(s,'B')} left`);
+      S.after(700,()=>{busy=false;CW_endTurn(s);soloClue()});
+    });
+  }
+  function soloClue(){
+    const c=CW_soloClue(s,themes);if(!c)return;curTh=c.theme;
+    CW_setClue(s,c.word,c.n);beep(600,60);render();st(`Clue: ${c.word} ${c.n}`);restartAnim(clueEl,'cw-pop');
+  }
+  function finish(){
+    if(overDone)return;overDone=true;sel=-1;keyView=false;tEnd=performance.now();render();
+    const red=s.winner==='R';
+    if(SOLO){
+      if(red){const sec=Math.max(1,Math.round((tEnd-t0)/1000)),nb=best('codewords',sec,true);st(`You found all your agents in ${fmtT(sec)}!`+(nb?' New best time!':''));S.next();ctlSig='';renderCtl()}
+      else{st(s.why==='assassin'?'You hit the assassin. Press New board to try again.':'Blue found all its agents first.');S.after(300,()=>S.fx.banner(s.why==='assassin'?'Assassin!':'Blue wins','Press New board to try again'));beep(196,300,'sawtooth')}
+    }else{
+      const w=TN[s.winner],why=s.why==='assassin'?`${TN[CW_OTHER(s.winner)]} found the assassin`:'All agents found';
+      st(`${w} team wins! ${why}.`);S.fx.confetti();beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,200));
+      S.after(200,()=>S.fx.banner(`${w} wins!`,why));
+    }
+  }
+  S.on(grid,'click',e=>{const c=e.target.closest('.cw-card');if(c)tap(+c.dataset.i)});
+  /* keyboard: arrows move, Enter/Space picks (twice to confirm), E ends the turn */
+  S.on(window,'keydown',e=>{
+    if(e.target&&e.target.closest&&e.target.closest('input'))return;
+    if(!s||s.phase!=='guess')return;
+    const D={ArrowLeft:-1,ArrowRight:1,ArrowUp:-5,ArrowDown:5};
+    if(D[e.key]!=null){e.preventDefault();if(cur<0)cur=12;else{const n=cur+D[e.key];if(n>=0&&n<25&&!(Math.abs(D[e.key])===1&&Math.floor(n/5)!==Math.floor(cur/5)))cur=n}sel=sel===cur?sel:-1;render()}
+    else if((e.key==='Enter'||e.key===' ')&&cur>=0){e.preventDefault();tap(cur)}
+    else if(e.key==='e'||e.key==='E')endTurn();
+    else if(e.key==='Escape'){sel=-1;render()}
+  });
+  /* ---------- pass-and-play cover for the spymaster view ---------- */
+  const cover=el('div','cw-pass',document.querySelector('#stage')||root);cover.hidden=true;S.cleanup(()=>cover.remove());
+  function showPass(){
+    cover.style.setProperty('--pc',s.turn==='R'?'var(--c1)':'var(--c4)');
+    cover.innerHTML=`<div class="cw-pbox"><i>🗝️</i><b>Pass to the ${TN[s.turn]} spymaster</b><span>Guessers, look away! The key card shows every agent.</span><button class="btn">Tap when ready</button></div>`;
+    cover.hidden=false;beep(520,80);
+  }
+  S.on(cover,'click',()=>{if(cover.hidden)return;cover.hidden=true;keyView=true;beep(780,60);render();st('Key showing. Give a clue, then it hides again.')});
+  S.on(window,'keydown',e=>{if(!cover.hidden&&(e.key==='Enter'||e.key===' ')){e.preventDefault();cover.click()}});
+  /* ---------- code panel (Party) ---------- */
+  function overlay(html){const o=el('div','cw-ov',wrap,`<div class="cw-obox">${html}</div>`);return o}
+  function showCode(){
+    const o=overlay(`<b class="cw-oc">${code}</b><span>Spymasters can use their own phones: open Code Words, choose <em>Spymaster key</em> and type this code to see the same key card.</span><button class="btn">Close</button>`);
+    S.on($('.btn',o),'click',()=>o.remove());beep(600,40);
+  }
+  function setupParty(){
+    let c=CW_code();
+    const o=overlay(`<b>New game</b><span>Game code</span><div class="cw-orow"><input class="inp cw-codein" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Game code"><button type="button" class="btn cw-dice" aria-label="New code">🎲</button></div><span class="cw-small">Spymasters can see the key on their own phones (Code Words → <em>Spymaster key</em> → this code), or use the Spymaster view on this device.</span><button class="btn cw-start">Start</button>`);
+    const inp=$('.cw-codein',o);inp.value=c;
+    S.on($('.cw-dice',o),'click',()=>{inp.value=CW_code();beep(500,40)});
+    const go=()=>{const k=CW_norm(inp.value);if(!k){restartAnim(inp,'nope');S.fx.toast('Codes are 4 letters/digits');return}o.remove();startBoard(CW_board(k))};
+    S.on($('.cw-start',o),'click',go);S.on(inp,'keydown',e=>{if(e.key==='Enter'){e.preventDefault();go()}});
+    root.cw.start=k=>{inp.value=k;go()};
+  }
+  function startBoard(b){
+    board=b;code=b.code||null;s=CW_game(b);setWords(b.words);store.set('cw:code',code);
+    st(`${TN[s.turn]} goes first. ${TN[s.turn]} spymaster: give a clue.`);beep(660,80);render();refit();
+  }
+  /* ---------- Spymaster key mode ---------- */
+  function setupKey(){
+    const f=el('form','cw-kform',root,`<input class="inp cw-codein" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Game code"><button class="btn">Show key</button>`);
+    root.insertBefore(f,top);top.classList.add('cw-ktop');
+    const inp=$('input',f);inp.value=store.get('cw:code')||'';
+    const legend=el('div','cw-legend',ctl);
+    const show=()=>{const k=CW_norm(inp.value);if(!k){restartAnim(inp,'nope');S.fx.toast('Type the 4-character code');return}
+      inp.blur();code=k;store.set('cw:code',k);const b=CW_board(k);s=CW_game(b);s.phase='clue';keyView=true;setWords(b.words);render();
+      turnEl.textContent='Key '+k;clueEl.innerHTML=`<span class="cw-cw">${TN[b.start]} goes first</span>`;
+      legend.innerHTML=`<span class="cw-lg cw-lR">${TN[b.start]==='Red'?9:8} red</span><span class="cw-lg cw-lB">${TN[b.start]==='Blue'?9:8} blue</span><span class="cw-lg cw-lN">7 bystanders</span><span class="cw-lg cw-lA">1 assassin</span>`;
+      st(`Key for ${k}: ${TN[b.start]} goes first. Keep it hidden from the guessers!`);beep(700,60);refit()};
+    S.on(f,'submit',e=>{e.preventDefault();show()});
+    root.cw.show=k=>{inp.value=k;show()};
+    turnEl.textContent='Spymaster key';clueEl.innerHTML='<span class="cw-wait">enter the game code</span>';rEl.textContent='–';bEl.textContent='–';
+    setWords(Array(25).fill('·'));
+    if(CW_norm(inp.value))S.after(0,show);
+  }
+  root.cw={state:()=>s,themes:()=>themes,code:()=>code};
+  if(SOLO){
+    const b=CW_solo();themes=b.themes;s=CW_game(b);setWords(b.words);t0=performance.now();soloClue();
+    st(`Find your 9 red agents. Clue: ${s.clue.word} ${s.clue.n}`);
+  }else if(PARTY){setWords(Array(25).fill('·'));s=null;rEl.textContent='9';bEl.textContent='8';turnEl.textContent='Code Words';clueEl.innerHTML='<span class="cw-wait">party mode</span>';setupParty()}
+  else setupKey();
+  setAR();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -8274,13 +9039,15 @@ const GAMES=[
   {id:'pento',name:'Pento Box',icon:'🧩',blurb:'Fit the five-square pieces into the box until it\'s full.',help:'Drag the pieces into the box until every square is covered. Tap a piece to turn it, and use ⇋ Flip (or right-click) to mirror it. Pick 3 to 12 pieces at the top, and press Next for a new puzzle.',mount:pento,levels:8,open:true,names:['3 pieces','4 pieces','5 pieces','6 pieces','7 pieces','8 pieces','10 pieces','12 pieces'],unit:'solved',isNew:true},
   {id:'wahoo',name:'Wahoo',icon:'🎯',blurb:'Race four marbles around the cross and fill your home first.',help:'Tap Roll, then tap a glowing marble to move it. A 1 or 6 brings a marble out and a 6 rolls again. Land on a rival to send it back; the center hole is a shortcut you leave with a 1.',mount:wahoo,levels:4,open:true,names:['Easy','Hard','2 Players','4 Players'],isNew:true},
   {id:'jackaroo',name:'Jackaroo',icon:'🃏',blurb:'Team card-and-marble race. Play cards, swap, burn and get home.',help:'Tap a card, then a glowing marble. A: out or 1/11, K: out or 13 burning marbles it passes, J swaps, 7 splits, 5 moves any marble, 4 goes back, 10 moves or burns the next card. Pick Easy, Medium, Hard, or 2/4 Players to pass one device around.',mount:jackaroo,levels:5,open:true,names:['Easy','Medium','Hard','2 Players','4 Players'],isNew:true},
-  {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun. Each player has 60 seconds per move; when time runs out you check if you can, otherwise fold.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true}
+  {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun. Each player has 60 seconds per move; when time runs out you check if you can, otherwise fold.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true},
+  {id:'mafia',name:'Mafia',icon:'🕵️',blurb:'The party game of lies for 4–12 friends, with the app as narrator.',help:'Pass the phone: each player privately sees their role, takes a secret night turn and (in Secret vote mode) votes in private. Tap \'Tap when ready\' on each Pass screen, Enter/Space on a keyboard. The narrator voice can be switched off with 🔊.',mount:mafia,run:true,names:['Pass & Play'],unit:'days',isNew:true},
+  {id:'codewords',name:'Code Words',icon:'🗝️',blurb:'Team word-association spy game. Solo vs the clock or party play.',help:'Read the clue and number, then tap a card twice to guess it. Find all your agents first and avoid the assassin. Party: the spymaster types a clue; spymasters can see the key with Spymaster view or on their own phone with the game code.',mount:codewords,levels:3,open:true,names:['Solo','Party','Spymaster key'],unit:'sec',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer'};
-const CATS={'poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
-const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['2p','2 Players','👥']];
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game'};
+const CATS={'mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
+const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
@@ -8378,7 +9145,10 @@ stage.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&!fsOff&&!isFS
   const native=t=>t.closest('input,textarea,select,label,a[href]');
   const surface=t=>t&&t.closest&&t.closest('#stage')&&!native(t);
   let tap=null;
-  document.addEventListener('touchstart',e=>{if(playing()&&e.cancelable&&surface(e.target))e.preventDefault()},{passive:false,capture:true});
+  // ...except inside a panel that actually scrolls (a long setup screen, a tall card column): there the
+  // touch must start natively or the finger could never scroll it
+  const scrolls=t=>{for(let n=t;n&&n.id!=='stage';n=n.parentElement){if(n.scrollHeight>n.clientHeight+1){const o=getComputedStyle(n).overflowY;if(o==='auto'||o==='scroll')return true}}return false};
+  document.addEventListener('touchstart',e=>{if(playing()&&e.cancelable&&surface(e.target)&&!scrolls(e.target))e.preventDefault()},{passive:false,capture:true});
   document.addEventListener('touchend',e=>{if(playing()&&e.cancelable&&surface(e.target))e.preventDefault()},{passive:false,capture:true});
   document.addEventListener('pointerdown',e=>{tap=e.pointerType==='touch'&&e.isPrimary&&playing()&&surface(e.target)?{t:e.target,x:e.clientX,y:e.clientY,at:e.timeStamp}:null},true);
   document.addEventListener('pointercancel',()=>{tap=null},true);
