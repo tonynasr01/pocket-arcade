@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -9732,6 +9732,874 @@ function cagesums(root,S){
   S.after(30,work);
 }
 
+/* Binary Bits: flip bit cards to build a number, read bits back as decimal or hex, against the clock */
+const BINARY_MODES=[
+  {bits:4,types:['bin','bin','dec'],base:10,min:4.5,sum:true},
+  {bits:8,types:['bin'],base:16,min:6,sum:true},
+  {bits:8,types:['bin','dec'],base:16,min:6,sum:false},
+  {bits:8,types:['hexbin','binhex','hexbin','dec'],base:17,min:6.5,sum:false}
+];
+function binaryBits(n,bits){const a=[];for(let i=bits-1;i>=0;i--)a.push(n>>i&1);return a}
+function binaryValue(a){return a.reduce((v,b)=>v*2+b,0)}
+function binaryHex(n,digits){return n.toString(16).toUpperCase().padStart(digits||1,'0')}
+function binaryParse(s,base){
+  if(typeof s!=='string'||!s)return NaN;
+  return (base===16?/^[0-9A-F]+$/i:/^[0-9]+$/).test(s)?parseInt(s,base):NaN;
+}
+/* the number for round r (0-based): small at first, the full range later; never 0, never the same twice */
+function binaryTarget(r,bits,prev,rnd){
+  rnd=rnd||(k=>Math.floor(Math.random()*k));
+  const max=bits===4?15:Math.min(255,31+r*28);let n;
+  do n=1+rnd(max);while(n===prev);
+  return n;
+}
+function binaryTime(r,M){return Math.max(M.min,M.base*Math.pow(.95,r))}
+function binary(root,S){
+  const M=BINARY_MODES[S.level-1],N=M.bits,BK='binary'+S.level;
+  const st=status(root,`Each bit is worth double the one to its right. Switch on the cards that add up to the number, or read the bits and type the number.`);
+  const say=t=>{if(!COMPACT.matches)st(t)};
+  const g=el('div','bb',root);g.dataset.max=1000;
+  const hud=el('div','bb-hud',g,`<span class="bb-lives"></span><span class="bb-sc">0</span><span class="bb-stk"></span><span class="bb-best"></span>`);
+  const livesEl=$('.bb-lives',hud),scEl=$('.bb-sc',hud),stkEl=$('.bb-stk',hud),bestEl=$('.bb-best',hud);
+  const tb=el('div','bb-tb',g,'<i></i>'),tFill=$('i',tb);
+  const main=el('div','bb-main',g);
+  const left=el('div','bb-left',main),right=el('div','bb-right',main);
+  const q=el('div','bb-q',left,'<small class="bb-ask"></small><b class="bb-big"></b>'),askEl=$('.bb-ask',q),bigEl=$('.bb-big',q);
+  const cardsEl=el('div','bb-cards'+(N===8?' b8':''),left);
+  const cards=[],nib=[];
+  for(let i=0;i<N;i++){
+    if(N===8&&i===4)el('span','bb-gap',cardsEl);
+    const v=1<<(N-1-i);
+    const c=el('button','bb-card',cardsEl,`<span class="bb-pv">${v}</span><span class="bb-bit">0</span><span class="bb-bulb"></span><span class="bb-key">${i+1}</span>`);
+    c.title=`Place value ${v} (2^${N-1-i}). Tap to switch it on or off.`;c.style.animationDelay=i*35+'ms';cards.push(c);
+  }
+  const nibRow=el('div','bb-nibs'+(S.level===4?'':' off'),left);for(let k=0;k<2;k++)nib.push(el('span','bb-nib',nibRow));
+  const sumEl=el('div','bb-sum',left);
+  const low=el('div','bb-low',right);
+  const tip=el('div','bb-tip',low);
+  const pad=el('div','bb-pad',low);
+  const over=el('div','bb-over',g);
+  let bits=Array(N).fill(0),round=0,score=0,lives=3,streak=0,bestStreak=0,type='bin',target=0,typed='',limit=10,left_=10,busy=true,playing=false,prev=0,wide=false;
+  const hearts=()=>{livesEl.innerHTML=[0,1,2].map(i=>`<i class="${i<lives?'':'gone'}">❤</i>`).join('')};
+  const showBest=()=>{const b=store.get('best:'+BK);bestEl.textContent=b?`🏆 ${b}`:'';};
+  function layout(){
+    const W=root.clientWidth-8,stH=COMPACT.matches?0:70,H=root.clientHeight-20-stH;
+    wide=W>H*1.12;g.classList.toggle('wide',wide);
+    const ar=wide?clamp(W/H,1.3,2.6):clamp(W/H,.52,.8);
+    if(+g.dataset.ar!==ar){g.dataset.ar=ar;g.style.aspectRatio=ar}
+  }
+  layout();S.on(window,'resize',layout);
+  function paintCards(reveal){
+    cards.forEach((c,i)=>{c.classList.toggle('on',!!bits[i]);$('.bb-bit',c).textContent=bits[i];c.disabled=type!=='bin'&&type!=='hexbin'});
+    const v=binaryValue(bits),hide=type==='binhex'||type==='dec';
+    nib.forEach((e,k)=>{e.textContent=hide&&!reveal?'?':binaryHex(binaryValue(bits.slice(k*4,k*4+4)))});
+    if(type==='bin'||type==='hexbin'){
+      const parts=bits.map((b,i)=>b?1<<(N-1-i):0).filter(Boolean);
+      if(type==='hexbin')sumEl.innerHTML=`= <b>0x${binaryHex(v,2)}</b>`;
+      else if(M.sum)sumEl.innerHTML=parts.length?`${parts.join(' + ')} = <b>${v}</b>`:'= <b>0</b>';
+      else sumEl.innerHTML=reveal?`= <b>${v}</b>`:'= <b>?</b>';
+    }else sumEl.innerHTML=reveal?(type==='binhex'?`= <b>0x${binaryHex(v,2)}</b>`:`= <b>${v}</b>`):'';
+  }
+  function buildPad(hex){
+    const keys=hex?['C','D','E','F','8','9','A','B','4','5','6','7','0','1','2','3','⌫','✓']:['7','8','9','4','5','6','1','2','3','⌫','0','✓'];
+    pad.className='bb-pad'+(hex?' hex':'');pad.innerHTML='';
+    keys.forEach(k=>{const b=el('button','bb-k'+(k==='✓'?' ok':k==='⌫'?' del':''),pad,k);b.dataset.k=k;if(k==='✓')b.title='Check (Enter)';if(k==='⌫')b.title='Delete (Backspace)'});
+  }
+  function showTyped(){
+    const hex=type==='binhex';bigEl.innerHTML=(hex?'<small>0x</small>':'')+(typed?typed:'<span class="bb-cur">_</span>');
+  }
+  function newRound(){
+    type=M.types[rand(M.types.length)];if(round===0)type=M.types[0];
+    target=binaryTarget(round,N,prev);prev=target;typed='';
+    limit=binaryTime(round,M)*(type==='dec'||type==='binhex'?1.1:1);left_=limit;
+    q.classList.remove('good','bad');
+    const flip=type==='bin'||type==='hexbin';
+    if(flip){
+      bits=Array(N).fill(0);
+      askEl.textContent=type==='hexbin'?'Make this hex number':'Make this number';
+      bigEl.innerHTML=type==='hexbin'?`<small>0x</small>${binaryHex(target,2)}`:String(target);
+      tip.innerHTML=type==='hexbin'?'Each hex digit is 4 bits.<br>Left group = first digit (8 4 2 1), right group = second digit.':(round<3?'Tap the cards to switch bits on.<br>The lit cards add up to the number.':'Tap the cards (or keys 1–'+N+') to switch bits on.');
+      pad.hidden=true;tip.hidden=false;
+    }else{
+      bits=binaryBits(target,N);
+      askEl.textContent=type==='binhex'?'Type this in hex':'What number is this?';
+      buildPad(type==='binhex');showTyped();pad.hidden=false;tip.hidden=true;
+    }
+    g.classList.toggle('typing',!flip);
+    cardsEl.classList.toggle('ro',!flip);
+    paintCards(false);restartAnim(q,'in');busy=false;
+  }
+  function award(){
+    busy=true;streak++;bestStreak=Math.max(bestStreak,streak);
+    const pts=Math.round((10+10*left_/limit)*(N/4)*(1+Math.min(streak-1,10)*.1));
+    score+=pts;scEl.textContent=score;restartAnim(scEl,'bump');
+    stkEl.textContent=streak>1?`🔥 ${streak}`:'';if(streak>1)restartAnim(stkEl,'bump');
+    q.classList.add('good');paintCards(true);
+    const f=el('div','bb-float',g,'+'+pts);S.after(800,()=>f.remove());
+    beep(660,70);S.after(80,()=>beep(880+Math.min(streak,10)*30,90));
+    if(streak%5===0){S.fx.toast(`${streak} in a row!`,'streak bonus');}
+    cardsEl.querySelectorAll('.bb-card.on').forEach((c,i)=>{c.style.animationDelay=i*40+'ms';restartAnim(c,'win')});
+    say(type==='dec'||type==='binhex'?`Yes! That is ${type==='binhex'?'0x'+binaryHex(target,2):target}.`:`Yes! ${target} = ${binaryBits(target,N).join('')}`);
+    round++;S.after(650,newRound);
+  }
+  function miss(why){
+    busy=true;streak=0;stkEl.textContent='';lives--;hearts();
+    restartAnim(livesEl,'bump');q.classList.add('bad');S.shake();beep(160,220,'sawtooth');
+    const ans=type==='binhex'?'0x'+binaryHex(target,2):String(target);
+    bits=binaryBits(target,N);paintCards(true);
+    if(type==='dec'||type==='binhex')bigEl.innerHTML=`<s>${typed||'?'}</s> ${ans}`;
+    say(`${why} ${type==='bin'||type==='hexbin'?`${ans} is ${bits.join('')}.`:`The answer was ${ans}.`}`);
+    if(lives<=0){S.after(1300,gameOver);return}
+    round++;S.after(1500,newRound);
+  }
+  function gameOver(){
+    playing=false;busy=true;const rec=best(BK,score);showBest();
+    const all=store.get('best:binary');if(all==null||score>all)store.set('best:binary',score);
+    over.innerHTML=`<div class="bb-card2"><b class="bb-t">Game over</b><span>Score <b>${score}</b></span><span>${round} rounds · best streak ${bestStreak}</span>${rec&&score>0?'<span class="bb-new">New best!</span>':''}<button class="btn bb-go">Play again</button></div>`;
+    over.hidden=false;
+    if(rec&&score>0){S.fx.confetti();S.fx.banner('New best!',`${score} points`);st(`Game over. New best: ${score} points!`)}
+    else st(`Game over. You scored ${score} points.`);
+  }
+  function start(){
+    over.hidden=true;round=0;score=0;lives=3;streak=0;bestStreak=0;prev=0;scEl.textContent='0';stkEl.textContent='';hearts();playing=true;
+    beep(520,60);S.after(70,()=>beep(780,80));newRound();
+  }
+  function flipCard(i){
+    if(!playing||busy||(type!=='bin'&&type!=='hexbin'))return;
+    bits[i]^=1;paintCards(false);restartAnim(cards[i],'flip');beep(bits[i]?520+i*25:300,40);
+    if(binaryValue(bits)===target)award();
+  }
+  function key(k){
+    if(!playing||busy||(type!=='dec'&&type!=='binhex'))return;
+    const hex=type==='binhex';
+    if(k==='⌫'){typed=typed.slice(0,-1);showTyped();beep(300,30);return}
+    if(k==='✓'){
+      if(!typed){restartAnim(bigEl,'nope');return}
+      if(binaryParse(typed,hex?16:10)===target)award();else miss('Not quite.');return;
+    }
+    if(typed.length>=(hex?2:3))return;
+    if(!hex&&/[A-F]/.test(k))return;
+    typed=(typed+k).replace(/^0+(?=.)/,'');showTyped();beep(440+typed.length*40,30);
+  }
+  cards.forEach((c,i)=>S.on(c,'click',()=>flipCard(i)));
+  S.on(pad,'click',e=>{const b=e.target.closest('.bb-k');if(b){restartAnim(b,'press');key(b.dataset.k)}});
+  S.on(over,'click',e=>{if(e.target.closest('.bb-go'))start()});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(!playing){if(e.key==='Enter'||e.key===' '){e.preventDefault();start()}return}
+    if(type==='bin'||type==='hexbin'){if(/^[1-8]$/.test(e.key)&&+e.key<=N){e.preventDefault();flipCard(+e.key-1)}return}
+    const k=e.key.toUpperCase();
+    if(/^[0-9A-F]$/.test(k)){e.preventDefault();key(k)}
+    else if(e.key==='Backspace'){e.preventDefault();key('⌫')}
+    else if(e.key==='Enter'){e.preventDefault();key('✓')}
+  });
+  S.loop(dt=>{
+    if(!playing||busy)return;
+    left_-=dt;tFill.style.transform=`scaleX(${Math.max(0,left_/limit)})`;
+    tb.classList.toggle('low',left_<limit*.3);
+    if(left_<=0){left_=0;miss("Time's up!")}
+  });
+  const pv=Array.from({length:N},(_,i)=>1<<(N-1-i)).join(' · ');
+  over.innerHTML=`<div class="bb-card2"><b class="bb-t">${N} bits</b><span class="bb-lesson">Each card is worth double the one on its right:<br><b>${pv}</b></span><span class="bb-lesson">${S.level===4?'Hex packs 4 bits into one digit: 0–9 then A=10 … F=15.':S.level===3?'Build numbers and read them back. No adding-up help this time!':'A lit card counts, a dark card is 0. Add up the lit cards.'}</span><span class="bb-lesson">Beat the clock. 3 misses and it is over.</span><button class="btn bb-go">Start</button></div>`;
+  bits=Array(N).fill(0);hearts();showBest();
+  askEl.textContent='Make this number';bigEl.textContent='?';tip.innerHTML='Tap the cards to switch bits on.';pad.hidden=true;paintCards(false);
+}
+
+/* Robo Code: program a robot with command tiles to light every lamp. Functions, recursion, loops, conditions. */
+/* map cells: height digit + mark ('.' plain, L lamp, p pink, b blue, P pink lamp, B blue lamp), '--' = no tile.
+   s = start [x,y,dir] with dir 0 N(up-right on screen) 1 E 2 S 3 W. slots = [main,F1,F2]. ref = a reference solution. */
+const ROBO_LEVELS=[
+  {n:'First steps',tip:'Tap ⬆ to add Forward tiles, then 💡 to light the lamp. Press ▶ Run.',
+   map:['0. 0. 0. 0L'],s:[0,0,1],slots:[6,0,0],tiles:'F P',ref:{m:'F F F P'}},
+  {n:'Corner',tip:'↷ turns the robot right on the spot. The arrow on its tile shows where it faces.',
+   map:['0. 0. 0.','-- -- 0.','-- -- 0L'],s:[0,0,1],slots:[8,0,0],tiles:'F L R P',ref:{m:'F F R F F P'}},
+  {n:'Two lamps',tip:'Every lamp must be lit. Plan the whole route before you run.',
+   map:['0. 0. 0L','-- -- 0.','0L 0. 0.'],s:[0,0,1],slots:[12,0,0],tiles:'F L R P',ref:{m:'F F P R F F R F F P'}},
+  {n:'Hop up',tip:'Forward only works on flat ground. ⤴ Jump climbs one step up, or drops down.',
+   map:['0. 0. 1. 1L'],s:[0,0,1],slots:[6,0,0],tiles:'F L R J P',ref:{m:'F J F P'}},
+  {n:'Stairs',tip:'Jump up the stairs, then jump down the other side.',
+   map:['0. 1. 2. 3. 2L'],s:[0,0,1],slots:[6,0,0],tiles:'F L R J P',ref:{m:'J J J J P'}},
+  {n:'Up & over',tip:'Mix Forward, turns and jumps. Forward cannot change height.',
+   map:['0. 1. 2L','-- -- 2.','0L 0. 1.'],s:[0,0,1],slots:[12,0,0],tiles:'F L R J P',ref:{m:'J J P R F J R J F P'}},
+  {n:'Functions',tip:'F1 is a function. Put tiles in F1, then use the F1 tile in Main to run them all.',
+   map:['0. 0. 0L 0. 0L 0. 0L 0. 0L'],s:[0,0,1],slots:[5,4,0],tiles:'F L R P 1',ref:{m:'1 1 1 1',f1:'F F P'}},
+  {n:'Square',tip:'Four sides, four corners. One function can do a whole side.',
+   map:['0L 0. 0. 0L','0. -- -- 0.','0. -- -- 0.','0L 0. 0. 0L'],s:[0,0,1],slots:[5,6,0],tiles:'F L R P 1',ref:{m:'1 1 1 1',f1:'F F F P R'}},
+  {n:'Climbing',tip:'Find the pattern that repeats, put it in F1 and call it.',
+   map:['0. 1. 1L 2. 2L 3. 3L'],s:[0,0,1],slots:[4,3,0],tiles:'F L R J P 1',ref:{m:'1 1 1',f1:'J F P'}},
+  {n:'Snake',tip:'A function can call another function. Let F2 call F1 a few times.',
+   map:['0. 0L 0L 0L 0L','0L 0L 0L 0L 0L','0L 0L 0L 0L 0L'],s:[0,0,1],slots:[10,3,4],tiles:'F L R P 1 2',ref:{m:'2 R 1 R 2 L 1 L 2',f1:'F P',f2:'1 1 1 1'}},
+  {n:'Recursion',tip:'A function can call itself: put F1 at the end of F1. The robot stops once every lamp is lit.',
+   map:['0. 0L 0L 0L 0L 0L 0L 0L'],s:[0,0,1],slots:[2,3,0],tiles:'F L R P 1',ref:{m:'1',f1:'F P 1'}},
+  {n:'Zig-zag',tip:'Main has room for one tile. Recursion can climb forever.',
+   map:['0. 1L --','-- 2L 3L','-- -- 4L'],s:[0,0,1],slots:[1,7,0],tiles:'F L R J P 1',ref:{m:'1',f1:'J P R J P L 1'}},
+  {n:'Round trip',tip:'F1 does one side and calls itself. F2 can do one step.',
+   map:['0L 0L 0L 0L 0L','0L -- -- -- 0L','0L -- -- -- 0L','0L -- -- -- 0L','0L 0L 0L 0L 0L'],s:[0,0,1],slots:[1,6,2],tiles:'F L R P 1 2',ref:{m:'1',f1:'2 2 2 2 R 1',f2:'F P'}},
+  {n:'Loop it',tip:'×4 repeats the tile after it 4 times. ×4 then ⬆ walks four tiles.',
+   map:['0. 0. 0. 0. 0.','-- -- -- -- 0.','-- -- -- -- 0.','-- -- -- -- 0.','-- -- -- -- 0L'],s:[0,0,1],slots:[6,0,0],tiles:'F L R P x2 x3 x4',ref:{m:'x4 F R x4 F P'}},
+  {n:'Loop a call',tip:'A loop can repeat a function call too: ×4 then F1.',
+   map:['0L 0. 0. 0. 0L','0. -- -- -- 0.','0. -- -- -- 0.','0. -- -- -- 0.','0L 0. 0. 0. 0L'],s:[0,0,1],slots:[2,4,0],tiles:'F L R P 1 x2 x3 x4',ref:{m:'x4 1',f1:'x4 F P R'}},
+  {n:'Landings',tip:'Jump, walk the landing, light the lamp. Repeat.',
+   map:['0. 1. 1. 1L 2. 2. 2L 3. 3. 3L'],s:[0,0,1],slots:[2,4,0],tiles:'F L R J P 1 x2 x3 x4',ref:{m:'x3 1',f1:'J x2 F P'}},
+  {n:'Rooms',tip:'A loop inside a function inside a loop. Light one 2×2 room, then walk to the next.',
+   map:['0L 0L 0. 0L 0L 0. 0L 0L','0L 0L -- 0L 0L -- 0L 0L'],s:[0,0,1],slots:[2,4,3],tiles:'F L R P 1 2 x2 x3 x4',ref:{m:'x3 1',f1:'x4 2 x3 F',f2:'P F R'}},
+  {n:'Pink turns',tip:'The pink ? tile runs the tile after it only when the robot stands on pink.',
+   map:['0. 0. 0L 0. 0p','-- -- -- -- 0.','0p 0. 0L -- 0L','0. -- -- -- 0.','0p 0. 0L 0. 0p'],s:[0,0,1],slots:[1,5,0],tiles:'F L R P 1 ?p',ref:{m:'1',f1:'F P ?p R 1'}},
+  {n:'Two colors',tip:'Blue ? works the same way for blue tiles. Turn right on pink, left on blue.',
+   map:['0. 0L 0p -- --','-- -- 0L -- --','-- -- 0b 0L 0p','-- -- -- -- 0L','-- -- -- -- 0L'],s:[0,0,1],slots:[1,7,0],tiles:'F L R P 1 ?p ?b',ref:{m:'1',f1:'F P ?p R ?b L 1'}},
+  {n:'Spiral',tip:'Every move here is a jump. Turn on the pink tiles.',
+   map:['0. 1L 2p','1L -- 1L','2p 1L 0p'],s:[0,0,1],slots:[1,5,0],tiles:'F L R J P 1 ?p',ref:{m:'1',f1:'J P ?p R 1'}},
+  {n:'Winding',tip:'Pink ends turn one way, blue ends the other. One short function walks it all.',
+   map:['0. 0L 0L 0L 0p','0b 0L 0L 0L 0p','0b 0L 0L 0L 0p','0L 0L 0L 0L 0p'],s:[0,0,1],slots:[1,7,0],tiles:'F L R P 1 ?p ?b',ref:{m:'1',f1:'F P ?p R ?b L 1'}},
+  {n:'Pyramid',tip:'Climb on, light the four corners, then the top. Use everything you know.',
+   map:['0. 0. 0. 0. 0.','0. 1L 1. 1L 0.','0. 1. 2L 1. 0.','0. 1L 1. 1L 0.','0. 0. 0. 0. 0.'],s:[1,0,2],slots:[10,4,0],tiles:'F L R J P 1 x2 x3 x4',ref:{m:'J P L x3 1 F R J P',f1:'F F P R'}}
+];
+const ROBO_DIRS=[[0,-1],[1,0],[0,1],[-1,0]];
+const ROBO_MAXS=600,ROBO_MAXD=250;
+const ROBO_PROGS=['m','f1','f2'];
+function roboMap(L){
+  const rows=L.map.map(r=>r.trim().split(/\s+/)),H=rows.length,W=Math.max(...rows.map(r=>r.length));
+  const h=[],mk=[],lamps=[];let top=0;
+  for(let y=0;y<H;y++){h.push([]);mk.push([]);for(let x=0;x<W;x++){
+    const c=rows[y][x]||'--';const v=c[0]==='-'?-1:+c[0];h[y].push(v);
+    const m=c[1]||'.';mk[y].push(m);if(v>=0&&(m==='L'||m==='P'||m==='B'))lamps.push([x,y]);if(v>top)top=v;
+  }}
+  const hAt=(x,y)=>x<0||y<0||x>=W||y>=H?-1:h[y][x];
+  const color=(x,y)=>{const m=hAt(x,y)<0?'':mk[y][x];return m==='p'||m==='P'?'p':m==='b'||m==='B'?'b':''};
+  const lamp=(x,y)=>hAt(x,y)>=0&&'LPB'.includes(mk[y][x]);
+  return{W,H,h,mk,lamps,top,hAt,color,lamp,sx:L.s[0],sy:L.s[1],sd:L.s[2]};
+}
+/* program = array of tile codes. Loops (x2..x4) and conditions (?p ?b) apply to the unit after them. */
+function roboCompile(prog){
+  let k=0;
+  function unit(){
+    if(k>=prog.length)return null;const i=k,t=prog[k++];
+    if(t[0]==='x'){const b=unit();return b&&{i,rep:+t.slice(1),body:b}}
+    if(t[0]==='?'){const b=unit();return b&&{i,cond:t[1],body:b}}
+    return{i,op:t};
+  }
+  const out=[];while(k<prog.length){const u=unit();if(u)out.push(u)}
+  return out;
+}
+/* step-by-step interpreter: yields one event per action; returns {end:'win'|'short'|'tired'|'deep'} */
+function* roboRun(M,progs){
+  const C={m:roboCompile(progs.m||[]),f1:roboCompile(progs.f1||[]),f2:roboCompile(progs.f2||[])};
+  const s={x:M.sx,y:M.sy,d:M.sd},lit=new Set(),chain=[];let steps=0,ticks=0;
+  const at=()=>({x:s.x,y:s.y,z:M.hAt(s.x,s.y),d:s.d});
+  const E=(t,pid,i,from,extra)=>Object.assign({t,pid,i,from,to:at(),chain:chain.slice(),lit:new Set(lit),steps},extra);
+  function* list(pid,nodes,depth){for(const n of nodes)yield* node(pid,n,depth)}
+  function* node(pid,n,depth){
+    if(++ticks>ROBO_MAXS*6)throw{end:'tired'};
+    if(n.rep){for(let r=0;r<n.rep;r++){chain.push([pid,n.i]);yield* node(pid,n.body,depth);chain.pop()}return}
+    if(n.cond){const ok=M.color(s.x,s.y)===n.cond;yield E('cond',pid,n.i,at(),{ok});if(ok){chain.push([pid,n.i]);yield* node(pid,n.body,depth);chain.pop()}return}
+    if(n.op==='1'||n.op==='2'){
+      if(depth>=ROBO_MAXD)throw{end:'deep'};const f='f'+n.op;
+      yield E('call',pid,n.i,at());chain.push([pid,n.i]);yield* list(f,C[f],depth+1);chain.pop();return;
+    }
+    if(++steps>ROBO_MAXS)throw{end:'tired'};
+    const from=at(),z=from.z,[dx,dy]=ROBO_DIRS[s.d],nz=M.hAt(s.x+dx,s.y+dy);
+    if(n.op==='L'||n.op==='R'){s.d=(s.d+(n.op==='L'?3:1))%4;yield E('turn',pid,n.i,from);return}
+    if(n.op==='F'){if(nz>=0&&nz===z){s.x+=dx;s.y+=dy;yield E('move',pid,n.i,from)}else yield E('bump',pid,n.i,from,{op:'F'});return}
+    if(n.op==='J'){if(nz>=0&&(nz===z+1||nz<z)){s.x+=dx;s.y+=dy;yield E('jump',pid,n.i,from)}else yield E('bump',pid,n.i,from,{op:'J',hop:true});return}
+    if(n.op==='P'){
+      const k=s.x+','+s.y;
+      if(M.lamp(s.x,s.y)&&!lit.has(k)){lit.add(k);yield E('light',pid,n.i,from);if(lit.size===M.lamps.length)throw{end:'win'}}
+      else yield E('dud',pid,n.i,from);
+    }
+  }
+  try{yield* list('m',C.m,0);return{end:'short',left:M.lamps.length-lit.size,steps}}
+  catch(e){if(e&&e.end)return Object.assign(e,{left:M.lamps.length-lit.size,steps});throw e}
+}
+/* run to the end without animation */
+function roboSim(L,progs){
+  const g=roboRun(roboMap(L),progs);let r,n=0;
+  while(!(r=g.next()).done)n++;
+  return Object.assign({events:n},r.value);
+}
+function roboParseRef(ref){const o={};for(const k of ROBO_PROGS)o[k]=ref[k]?ref[k].split(' '):[];return o}
+function roboCount(p){return ROBO_PROGS.reduce((a,k)=>a+(p[k]||[]).length,0)}
+function roboStars(used,par){return used<=par?3:used<=par+3?2:1}
+const ROBO_SVG={
+  F:'<path d="M12 2.5 21 12h-5.5v9.5h-7V12H3z"/>',
+  L:'<path d="M20 21.5V11a4.5 4.5 0 0 0-4.5-4.5H10V2L2.5 9 10 16v-4.5h5V21.5z"/>',
+  R:'<path d="M4 21.5V11a4.5 4.5 0 0 1 4.5-4.5H14V2l7.5 7L14 16v-4.5H9V21.5z"/>',
+  J:'<path d="M2 21c.5-8 5-14 12-14V2.5l8 7.5-8 7.5v-5c-5 0-8 3-8.5 8.5z"/>',
+  P:'<path d="M12 1.8a7.2 7.2 0 0 0-4.3 13V17h8.6v-2.2A7.2 7.2 0 0 0 12 1.8zM8.3 18.6h7.4v1.8a2 2 0 0 1-2 2h-3.4a2 2 0 0 1-2-2z"/>'
+};
+const ROBO_TIP={F:'Forward',L:'Turn left',R:'Turn right',J:'Jump (one step up, or down)',P:'Light the lamp',1:'Run F1',2:'Run F2',x2:'Repeat the next tile 2 times',x3:'Repeat the next tile 3 times',x4:'Repeat the next tile 4 times','?p':'Only if on pink: runs the next tile only on a pink tile','?b':'Only if on blue: runs the next tile only on a blue tile'};
+function roboTileHTML(t){
+  if(ROBO_SVG[t])return`<svg viewBox="0 0 24 24" aria-hidden="true">${ROBO_SVG[t]}</svg>`;
+  if(t==='1'||t==='2')return`<b>F${t}</b>`;
+  if(t[0]==='x')return`<b>×${t.slice(1)}</b>`;
+  return`<b>?</b>`;
+}
+const roboCls=t=>'rc-t '+(t==='P'?'t-p':t==='1'?'t-f1':t==='2'?'t-f2':t[0]==='x'?'t-x':t==='?p'?'t-cp':t==='?b'?'t-cb':'t-m');
+function robocode(root,S){
+  const LV=S.level,L=ROBO_LEVELS[LV-1],M=roboMap(L),par=roboCount(roboParseRef(L.ref)),allowed=L.tiles.split(' ');
+  const st=status(root,`Level ${LV}: ${L.tip}`),say=t=>{if(!COMPACT.matches)st(t)};
+  const g=el('div','rc',root);g.dataset.max=1300;
+  const view=el('div','rc-view',g);
+  const cv=el('canvas','rc-cv',view),x=cv.getContext('2d');
+  const tipEl=el('div','rc-tip',view,`<b>${LV}. ${L.n}</b><span>${L.tip}</span>`);
+  const goalEl=el('div','rc-goal',view);
+  const msgEl=el('div','rc-msg',view);msgEl.hidden=true;
+  const side=el('div','rc-side',g);
+  const progsEl=el('div','rc-progs',side);
+  const palEl=el('div','rc-pal',side);
+  const ctl=el('div','rc-ctl',side);
+  const runB=el('button','btn rc-run',ctl,'▶ Run'),stepB=el('button','btn ghost',ctl,'⏭ Step'),resetB=el('button','btn ghost',ctl,'⟲ Reset'),spdB=el('button','btn ghost rc-spd',ctl,'🐢');
+  runB.title='Run the program (Enter)';stepB.title='Run one step (S)';resetB.title='Put the robot back (Esc)';spdB.title='Speed';
+  const KEY='robocode:p'+LV,saved=store.get(KEY);
+  const P={m:[],f1:[],f2:[]};
+  if(saved)ROBO_PROGS.forEach((k,j)=>{P[k]=(saved[k]||[]).filter(t=>allowed.includes(t)).slice(0,L.slots[j])});
+  const avail=ROBO_PROGS.filter((k,j)=>L.slots[j]>0);
+  let active='m',gen=null,running=false,anim=null,done=null,fast=!!store.get('robocode:fast'),lit=new Set(),robot={x:M.sx,y:M.sy,z:M.hAt(M.sx,M.sy),d:M.sd},rows={},wide=false,fx=[];
+  const sp=sparks();
+  /* ---------- layout ---------- */
+  function layout(){
+    const W=root.clientWidth-8,stH=COMPACT.matches?0:70,H=root.clientHeight-20-stH;
+    wide=W>H*1.05;g.classList.toggle('wide',wide);
+    const ar=wide?clamp(W/H,1.2,2.2):clamp(W/H,.5,.82);
+    if(+g.dataset.ar!==ar){g.dataset.ar=ar;g.style.aspectRatio=ar}
+  }
+  layout();S.on(window,'resize',layout);
+  /* ---------- program editor ---------- */
+  const LAB={m:'Main',f1:'F1',f2:'F2'};
+  function buildProgs(){
+    progsEl.innerHTML='';rows={};
+    avail.forEach(k=>{
+      const j=ROBO_PROGS.indexOf(k),r=el('div','rc-row r-'+k,progsEl);r.dataset.p=k;
+      const lab=el('button','rc-lab',r,LAB[k]);lab.title=k==='m'?'Main program: runs when you press Run':`Function ${LAB[k]}: runs wherever its ${LAB[k]} tile is used`;
+      const sl=el('div','rc-slots',r);const cells=[];
+      for(let i=0;i<L.slots[j];i++){const c=el('div','rc-slot',sl);c.dataset.p=k;c.dataset.i=i;cells.push(c)}
+      rows[k]={r,cells};
+    });
+    paintProgs();
+  }
+  function paintProgs(){
+    avail.forEach(k=>{
+      const {r,cells}=rows[k];r.classList.toggle('act',k===active&&avail.length>1);
+      cells.forEach((c,i)=>{
+        const t=P[k][i];c.innerHTML='';c.classList.remove('cur','in');
+        if(t){const e=el('div',roboCls(t),c,roboTileHTML(t));e.dataset.t=t;e.title=ROBO_TIP[t]+' (tap to remove)'}
+        c.classList.toggle('next',k===active&&i===P[k].length);
+      });
+    });
+    const n=roboCount(P);
+    goalEl.innerHTML=`<span class="rc-stars">${'★'.repeat(3)}</span> ≤ ${par} tiles · <b>${n}</b> used`;
+    store.set(KEY,P);
+  }
+  function setActive(k){if(!avail.includes(k))return;active=k;paintProgs();beep(600,30)}
+  function add(t,k,at){
+    k=k||active;const j=ROBO_PROGS.indexOf(k);
+    if(P[k].length>=L.slots[j]){restartAnim(rows[k].r,'nope');beep(180,120,'square');st(`${LAB[k]} is full. Tap a tile to remove it.`);return false}
+    reset(true);
+    if(at==null||at>P[k].length)at=P[k].length;
+    P[k].splice(at,0,t);paintProgs();const c=rows[k].cells[at];c.classList.add('in');beep(500+at*20,40);return true;
+  }
+  function remove(k,i){reset(true);const t=P[k].splice(i,1)[0];paintProgs();beep(300,40);return t}
+  allowed.forEach(t=>{const b=el('button',roboCls(t)+' rc-pt',palEl,roboTileHTML(t));b.dataset.t=t;b.title=ROBO_TIP[t]});
+  /* taps */
+  S.on(palEl,'click',e=>{if(dragJust)return;const b=e.target.closest('.rc-pt');if(b)add(b.dataset.t)});
+  S.on(progsEl,'click',e=>{
+    if(dragJust)return;
+    const lab=e.target.closest('.rc-lab');if(lab){setActive(lab.parentNode.dataset.p);return}
+    const c=e.target.closest('.rc-slot');if(!c)return;const k=c.dataset.p,i=+c.dataset.i;
+    if(P[k][i]!=null)remove(k,i);else setActive(k);
+  });
+  /* drag tiles from the palette into a program, or around / out of programs */
+  let drag=null,dragJust=false;
+  S.on(g,'pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    const t=e.target.closest('.rc-pt,.rc-slot .rc-t');if(!t)return;
+    const c=t.closest('.rc-slot');
+    drag={id:e.pointerId,x0:e.clientX,y0:e.clientY,t:t.dataset.t,from:c?{k:c.dataset.p,i:+c.dataset.i}:null,ghost:null,src:t};
+  });
+  S.on(window,'pointermove',e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    if(!drag.ghost){
+      if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<10)return;
+      const r=drag.src.getBoundingClientRect();
+      drag.ghost=el('div',roboCls(drag.t)+' rc-ghost',document.body,roboTileHTML(drag.t));drag.ghost.style.width=r.width+'px';drag.ghost.style.height=r.height+'px';
+      drag.src.classList.add('drag-src');
+    }
+    drag.ghost.style.left=e.clientX+'px';drag.ghost.style.top=e.clientY+'px';
+    g.querySelectorAll('.rc-slot.over').forEach(s=>s.classList.remove('over'));
+    const tgt=dropAt(e);if(tgt)tgt.classList.add('over');
+  });
+  function dropAt(e){
+    const u=document.elementFromPoint(e.clientX,e.clientY);if(!u)return null;
+    const s=u.closest&&u.closest('.rc-slot');if(s&&g.contains(s))return s;
+    const r=u.closest&&u.closest('.rc-row');if(r&&g.contains(r)){const cells=rows[r.dataset.p].cells;return cells[Math.min(P[r.dataset.p].length,cells.length-1)]}
+    return null;
+  }
+  function endDrag(e,cancel){
+    if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;
+    if(!d.ghost)return;
+    d.ghost.remove();d.src.classList.remove('drag-src');g.querySelectorAll('.rc-slot.over').forEach(s=>s.classList.remove('over'));
+    dragJust=true;S.after(60,()=>{dragJust=false});
+    if(cancel)return;
+    const s=dropAt(e);
+    if(d.from){
+      if(!s){remove(d.from.k,d.from.i);return}
+      const k=s.dataset.p;let i=Math.min(+s.dataset.i,P[k].length);
+      const t=remove(d.from.k,d.from.i);if(k===d.from.k&&i>d.from.i)i--;
+      if(!add(t,k,i))add(t,d.from.k,d.from.i);
+    }else if(s){add(d.t,s.dataset.p,+s.dataset.i)}
+  }
+  S.on(window,'pointerup',e=>endDrag(e,false));S.on(window,'pointercancel',e=>endDrag(e,true));
+  S.cleanup&&S.cleanup(()=>{if(drag&&drag.ghost)drag.ghost.remove()});
+  /* ---------- running ---------- */
+  const DUR={move:330,jump:420,bump:300,turn:240,light:300,dud:220,cond:200,call:130};
+  function clearHi(){g.querySelectorAll('.rc-slot.cur,.rc-slot.chain').forEach(c=>c.classList.remove('cur','chain'))}
+  function hi(ev){
+    clearHi();
+    ev.chain.forEach(([k,i])=>{const c=rows[k]&&rows[k].cells[i];if(c)c.classList.add('chain')});
+    const c=rows[ev.pid]&&rows[ev.pid].cells[ev.i];if(c){c.classList.add('cur');c.classList.toggle('no',ev.t==='cond'&&!ev.ok)}
+  }
+  function reset(quiet){
+    gen=null;running=false;anim=null;done=null;lit=new Set();robot={x:M.sx,y:M.sy,z:M.hAt(M.sx,M.sy),d:M.sd};
+    clearHi();msgEl.hidden=true;runB.textContent='▶ Run';g.classList.remove('running');
+    if(!quiet)beep(400,40);
+  }
+  function pull(){
+    if(!gen)gen=roboRun(M,P);
+    const r=gen.next();
+    if(r.done){finish(r.value);return false}
+    const ev=r.value;hi(ev);anim={ev,t:0,dur:DUR[ev.t]/(fast?2.4:1)};
+    if(ev.t==='light'){lit=ev.lit;const s=scr(ev.to.x,ev.to.y,ev.to.z);sp.add(s.x,s.y-s.u*.3,'#FFD84D',16,s.u*3);beep(880+lit.size*40,90)}
+    else if(ev.t==='bump')beep(150,90,'square');
+    else if(ev.t==='move'||ev.t==='jump')beep(ev.t==='jump'?520:330,35);
+    else if(ev.t==='turn')beep(420,25);
+    else if(ev.t==='dud')beep(220,60);
+    return true;
+  }
+  function finish(res){
+    running=false;done=res;runB.textContent='▶ Run';g.classList.remove('running');
+    if(res.end==='win'){
+      clearHi();const used=roboCount(P),stars=roboStars(used,par),all=store.get('robocode:stars')||{};
+      if(!all[LV]||stars>all[LV]){all[LV]=stars;store.set('robocode:stars',all)}
+      msgEl.innerHTML=`<b class="rc-big">${'★'.repeat(stars)}<i>${'★'.repeat(3-stars)}</i></b><span>${used} tile${used>1?'s':''}${stars<3?` · ★★★ needs ${par} or fewer`:' · perfect!'}</span>`;msgEl.className='rc-msg win';msgEl.hidden=false;
+      say(`All lamps lit with ${used} tiles! ${stars<3?`Can you do it with ${par}?`:'Perfect score.'}`);
+      S.after(500,S.next);return;
+    }
+    const why=res.end==='short'?`The program ended with ${res.left} lamp${res.left>1?'s':''} still dark.`:res.end==='tired'?'Too many steps! The robot is stuck in a loop.':'Too many calls inside calls!';
+    msgEl.innerHTML=`<span>${why}</span><small>Press ⟲ Reset or change the program.</small>`;msgEl.className='rc-msg fail';msgEl.hidden=false;
+    say(why);S.shake();beep(160,250,'sawtooth');
+  }
+  function run(){
+    if(drag)return;
+    if(running){running=false;runB.textContent='▶ Run';g.classList.remove('running');return}
+    if(!roboCount(P)){st('Add some tiles first: tap the tiles at the bottom.');restartAnim(palEl,'nope');beep(180,100,'square');return}
+    if(done)reset(true);
+    running=true;runB.textContent='⏸ Pause';g.classList.add('running');msgEl.hidden=true;
+    if(!anim)pull();
+  }
+  function step(){
+    if(running){running=false;runB.textContent='▶ Run';g.classList.remove('running')}
+    if(done)reset(true);
+    if(!roboCount(P))return;
+    if(anim){settle()}
+    pull();
+  }
+  function settle(){if(!anim)return;const ev=anim.ev;robot={x:ev.to.x,y:ev.to.y,z:ev.to.z,d:ev.to.d};anim=null}
+  S.on(runB,'click',run);S.on(stepB,'click',step);S.on(resetB,'click',()=>reset(false));
+  const paintSpd=()=>{spdB.textContent=fast?'🐇':'🐢';spdB.setAttribute('aria-label',fast?'Speed: fast':'Speed: normal')};paintSpd();
+  S.on(spdB,'click',()=>{fast=!fast;store.set('robocode:fast',fast);paintSpd();beep(fast?700:400,40)});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    const k=e.key,map={ArrowUp:'F',w:'F',W:'F',ArrowLeft:'L',a:'L',A:'L',ArrowRight:'R',d:'R',D:'R',j:'J',J:'J',' ':'P',p:'P',P:'P','1':'1','2':'2','?':'?p'};
+    if(map[k]&&allowed.includes(map[k])){e.preventDefault();add(map[k]);return}
+    if(k==='Tab'){e.preventDefault();setActive(avail[(avail.indexOf(active)+(e.shiftKey?avail.length-1:1))%avail.length]);return}
+    if(k==='Backspace'||k==='Delete'){e.preventDefault();if(P[active].length)remove(active,P[active].length-1);return}
+    if(k==='Enter'){e.preventDefault();run();return}
+    if(k==='s'||k==='S'){e.preventDefault();step();return}
+    if(k==='Escape'){reset(false)}
+  });
+  /* ---------- drawing ---------- */
+  let geo=null,colors=null,frame=0,dpr=1;
+  function measure(){
+    const w=view.clientWidth,h=view.clientHeight;if(!w||!h)return false;
+    dpr=Math.min(devicePixelRatio||1,2.5);
+    if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);geo=null}
+    if(!geo){
+      /* iso extents with tile width 1: x from -(H)/2..W/2, y from -(top*hz) .. (W+H)/4 + base */
+      const tw=1,th=.5,hz=.32,base=.18,top=M.top+1.6;
+      const minX=-M.H*tw/2,maxX=M.W*tw/2,minY=-th/2-top*hz,maxY=(M.W+M.H-1)*th/2+base+.1;
+      const tipH=tipEl.offsetHeight+6,goalH=0;
+      const aw=w-16,ah=h-tipH-goalH-14;
+      const u=Math.min(aw/(maxX-minX),ah/(maxY-minY),w/3);
+      geo={u,ox:(w-(maxX-minX)*u)/2-minX*u,oy:tipH+6+(ah-(maxY-minY)*u)/2-minY*u,th,hz,base,w,h};
+    }
+    return true;
+  }
+  const scr=(gx,gy,gz)=>{const G=geo;return{x:G.ox+(gx-gy)*G.u/2,y:G.oy+(gx+gy)*G.u*G.th/2-gz*G.u*G.hz,u:G.u}};
+  function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=n>>16,gg=n>>8&255,b=n&255;r=Math.round(clamp(r*f,0,255));gg=Math.round(clamp(gg*f,0,255));b=Math.round(clamp(b*f,0,255));return`rgb(${r},${gg},${b})`}
+  function block(cx,cy,gz){
+    const G=geo,u=G.u,hw=u/2,hh=u*G.th/2,dz=gz*u*G.hz+G.base*u,p=scr(cx,cy,gz),k=cx+','+cy;
+    const m=M.mk[cy][cx],isL=M.lamp(cx,cy),on=lit.has(k),col=M.color(cx,cy);
+    let top=col==='p'?'#FF8FB8':col==='b'?'#6EC1FF':colors.dark?'#4B4FA6':'#E4E1FF';
+    if(!col&&gz>0)top=shade(top,colors.dark?1+gz*.08:1-gz*.035);
+    const side=col==='p'?'#D9577F':col==='b'?'#3D8FD6':colors.dark?'#2E3180':'#A9A4E8';
+    x.lineJoin='round';x.lineWidth=Math.max(1,u*.03);x.strokeStyle=colors.edge;
+    // left face
+    x.beginPath();x.moveTo(p.x-hw,p.y);x.lineTo(p.x,p.y+hh);x.lineTo(p.x,p.y+hh+dz);x.lineTo(p.x-hw,p.y+dz);x.closePath();x.fillStyle=shade(side.startsWith('#')?side:'#A9A4E8',1);x.fill();x.stroke();
+    // right face
+    x.beginPath();x.moveTo(p.x+hw,p.y);x.lineTo(p.x,p.y+hh);x.lineTo(p.x,p.y+hh+dz);x.lineTo(p.x+hw,p.y+dz);x.closePath();x.fillStyle=shade(side,.78);x.fill();x.stroke();
+    // height steps on the side
+    if(gz>0){x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=Math.max(1,u*.015);for(let i=1;i<=gz;i++){const yy=p.y+dz-G.base*u-(i-1)*u*G.hz;x.beginPath();x.moveTo(p.x-hw,yy-(0));x.lineTo(p.x,yy+hh);x.lineTo(p.x+hw,yy);x.stroke()}x.strokeStyle=colors.edge;x.lineWidth=Math.max(1,u*.03)}
+    // top
+    x.beginPath();x.moveTo(p.x,p.y-hh);x.lineTo(p.x+hw,p.y);x.lineTo(p.x,p.y+hh);x.lineTo(p.x-hw,p.y);x.closePath();x.fillStyle=isL?(on?'#FFD84D':colors.dark?'#2A2D78':'#5B5FB8'):top;x.fill();x.stroke();
+    if(isL&&col){x.beginPath();x.moveTo(p.x,p.y-hh*.62);x.lineTo(p.x+hw*.62,p.y);x.lineTo(p.x,p.y+hh*.62);x.lineTo(p.x-hw*.62,p.y);x.closePath();x.lineWidth=u*.06;x.strokeStyle=col==='p'?'#FF8FB8':'#6EC1FF';x.stroke();x.lineWidth=Math.max(1,u*.03);x.strokeStyle=colors.edge}
+    if(isL){
+      // lamp: a small dome, glowing when lit
+      const r=u*.13;
+      if(on){const gr=x.createRadialGradient(p.x,p.y,0,p.x,p.y,u*.55);gr.addColorStop(0,'rgba(255,230,120,.85)');gr.addColorStop(1,'rgba(255,230,120,0)');x.fillStyle=gr;x.beginPath();x.ellipse(p.x,p.y,u*.55,u*.32,0,0,Math.PI*2);x.fill()}
+      x.beginPath();x.ellipse(p.x,p.y,r*1.25,r*.62,0,0,Math.PI*2);x.fillStyle=colors.edge;x.fill();
+      x.beginPath();x.arc(p.x,p.y-r*.35,r,Math.PI,0);x.lineTo(p.x+r,p.y-r*.2);x.ellipse(p.x,p.y-r*.2,r,r*.45,0,0,Math.PI);x.closePath();
+      x.fillStyle=on?'#FFF6C2':'#9EA3D9';x.fill();x.stroke();
+    }
+  }
+  function drawRobot(rx,ry,rz,ang,hop){
+    const p=scr(rx,ry,rz),u=geo.u,y0=p.y-hop*u;
+    // facing arrow on the floor
+    const v=[Math.cos(ang),Math.sin(ang)];/* grid direction vector */
+    const fx_=(gx,gy)=>({x:(gx-gy)*u/2,y:(gx+gy)*u*geo.th/2});
+    const tip=fx_(v[0]*.5,v[1]*.5),l=fx_(v[0]*.16-v[1]*.24,v[1]*.16+v[0]*.24),r=fx_(v[0]*.16+v[1]*.24,v[1]*.16-v[0]*.24);
+    x.beginPath();x.moveTo(p.x+tip.x,p.y+tip.y);x.lineTo(p.x+l.x,p.y+l.y);x.lineTo(p.x+r.x,p.y+r.y);x.closePath();x.fillStyle='#FF5D73';x.fill();x.lineWidth=Math.max(1,u*.025);x.strokeStyle=colors.edge;x.stroke();
+    // shadow
+    x.fillStyle='rgba(0,0,0,.22)';x.beginPath();x.ellipse(p.x,p.y,u*.2*(1-hop*.3),u*.1*(1-hop*.3),0,0,Math.PI*2);x.fill();
+    const bw=u*.34,bh=u*.3,by=y0-u*.08-bh,face=fx_(v[0],v[1]),fl=Math.hypot(face.x,face.y),fxn=face.x/fl,front=face.y>0;
+    x.lineWidth=Math.max(1.2,u*.035);x.strokeStyle=colors.edge;
+    // legs
+    x.fillStyle='#5B6CFF';x.beginPath();x.roundRect?x.roundRect(p.x-bw*.32,y0-u*.12,bw*.22,u*.1,u*.03):x.rect(p.x-bw*.32,y0-u*.12,bw*.22,u*.1);x.roundRect?x.roundRect(p.x+bw*.1,y0-u*.12,bw*.22,u*.1,u*.03):x.rect(p.x+bw*.1,y0-u*.12,bw*.22,u*.1);x.fill();x.stroke();
+    // body
+    rr(x,p.x-bw/2,by,bw,bh,u*.07);x.fillStyle='#2EC4B6';x.fill();x.stroke();
+    // head
+    const hw=u*.4,hh=u*.24,hy=by-hh-u*.02;
+    // antenna
+    x.beginPath();x.moveTo(p.x,hy);x.lineTo(p.x,hy-u*.1);x.stroke();x.beginPath();x.arc(p.x,hy-u*.12,u*.04,0,Math.PI*2);x.fillStyle=lit.size?'#FFD84D':'#FF5D73';x.fill();x.stroke();
+    rr(x,p.x-hw/2,hy,hw,hh,u*.08);x.fillStyle='#E9ECFF';x.fill();x.stroke();
+    if(front){
+      // visor with eyes looking where the robot faces
+      const ex=p.x+fxn*hw*.18;rr(x,ex-hw*.36,hy+hh*.22,hw*.72,hh*.56,u*.05);x.fillStyle='#1E1F5C';x.fill();
+      x.fillStyle='#7CF7E9';x.beginPath();x.arc(ex-hw*.15+fxn*hw*.05,hy+hh*.5,u*.035,0,Math.PI*2);x.arc(ex+hw*.15+fxn*hw*.05,hy+hh*.5,u*.035,0,Math.PI*2);x.fill();
+    }else{
+      x.fillStyle='#B8BDF0';rr(x,p.x-hw*.25,hy+hh*.3,hw*.5,hh*.4,u*.04);x.fill();
+    }
+    // chest light
+    x.beginPath();x.arc(p.x,by+bh*.5,u*.045,0,Math.PI*2);x.fillStyle='#FFC53D';x.fill();x.stroke();
+  }
+  function draw(dt){
+    if(!measure())return;
+    if(frame++%30===0){const P2=pal();colors={edge:P2.edge,dark:document.documentElement.matches('[data-theme="dark"]')||(!document.documentElement.matches('[data-theme="light"]')&&matchMedia('(prefers-color-scheme: dark)').matches)}}
+    x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,geo.w,geo.h);
+    // robot pose
+    let rx=robot.x,ry=robot.y,rz=robot.z,ang=Math.atan2(ROBO_DIRS[robot.d][1],ROBO_DIRS[robot.d][0]),hop=0;
+    if(anim){
+      const ev=anim.ev,f=ev.from,t=ev.to,k=clamp(anim.t/anim.dur,0,1),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      const a0=Math.atan2(ROBO_DIRS[f.d][1],ROBO_DIRS[f.d][0]);let a1=Math.atan2(ROBO_DIRS[t.d][1],ROBO_DIRS[t.d][0]);
+      if(a1-a0>Math.PI)a1-=2*Math.PI;if(a0-a1>Math.PI)a1+=2*Math.PI;
+      ang=a0+(a1-a0)*e;rx=f.x+(t.x-f.x)*e;ry=f.y+(t.y-f.y)*e;rz=f.z+(t.z-f.z)*e;
+      if(ev.t==='jump')hop=Math.sin(Math.PI*k)*.45;
+      if(ev.t==='bump'){const [dx,dy]=ROBO_DIRS[f.d],b=Math.sin(Math.PI*k)*.18;rx+=dx*b;ry+=dy*b;if(ev.hop)hop=Math.sin(Math.PI*k)*.3}
+      if(ev.t==='light')hop=Math.sin(Math.PI*k)*.12;
+    }
+    const keyR=Math.max(Math.round(rx)+Math.round(ry),anim?anim.ev.from.x+anim.ev.from.y:0,anim?anim.ev.to.x+anim.ev.to.y:0);
+    const cells=[];for(let y=0;y<M.H;y++)for(let xx=0;xx<M.W;xx++)if(M.h[y][xx]>=0)cells.push([xx,y]);
+    cells.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1])||a[0]-b[0]);
+    let drawn=false;
+    for(const [cx,cy] of cells){
+      if(!drawn&&cx+cy>keyR){drawRobot(rx,ry,rz,ang,hop);drawn=true}
+      block(cx,cy,M.h[cy][cx]);
+    }
+    if(!drawn)drawRobot(rx,ry,rz,ang,hop);
+    else{x.globalAlpha=.3;drawRobot(rx,ry,rz,ang,hop);x.globalAlpha=1}
+    sp.draw(x,dt);
+  }
+  S.loop(dt=>{
+    if(anim){anim.t+=dt*1000;if(anim.t>=anim.dur){settle();if(running)pull()}}
+    draw(dt);
+  });
+  buildProgs();
+  if(!avail.includes(active))active=avail[0];
+}
+
+/* Logic Gates: place gates in slots and wire them so the lamps match the truth table for every input */
+const GATES_FN={AND:(a,b)=>a&b,OR:(a,b)=>a|b,NOT:a=>a^1,XOR:(a,b)=>a^b,NAND:(a,b)=>(a&b)^1,NOR:(a,b)=>(a|b)^1};
+const GATES_TYPES=['AND','OR','NOT','XOR','NAND','NOR'];
+const GATES_INFO={AND:'AND: on only when both inputs are on',OR:'OR: on when at least one input is on',NOT:'NOT: flips its input',XOR:'XOR: on when exactly one input is on',NAND:'NAND: NOT AND, off only when both are on',NOR:'NOR: NOT OR, on only when both are off'};
+/* grid = gate slots per column (wires only run from left to right). ref = a reference solution:
+   g = slot -> gate, w = pin -> source; pins 'g<slot>.<k>' and 'o<k>', sources 'i<k>' and 'g<slot>' */
+const GATES_LEVELS=[
+  {n:'AND',d:'Light Q only when A and B are both on.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a&b],inv:{AND:1},grid:[1],
+   tip:'Tap the AND gate below, then tap the empty slot. Wire it: tap a dot on the right of a switch, then a dot on the left of the gate.',
+   ref:{g:{0:'AND'},w:{'g0.0':'i0','g0.1':'i1',o0:'g0'}}},
+  {n:'OR',d:'Light Q when A or B (or both) is on.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a|b],inv:{AND:1,OR:1},grid:[1],
+   tip:'Two gates to pick from, one slot. Check the truth table: every column needs a ✓.',
+   ref:{g:{0:'OR'},w:{'g0.0':'i0','g0.1':'i1',o0:'g0'}}},
+  {n:'NOT',d:'Q must be the opposite of A.',ins:['A'],outs:['Q'],f:([a])=>[a^1],inv:{NOT:1,AND:1},grid:[1],
+   tip:'NOT has one input and flips it: on becomes off, off becomes on.',
+   ref:{g:{0:'NOT'},w:{'g0.0':'i0',o0:'g0'}}},
+  {n:'XOR',d:'Light Q when exactly one of A and B is on.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a^b],inv:{AND:1,OR:1,XOR:1},grid:[1],
+   tip:'XOR means "one or the other, but not both".',
+   ref:{g:{0:'XOR'},w:{'g0.0':'i0','g0.1':'i1',o0:'g0'}}},
+  {n:'NOT AND',d:'Q is off only when A and B are both on.',ins:['A','B'],outs:['Q'],f:([a,b])=>[(a&b)^1],inv:{AND:1,NOT:1},grid:[1,1],
+   tip:'A gate output can feed another gate. Wires always run left to right.',
+   ref:{g:{0:'AND',1:'NOT'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'g0',o0:'g1'}}},
+  {n:'Build NOR',d:'Q is on only when A and B are both off.',ins:['A','B'],outs:['Q'],f:([a,b])=>[(a|b)^1],inv:{AND:1,OR:1,NOT:1},grid:[1,1],
+   tip:'Combine two gates. Which one goes first?',
+   ref:{g:{0:'OR',1:'NOT'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'g0',o0:'g1'}}},
+  {n:'A not B',d:'Light Q when A is on and B is off.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a&(b^1)],inv:{AND:1,OR:1,NOT:1},grid:[1,1],
+   tip:'Flip B first, then combine it with A.',
+   ref:{g:{0:'NOT',1:'AND'},w:{'g0.0':'i1','g1.0':'i0','g1.1':'g0',o0:'g1'}}},
+  {n:'Three-way',d:'Light Q only when A, B and C are all on.',ins:['A','B','C'],outs:['Q'],f:([a,b,c])=>[a&b&c],inv:{AND:2},grid:[1,1],
+   tip:'Gates have two inputs. Chain them to handle three.',
+   ref:{g:{0:'AND',1:'AND'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'g0','g1.1':'i2',o0:'g1'}}},
+  {n:'Alarm',d:'Ring Q when the door A or window B opens, but only while the alarm C is set.',ins:['A','B','C'],outs:['Q'],f:([a,b,c])=>[(a|b)&c],inv:{AND:1,OR:1,NOT:1},grid:[1,1],
+   tip:'Read the sentence: (A or B) and C.',
+   ref:{g:{0:'OR',1:'AND'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'g0','g1.1':'i2',o0:'g1'}}},
+  {n:'Just NAND',d:'Make Q the opposite of A using only a NAND gate.',ins:['A'],outs:['Q'],f:([a])=>[a^1],inv:{NAND:1},grid:[1],
+   tip:'One source can feed many pins. What does NAND do when both inputs are the same?',
+   ref:{g:{0:'NAND'},w:{'g0.0':'i0','g0.1':'i0',o0:'g0'}}},
+  {n:'Majority',d:'Light Q when at least two of A, B and C are on.',ins:['A','B','C'],outs:['Q'],f:([a,b,c])=>[a+b+c>=2?1:0],inv:{AND:2,OR:2},grid:[2,1,1],
+   tip:'Either A and B are both on, or C is on together with A or B.',
+   ref:{g:{0:'AND',1:'OR',2:'AND',3:'OR'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'i0','g1.1':'i1','g2.0':'g1','g2.1':'i2','g3.0':'g0','g3.1':'g2',o0:'g3'}}},
+  {n:'Make XOR',d:'Build XOR without an XOR gate: Q on when exactly one is on.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a^b],inv:{OR:1,NAND:1,AND:1},grid:[2,1],
+   tip:'"A or B" but "not both". Both parts must be true.',
+   ref:{g:{0:'OR',1:'NAND',2:'AND'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'i0','g1.1':'i1','g2.0':'g0','g2.1':'g1',o0:'g2'}}},
+  {n:'Half adder',d:'Add two bits: S is the sum digit, C is the carry.',ins:['A','B'],outs:['S','C'],f:([a,b])=>[a^b,a&b],inv:{XOR:1,AND:1},grid:[2],
+   tip:'1 + 1 = 10 in binary: sum 0, carry 1. Two lamps must match now.',
+   ref:{g:{0:'XOR',1:'AND'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'i0','g1.1':'i1',o0:'g0',o1:'g1'}}},
+  {n:'Equal?',d:'Light Q when A and B are the same.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a===b?1:0],inv:{XOR:1,NOT:1},grid:[1,1],
+   tip:'XOR tells you when they differ.',
+   ref:{g:{0:'XOR',1:'NOT'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'g0',o0:'g1'}}},
+  {n:'Selector',d:'A selector: Q copies A when S is off, and copies B when S is on.',ins:['A','B','S'],outs:['Q'],f:([a,b,s])=>[s?b:a],inv:{NOT:1,AND:2,OR:1},grid:[1,2,1],
+   tip:'Let A through only when S is off, B only when S is on, then join the two.',
+   ref:{g:{0:'NOT',1:'AND',2:'AND',3:'OR'},w:{'g0.0':'i2','g1.0':'i0','g1.1':'g0','g2.0':'i1','g2.1':'i2','g3.0':'g1','g3.1':'g2',o0:'g3'}}},
+  {n:'4 NANDs',d:'XOR again, this time using only four NAND gates.',ins:['A','B'],outs:['Q'],f:([a,b])=>[a^b],inv:{NAND:4},grid:[1,2,1],
+   tip:'Start with NAND(A,B). Then NAND it with A, and with B. One more NAND joins them.',
+   ref:{g:{0:'NAND',1:'NAND',2:'NAND',3:'NAND'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'i0','g1.1':'g0','g2.0':'g0','g2.1':'i1','g3.0':'g1','g3.1':'g2',o0:'g3'}}},
+  {n:'Compare',d:'Compare two bits: light A>B, A=B or A<B.',ins:['A','B'],outs:['A>B','A=B','A<B'],f:([a,b])=>[a>b?1:0,a===b?1:0,a<b?1:0],inv:{NOT:2,AND:2,NOR:1},grid:[2,2,1],
+   tip:'A>B means A on and B off. If neither bigger nor smaller, they are equal.',
+   ref:{g:{0:'NOT',1:'NOT',2:'AND',3:'AND',4:'NOR'},w:{'g0.0':'i0','g1.0':'i1','g2.0':'i0','g2.1':'g1','g3.0':'g0','g3.1':'i1','g4.0':'g2','g4.1':'g3',o0:'g2',o1:'g4',o2:'g3'}}},
+  {n:'Full adder',d:'Add three bits A + B + Cin: S is the sum digit, Cout the carry.',ins:['A','B','Cin'],outs:['S','Cout'],f:([a,b,c])=>[(a+b+c)&1,a+b+c>=2?1:0],inv:{XOR:2,AND:2,OR:1},grid:[2,2,1],
+   tip:'Two half adders and an OR: add A and B, then add Cin to that sum.',
+   ref:{g:{0:'XOR',1:'AND',2:'XOR',3:'AND',4:'OR'},w:{'g0.0':'i0','g0.1':'i1','g1.0':'i0','g1.1':'i1','g2.0':'g0','g2.1':'i2','g3.0':'g0','g3.1':'i2','g4.0':'g1','g4.1':'g3',o0:'g2',o1:'g4'}}},
+  {n:'2-bit equal',d:'Are the 2-bit numbers A1A0 and B1B0 equal? Light Q if so.',ins:['A1','A0','B1','B0'],outs:['Q'],f:([a1,a0,b1,b0])=>[a1===b1&&a0===b0?1:0],inv:{XOR:2,NOR:1},grid:[2,1],
+   tip:'Compare bit by bit. Q is on when neither pair differs.',
+   ref:{g:{0:'XOR',1:'XOR',2:'NOR'},w:{'g0.0':'i0','g0.1':'i2','g1.0':'i1','g1.1':'i3','g2.0':'g0','g2.1':'g1',o0:'g2'}}},
+  {n:'Sandbox',d:'Free play: build anything you like.',ins:['A','B','C'],outs:['X','Y'],f:null,inv:{AND:99,OR:99,NOT:99,XOR:99,NAND:99,NOR:99},grid:[3,3,2],
+   tip:'Unlimited gates. Try building your own circuits and watch the truth table.'}
+];
+const gatesPins=t=>t==='NOT'?1:2;
+function gatesCols(L){const c=[];L.grid.forEach((n,ci)=>{for(let i=0;i<n;i++)c.push(ci)});return c}
+/* column of a source: inputs are column -1 */
+function gatesSrcCol(L,src){return src[0]==='i'?-1:gatesCols(L)[+src.slice(1)]}
+/* evaluate the circuit for one input combination; unknown (unwired) values are null */
+function gatesEval(L,C,vals){
+  const v={},cols=gatesCols(L);vals.forEach((b,i)=>v['i'+i]=b);
+  const order=cols.map((c,i)=>i).sort((a,b)=>cols[a]-cols[b]||a-b);
+  for(const s of order){
+    const t=C.g[s];if(!t)continue;
+    const ins=[];for(let k=0;k<gatesPins(t);k++){const src=C.w['g'+s+'.'+k];ins.push(src==null||v[src]==null?null:v[src])}
+    v['g'+s]=ins.includes(null)?null:GATES_FN[t](...ins);
+  }
+  return L.outs.map((_,k)=>{const src=C.w['o'+k];return src==null||v[src]==null?null:v[src]});
+}
+function gatesCombos(n){const out=[];for(let r=0;r<1<<n;r++){const a=[];for(let i=n-1;i>=0;i--)a.push(r>>i&1);out.push(a)}return out}
+/* check every combination: rows [{vals,goal,got,ok}], all = every row matches */
+function gatesCheck(L,C){
+  const rows=gatesCombos(L.ins.length).map(vals=>{const got=gatesEval(L,C,vals),goal=L.f?L.f(vals):null;return{vals,got,goal,ok:!!goal&&goal.every((g,k)=>got[k]===g)}});
+  return{rows,all:!!L.f&&rows.every(r=>r.ok)};
+}
+/* is the wiring legal: wires only left to right, gates within the inventory */
+function gatesLegal(L,C){
+  const cols=gatesCols(L),used={};
+  for(const s in C.g){if(+s>=cols.length)return false;used[C.g[s]]=(used[C.g[s]]||0)+1}
+  for(const t in used)if(used[t]>(L.inv[t]||0))return false;
+  for(const p in C.w){
+    const src=C.w[p];if(src[0]==='g'&&!C.g[+src.slice(1)])return false;
+    if(p[0]==='g'){const s=+p.slice(1).split('.')[0],k=+p.split('.')[1];if(!C.g[s]||k>=gatesPins(C.g[s]))return false;if(gatesSrcCol(L,src)>=cols[s])return false}
+  }
+  return true;
+}
+function gatesShape(t,x,y,w,h){
+  const r=h/2,top=y-r,bot=y+r;
+  if(t==='AND'||t==='NAND')return`M${x} ${top}H${x+w-r}A${r} ${r} 0 0 1 ${x+w-r} ${bot}H${x}Z`;
+  if(t==='OR'||t==='NOR'||t==='XOR')return`M${x} ${top}Q${x+w*.62} ${top} ${x+w} ${y}Q${x+w*.62} ${bot} ${x} ${bot}Q${x+w*.3} ${y} ${x} ${top}Z`;
+  return`M${x} ${top}L${x+w} ${y}L${x} ${bot}Z`;
+}
+function gatesIcon(t){
+  const w=t==='NOT'?15:20,bub=t==='NOT'||t==='NAND'||t==='NOR';
+  return`<svg viewBox="-3 -1 30 16" aria-hidden="true"><path d="${gatesShape(t,2,7,w,12)}"/>${t==='XOR'?'<path class="lg-ix" d="M-1 1Q3 7 -1 13"/>':''}${bub?`<circle cx="${2+w+2}" cy="7" r="2"/>`:''}</svg>`;
+}
+const gatesEsc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function gates(root,S){
+  const LV=S.level,L=GATES_LEVELS[LV-1],cols=gatesCols(L),NI=L.ins.length,NO=L.outs.length,sandbox=!L.f;
+  const st=status(root,L.d);
+  const g=el('div','lg',root);g.dataset.max=1300;
+  const solvedAll=store.get('gates:solved')||{};
+  const head=el('div','lg-head',g,`<b class="lg-title">${sandbox?'Sandbox':LV+'. '+gatesEsc(L.n)}${solvedAll[LV]?' <span class="lg-done" title="Solved before">✓</span>':''}</b><span class="lg-d">${gatesEsc(L.d)}</span>`);
+  const box=el('div','lg-box',g);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','lg-svg');box.append(svg);
+  const tipEl=el('div','lg-tip',box);tipEl.textContent=L.tip;
+  const side=el('div','lg-side',g);
+  const tbl=el('div','lg-tt',side);
+  const inv=el('div','lg-inv',side);
+  const nextB=el('button','btn lg-next',side,LV<GATES_LEVELS.length?'Next level ▶':'Back to level 1');nextB.hidden=true;
+  side.prepend(head);
+  const KEY='gates:c'+LV,saved=store.get(KEY);
+  let C={g:{},w:{}};
+  if(saved&&saved.g&&saved.w&&gatesLegal(L,saved))C=saved;
+  let vals=Array(NI).fill(0),sel=null,pick=null,won=false,wide=false,VW=100,VH=80,geo=null;
+  const left=t=>(L.inv[t]||0)-Object.values(C.g).filter(x=>x===t).length;
+  const types=GATES_TYPES.filter(t=>L.inv[t]);
+  function layout(){
+    const W=root.clientWidth-8,stH=COMPACT.matches?0:70,H=root.clientHeight-20-stH;
+    wide=W>H*1.05;g.classList.toggle('wide',wide);
+    const ar=wide?clamp(W/H,1.2,2.2):clamp(W/H,.5,.82);
+    if(+g.dataset.ar!==ar){g.dataset.ar=ar;g.style.aspectRatio=ar}
+    S.after(30,render);
+  }
+  /* geometry in viewBox units */
+  function geometry(){
+    const bw=box.clientWidth||300,bh=box.clientHeight||240;
+    VW=100;VH=clamp(100*bh/bw,40,170);
+    const top=tipEl.offsetHeight/bw*100+3,bottom=VH-3,span=bottom-top;
+    const ys=(n,i)=>top+span*(i+.5)/n;
+    const nc=L.grid.length,x0=24,x1=80,cw=(x1-x0)/nc,gw=Math.min(12,cw*.68),gh=Math.min(gw*.8,span/Math.max(...L.grid,1)*.55);
+    const gx=[];let k=0;L.grid.forEach((n,c)=>{for(let i=0;i<n;i++){gx.push({x:x0+cw*(c+.5)-gw/2-1,y:ys(n,i),c});k++}});
+    const ins=L.ins.map((_,i)=>({y:ys(NI,i)})),outs=L.outs.map((_,i)=>({y:ys(NO,i)}));
+    return{gw,gh,gx,ins,outs,sh:Math.min(6.4,span/NI*.42),lh:Math.min(9,span/NO*.6)};
+  }
+  const srcPos=src=>{if(src[0]==='i')return{x:19.5,y:geo.ins[+src.slice(1)].y};const s=geo.gx[+src.slice(1)];return{x:s.x+geo.gw+3,y:s.y}};
+  const pinPos=p=>{
+    if(p[0]==='o')return{x:84,y:geo.outs[+p.slice(1)].y};
+    const [s,k]=p.slice(1).split('.').map(Number),t=C.g[s],q=geo.gx[s];
+    return{x:q.x-2,y:t==='NOT'?q.y:q.y+(k?1:-1)*geo.gh*.27};
+  };
+  function render(){
+    geo=geometry();svg.setAttribute('viewBox',`0 0 ${VW} ${VH}`);
+    const res=gatesCheck(L,C),cur=gatesEval(L,C,vals),v={};vals.forEach((b,i)=>v['i'+i]=b);
+    /* values for the current switches */
+    const order=cols.map((c,i)=>i).sort((a,b)=>cols[a]-cols[b]||a-b);
+    for(const s of order){const t=C.g[s];if(!t)continue;const ins=[];for(let k=0;k<gatesPins(t);k++){const src=C.w['g'+s+'.'+k];ins.push(src==null||v[src]==null?null:v[src])}v['g'+s]=ins.includes(null)?null:GATES_FN[t](...ins)}
+    const sv=src=>v[src]==null?'u':v[src]?'on':'off';
+    let h='';
+    /* wires */
+    for(const p in C.w){
+      const a=srcPos(C.w[p]),b=pinPos(p),dx=Math.max(4,(b.x-a.x)*.45),d=`M${a.x} ${a.y}C${a.x+dx} ${a.y} ${b.x-dx} ${b.y} ${b.x} ${b.y}`,s2=sv(C.w[p]);
+      h+=`<g class="lg-wire ${s2}" data-wire="${p}"><path class="lg-hit" d="${d}"/><path class="lg-w0" d="${d}"/><path class="lg-w1" d="${d}"/></g>`;
+    }
+    /* slots and gates */
+    geo.gx.forEach((q,s)=>{
+      const t=C.g[s],w=geo.gw,gh=geo.gh;
+      if(!t){h+=`<g class="lg-slot${pick&&left(pick)>0?' ready':''}" data-slot="${s}"><rect x="${q.x-1}" y="${q.y-gh/2-1}" width="${w+2}" height="${gh+2}" rx="2"/><text x="${q.x+w/2}" y="${q.y}">+</text></g>`;return}
+      const bub=t==='NOT'||t==='NAND'||t==='NOR',st2=sv('g'+s);
+      h+=`<g class="lg-gate ${st2}" data-gate="${s}"><title>${GATES_INFO[t]} (tap to remove)</title>`;
+      for(let k=0;k<gatesPins(t);k++){const p=pinPos('g'+s+'.'+k);h+=`<line class="lg-stub" x1="${p.x}" y1="${p.y}" x2="${q.x+1}" y2="${p.y}"/>`}
+      h+=`<line class="lg-stub" x1="${q.x+w}" y1="${q.y}" x2="${q.x+w+3}" y2="${q.y}"/>`;
+      if(t==='XOR')h+=`<path class="lg-xb" d="M${q.x-1.6} ${q.y-gh/2}Q${q.x+w*.3-1.6} ${q.y} ${q.x-1.6} ${q.y+gh/2}"/>`;
+      h+=`<path class="lg-body" d="${gatesShape(t,q.x,q.y,t==='NOT'?w*.8:w,gh)}"/>`;
+      if(bub)h+=`<circle class="lg-body" cx="${q.x+(t==='NOT'?w*.8:w)+1.1}" cy="${q.y}" r="1.1"/>`;
+      h+=`<text class="lg-gt" x="${q.x+(t==='NOT'?w*.3:w*.42)}" y="${q.y}" style="font-size:${Math.min(t==='NOT'?2.4:3.2,gh*.34)}px">${t}</text></g>`;
+    });
+    /* switches: label, toggle, output dot */
+    L.ins.forEach((nm,i)=>{const y=geo.ins[i].y,sh=geo.sh,on=vals[i],r=sh/2-.7;
+      h+=`<g class="lg-sw ${on?'on':'off'}" data-sw="${i}"><title>Switch ${gatesEsc(nm)}: tap to turn ${on?'off':'on'}</title><rect class="lg-swh" x="0" y="${y-sh}" width="18" height="${sh*2}"/><text class="lg-swl" x="3.6" y="${y}">${gatesEsc(nm)}</text><rect class="lg-swb" x="7" y="${y-sh/2}" width="${sh*1.7}" height="${sh}" rx="${sh/2}"/><circle class="lg-knob" cx="${on?7+sh*1.7-sh/2:7+sh/2}" cy="${y}" r="${r}"/></g>`;
+    });
+    /* lamps */
+    L.outs.forEach((nm,k)=>{const y=geo.outs[k].y,r=geo.lh/2,val=cur[k],goal=L.f?L.f(vals)[k]:null;
+      h+=`<g class="lg-lamp ${val==null?'u':val?'on':'off'}${goal!=null&&val===goal?' ok':''}"><line class="lg-stub" x1="84" y1="${y}" x2="${92-r}" y2="${y}"/>${val?`<circle class="lg-glow" cx="92" cy="${y}" r="${r*1.7}"/>`:''}<circle class="lg-bulb" cx="92" cy="${y}" r="${r}"/><text class="lg-ll" x="92" y="${y+r+2.6}">${gatesEsc(nm)}</text></g>`;
+    });
+    /* pins on top */
+    const selSrc=sel&&sel.src,selPin=sel&&sel.pin;
+    const okFor=(src,p)=>p[0]==='o'||gatesSrcCol(L,src)<cols[+p.slice(1).split('.')[0]];
+    L.ins.forEach((_,i)=>{const p=srcPos('i'+i);h+=pinSVG(p,'data-src="i'+i+'"','src '+sv('i'+i)+(selSrc==='i'+i?' sel':'')+(selPin&&okFor('i'+i,selPin)?' ok':''))});
+    geo.gx.forEach((q,s)=>{const t=C.g[s];if(!t)return;
+      const src='g'+s;h+=pinSVG(srcPos(src),`data-src="${src}"`,'src '+sv(src)+(selSrc===src?' sel':'')+(selPin&&okFor(src,selPin)?' ok':''));
+      for(let k=0;k<gatesPins(t);k++){const p='g'+s+'.'+k;h+=pinSVG(pinPos(p),`data-pin="${p}"`,'dst'+(C.w[p]?' wired':'')+(selPin===p?' sel':'')+(selSrc&&okFor(selSrc,p)?' ok':''))}
+    });
+    L.outs.forEach((_,k)=>{const p='o'+k;h+=pinSVG(pinPos(p),`data-pin="${p}"`,'dst'+(C.w[p]?' wired':'')+(selPin===p?' sel':'')+(selSrc?' ok':''))});
+    svg.innerHTML=h;
+    renderTable(res);renderInv();
+    store.set(KEY,C);
+    if(!won&&res.all){win()}
+  }
+  function pinSVG(p,attr,cls){return`<g class="lg-pin ${cls}" ${attr}><circle class="lg-ph" cx="${p.x}" cy="${p.y}" r="4.2"/><circle class="lg-pd" cx="${p.x}" cy="${p.y}" r="1.5"/></g>`}
+  function renderTable(res){
+    const cur=parseInt(vals.join(''),2);
+    let h=`<div class="lg-tr lg-hd"><span>${NI>2?'':''}</span>`;h='';
+    const row=(lab,cls,cells)=>`<div class="lg-tr ${cls}"><span class="lg-th">${gatesEsc(lab)}</span>${cells.join('')}</div>`;
+    L.ins.forEach((nm,i)=>{h+=row(nm,'in',res.rows.map((r,j)=>`<span class="lg-c${j===cur?' cur':''}" data-r="${j}">${r.vals[i]}</span>`))});
+    L.outs.forEach((nm,k)=>{
+      if(!sandbox)h+=row(nm+' goal','goal',res.rows.map((r,j)=>`<span class="lg-c${j===cur?' cur':''} v${r.goal[k]}" data-r="${j}">${r.goal[k]}</span>`));
+      h+=row(sandbox?nm:nm+' you','you',res.rows.map((r,j)=>`<span class="lg-c${j===cur?' cur':''} ${r.got[k]==null?'u':'v'+r.got[k]}${!sandbox?(r.got[k]===r.goal[k]?' good':' bad'):''}" data-r="${j}">${r.got[k]==null?'?':r.got[k]}</span>`));
+    });
+    if(!sandbox)h+=row('','chk',res.rows.map((r,j)=>`<span class="lg-c${j===cur?' cur':''} ${r.ok?'good':'bad'}" data-r="${j}">${r.ok?'✓':'✗'}</span>`));
+    tbl.innerHTML=h;tbl.style.setProperty('--n',res.rows.length);
+    const okN=res.rows.filter(r=>r.ok).length;
+    tbl.dataset.score=sandbox?'':`${okN}/${res.rows.length}`;
+  }
+  function renderInv(){
+    inv.innerHTML='';
+    types.forEach(t=>{const n=left(t),b=el('button','lg-chip'+(pick===t?' sel':'')+(n<=0?' empty':''),inv,`${gatesIcon(t)}<b>${t}</b>${sandbox?'':`<small>×${n}</small>`}`);b.dataset.t=t;b.title=GATES_INFO[t]});
+  }
+  /* step hints go in the circuit box; only results and mistakes use the status line (it pops up on phones) */
+  function hint(t){tipEl.textContent=t;restartAnim(tipEl,'lg-hint')}
+  function say(t){hint(t);if(!COMPACT.matches)st(t)}
+  function win(){
+    won=true;const all=store.get('gates:solved')||{};all[LV]=1;store.set('gates:solved',all);
+    say(`Solved! Every row of the truth table matches.`);nextB.hidden=false;
+    svg.querySelectorAll('.lg-lamp').forEach(e=>restartAnim(e,'lg-pop'));
+    S.after(300,S.next);
+  }
+  function connect(src,p){
+    const tc=p[0]==='o'?99:cols[+p.slice(1).split('.')[0]];
+    if(gatesSrcCol(L,src)>=tc){say('Wires run left to right: pick a source further left.');restartAnim(box,'lg-no');beep(170,120,'square');sel=null;render();return}
+    C.w[p]=src;sel=null;beep(720,50);S.after(60,()=>beep(960,60));render();
+  }
+  function removeGate(s){
+    const t=C.g[s];delete C.g[s];for(const p in C.w){if(p.startsWith('g'+s+'.')||C.w[p]==='g'+s)delete C.w[p]}
+    sel=null;beep(260,60);hint(`${t} gate removed.`);render();
+  }
+  S.on(svg,'click',e=>{
+    const t=e.target.closest('[data-sw],[data-src],[data-pin],[data-slot],[data-gate],[data-wire]');if(!t){if(sel){sel=null;render()}return}
+    const d=t.dataset;
+    if(d.src){
+      if(sel&&sel.pin){connect(d.src,sel.pin);return}
+      sel=sel&&sel.src===d.src?null:{src:d.src};beep(520,30);if(sel)hint('Now tap a dot on the left of a gate or a lamp.');render();return;
+    }
+    if(d.pin){
+      if(sel&&sel.src){connect(sel.src,d.pin);return}
+      if(C.w[d.pin]&&!(sel&&sel.pin===d.pin)){delete C.w[d.pin];sel={pin:d.pin};beep(300,40);hint('Wire removed. Tap a source to connect this pin again.');render();return}
+      sel=sel&&sel.pin===d.pin?null:{pin:d.pin};beep(520,30);if(sel)hint('Now tap a dot on the right of a switch or gate.');render();return;
+    }
+    if(d.sw){vals[+d.sw]^=1;beep(vals[+d.sw]?660:330,40);render();return}
+    if(d.slot){
+      const s=+d.slot;
+      if(!pick||left(pick)<=0){const av=types.filter(x=>left(x)>0);if(av.length===1)pick=av[0];else{say('Pick a gate type below first.');restartAnim(inv,'lg-no');beep(200,80,'square');return}}
+      C.g[s]=pick;beep(560,50);hint(`${pick} placed. Now wire its inputs and output.`);if(left(pick)<=0)pick=null;render();return;
+    }
+    if(d.gate){removeGate(+d.gate);return}
+    if(d.wire){delete C.w[d.wire];beep(300,40);render();return}
+  });
+  S.on(inv,'click',e=>{const b=e.target.closest('.lg-chip');if(!b)return;const t=b.dataset.t;
+    if(left(t)<=0){say(`No ${t} gates left. Tap a placed gate to take it back.`);restartAnim(b,'lg-no');beep(200,80,'square');return}
+    pick=pick===t?null:t;beep(600,30);if(pick)hint(`${GATES_INFO[t]}. Now tap an empty slot.`);render()});
+  S.on(tbl,'click',e=>{const c=e.target.closest('[data-r]');if(!c)return;const r=+c.dataset.r;vals=gatesCombos(NI)[r].slice();beep(500,30);render()});
+  S.on(nextB,'click',()=>{store.set('cur:gates',LV<GATES_LEVELS.length?LV+1:1);S.restart()});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(/^[1-4]$/.test(e.key)&&+e.key<=NI){e.preventDefault();vals[+e.key-1]^=1;beep(500,30);render()}
+    else if(e.key==='Escape'){sel=null;pick=null;render()}
+  });
+  won=gatesCheck(L,C).all;nextB.hidden=!won;
+  layout();S.on(window,'resize',layout);
+  render();
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -9790,13 +10658,16 @@ const GAMES=[
   {id:'thirty',name:'30 Seconds Rush',icon:'⏱️',blurb:'Describe 5 words in 30 seconds while your team shouts guesses.',help:'Set up 2 to 4 teams, then pass the phone to each team\'s describer. Tap Ready, describe the words without saying them, and tap each word your team guesses (tap again to undo). Classic gives 30 seconds for 5 words, Quick gives 20 seconds, Kids gives 3 easy words.',mount:thirty,levels:3,open:true,names:['Classic','Quick','Kids'],isNew:true},
   {id:'mathsprint',name:'Math Sprint',icon:'➗',blurb:'Answer as many sums as you can in 60 seconds.',help:'Tap the number pad or type on your keyboard. The answer is checked as soon as you\'ve typed enough digits. Five right in a row adds 3 seconds and boosts your points. Pick the kind of sums at the top.',mount:mathsprint,levels:6,open:true,names:['Addition','Subtraction','Multiplication','Division','Mixed','Hard mix'],unit:'points',isNew:true},
   {id:'make24',name:'Make 24',icon:'🧠',blurb:'Combine four numbers with + − × ÷ to make exactly 24.',help:'Tap a card, then an operation, then another card to combine them into a new card. Keep going until one card is left. Undo, Reset, Hint and Skip are under the operations. Keys: 1–5 pick cards, + − * / pick operations, U undo, R reset, H hint, S skip.',mount:make24,levels:4,open:true,names:['Easy','Medium','Hard','Target mode'],unit:'streak',isNew:true},
-  {id:'cagesums',name:'Cage Sums',icon:'➕',blurb:'Fill the grid so every cage adds, subtracts or multiplies right.',help:'Tap a square, then a number. No number may repeat in a row or column, and each outlined cage must make its target with its sign. ✏️ Notes pencils in options, ⚠️ shows conflicts, ✔ checks your work, 💡 fills a square. Keyboard: arrows, numbers, Backspace, N, C, H.',mount:cagesums,levels:5,open:true,names:['4×4','5×5','6×6','7×7','8×8'],unit:'seconds',isNew:true}
+  {id:'cagesums',name:'Cage Sums',icon:'➕',blurb:'Fill the grid so every cage adds, subtracts or multiplies right.',help:'Tap a square, then a number. No number may repeat in a row or column, and each outlined cage must make its target with its sign. ✏️ Notes pencils in options, ⚠️ shows conflicts, ✔ checks your work, 💡 fills a square. Keyboard: arrows, numbers, Backspace, N, C, H.',mount:cagesums,levels:5,open:true,names:['4×4','5×5','6×6','7×7','8×8'],unit:'seconds',isNew:true},
+  {id:'binary',name:'Binary Bits',icon:'💡',blurb:'Flip the bits to make the number, then read binary back. Beat the clock.',help:'Tap the bit cards (or keys 1 to 8) to switch them on until they add up to the number. When bits are shown, type the number on the pad or keyboard and press ✓ or Enter. 3 misses and the game is over.',mount:binary,levels:4,open:true,names:['4 bits','8 bits','Both ways','Hex'],unit:'points',isNew:true},
+  {id:'robocode',name:'Robo Code',icon:'🤖',blurb:'Program a little robot with command tiles to light every lamp.',help:'Tap command tiles to add them to the selected program, tap a placed tile to remove it, or drag tiles around. Tap Main, F1 or F2 to choose where new tiles go. Press Run to watch, Step to go one move at a time. Keys: arrows add moves, J jump, Space light, 1/2 functions, Tab switches program, Backspace removes, Enter runs.',mount:robocode,levels:22,open:true,names:['First steps','Corner','Two lamps','Hop up','Stairs','Up & over','Functions','Square','Climbing','Snake','Recursion','Zig-zag','Round trip','Loop it','Loop a call','Landings','Rooms','Pink turns','Two colors','Spiral','Winding','Pyramid'],isNew:true},
+  {id:'gates',name:'Logic Gates',icon:'⚡',blurb:'Wire AND, OR, NOT and XOR gates to light the lamp just right.',help:'Pick a gate below and tap an empty slot to place it. To wire, tap a dot on the right of a switch or gate, then a dot on the left of a gate or lamp. Tap a gate or wire to remove it. Tap the switches (or keys 1 to 4) to test; the truth table checks every combination.',mount:gates,levels:20,open:true,names:['AND','OR','NOT','XOR','NOT AND','Build NOR','A not B','Three-way','Alarm','Just NAND','Majority','Make XOR','Half adder','Equal?','Selector','4 NANDs','Compare','Full adder','2-bit equal','Sandbox'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator'};
 const CATS={'jumpquest':'Arcade','sling':'Arcade','mathsprint':'Math','make24':'Math','cagesums':'Math','binary':'Coding','robocode':'Coding','gates':'Coding','mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
-const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['2p','2 Players','👥']];
+const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['Coding','Coding','💻'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
