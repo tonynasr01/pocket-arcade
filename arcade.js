@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -9212,6 +9212,526 @@ function thirty(root,S){
   setup();
 }
 
+/* ---------- Math Sprint ---------- */
+const MS_TIME=60;
+const MS_ri=(a,b,rnd)=>a+Math.floor(rnd()*(b-a+1));
+const MS_n=v=>v<0?'−'+-v:String(v);
+const MS_p=v=>v<0?'(−'+-v+')':String(v);
+/* one question for mode L (1-6) after n correct answers: {q: text, a: answer} */
+function MS_gen(L,n,rnd=Math.random){
+  const k=Math.min(n,25);
+  if(L===5)L=1+Math.floor(rnd()*4);
+  if(L===1){const lim=10+k*3,a=MS_ri(2,lim,rnd),b=MS_ri(2,lim,rnd);return{q:a+' + '+b,a:a+b}}
+  if(L===2){const lim=12+k*3,a=MS_ri(4,lim,rnd),b=MS_ri(1,a,rnd);return{q:a+' − '+b,a:a-b}}
+  if(L===3){const t=n<6?9:12,a=MS_ri(2,t,rnd),b=MS_ri(2,t,rnd);return{q:a+' × '+b,a:a*b}}
+  if(L===4){const t=n<6?9:12,b=MS_ri(2,t,rnd),q=MS_ri(2,t,rnd);return{q:b*q+' ÷ '+b,a:q}}
+  const r=Math.floor(rnd()*6),s=()=>rnd()<.5?-1:1;
+  if(r===0){const a=MS_ri(-40,60,rnd),b=s()*MS_ri(4,50,rnd);return{q:MS_n(a)+' + '+MS_p(b),a:a+b}}
+  if(r===1){const a=MS_ri(-30,50,rnd),b=s()*MS_ri(4,60,rnd);return{q:MS_n(a)+' − '+MS_p(b),a:a-b}}
+  if(r===2){const a=MS_ri(11,20,rnd);return{q:a+'²',a:a*a}}
+  if(r===3){const a=MS_ri(12,35,rnd),b=MS_ri(3,9,rnd);return rnd()<.5?{q:a+' × '+b,a:a*b}:{q:b+' × '+a,a:a*b}}
+  if(r===4){const b=s()*MS_ri(3,12,rnd),q=s()*MS_ri(3,15,rnd);return{q:MS_n(b*q)+' ÷ '+MS_p(b),a:q}}
+  const a=s()*MS_ri(3,12,rnd),b=s()*MS_ri(3,12,rnd);return{q:MS_n(a)+' × '+MS_p(b),a:a*b};
+}
+/* typed text t against answer a: 'ok', 'bad' or '' (keep typing) */
+function MS_judge(t,a,force){
+  const d=t.replace('-','');if(!d)return force&&t?'bad':'';
+  if(t==='-'+d&&a===-Number(d)||t===d&&a===Number(d))return 'ok';
+  return d.length>=String(Math.abs(a)).length||force?'bad':'';
+}
+
+function mathsprint(root,S){
+  const L=S.level,HARD=L===6,KEY='mathsprint'+L;
+  const st=status(root,'Answer as many sums as you can in 60 seconds. Streaks of 5 add time.');
+  const g=el('div','ms',root);
+  g.innerHTML=`<div class="ms-hud"><div class="ms-time"><i></i><b>60</b></div><div class="ms-sc"><small>Score</small><b>0</b></div><div class="ms-combo"><b>0</b><small>streak</small></div></div>
+  <div class="ms-qa"><div class="ms-q">?</div><div class="ms-ans"><span></span></div><div class="ms-flash"></div></div>
+  <div class="ms-pad">${[1,2,3,4,5,6,7,8,9].map(d=>`<button data-k="${d}">${d}</button>`).join('')}<button data-k="${HARD?'-':'c'}" class="ms-fn">${HARD?'−':'C'}</button><button data-k="0">0</button><button data-k="b" class="ms-fn" aria-label="Delete">⌫</button></div>
+  <div class="ms-over"></div>`;
+  const qEl=$('.ms-q',g),ansEl=$('.ms-ans span',g),ansBox=$('.ms-ans',g),flash=$('.ms-flash',g),over=$('.ms-over',g);
+  const timeB=$('.ms-time b',g),timeI=$('.ms-time i',g),scB=$('.ms-sc b',g),coB=$('.ms-combo b',g),coBox=$('.ms-combo',g);
+  let phase='ready',left=MS_TIME,bonus=0,score=0,combo=0,right=0,wrong=0,maxCombo=0,Q=null,typed='',lastQ='';
+  function lay(){
+    const kids=[...root.children].filter(c=>c!==g&&getComputedStyle(c).display!=='none'&&getComputedStyle(c).position!=='absolute');
+    const cs=getComputedStyle(root);let used=0;for(const c of kids)used+=c.offsetHeight+(parseFloat(cs.rowGap)||0);
+    const aw=root.clientWidth-8,ah=root.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-used-28;
+    const r=aw/Math.max(1,ah),wide=r>1.15;g.classList.toggle('ms-wide',wide);
+    const ar=wide?clamp(r,1.35,2.4):clamp(r,.5,.8);g.dataset.ar=ar.toFixed(3);g.style.aspectRatio=ar.toFixed(3);g.dataset.max=wide?960:500;
+  }
+  function hud(){
+    const s=Math.ceil(left);timeB.textContent=s;timeI.style.width=clamp(left/MS_TIME*100,0,100)+'%';g.classList.toggle('ms-low',phase==='play'&&left<=10);
+    scB.textContent=score;coB.textContent=combo;coBox.classList.toggle('hot',combo>=5);
+  }
+  const mult=()=>combo>=15?4:combo>=10?3:combo>=5?2:1;
+  function next(){
+    do Q=MS_gen(L,right);while(Q.q===lastQ);lastQ=Q.q;typed='';
+    qEl.textContent=Q.q+' =';qEl.style.setProperty('--len',Q.q.length);restartAnim(qEl,'ms-in');showTyped();
+  }
+  function showTyped(){ansEl.textContent=typed?typed.replace('-','−'):'';ansBox.classList.toggle('empty',!typed)}
+  function showOver(html){over.innerHTML=html;over.hidden=false;restartAnim(over,'ms-pop');const b=$('button',over);if(b)S.on(b,'click',begin)}
+  function ready(){
+    phase='ready';const b=store.get('best:'+KEY);
+    showOver(`<div class="ms-card"><b class="ms-big">Ready?</b><p>${['Addition','Subtraction','Multiplication','Division','Mixed','Hard mix'][L-1]} · 60 seconds</p>${b!=null?`<p class="ms-best">🏆 Best ${b}</p>`:''}<button class="ms-go">Start</button><small class="ms-key">or press Enter</small></div>`);
+  }
+  function begin(){
+    if(phase==='count'||phase==='play')return;phase='count';left=MS_TIME;score=combo=right=wrong=maxCombo=bonus=0;typed='';flash.textContent='';hud();qEl.textContent='';showTyped();
+    let n=3;const tick=()=>{if(phase!=='count')return;if(n){showOver(`<b class="ms-count">${n}</b>`);beep(440,90);n--;S.after(550,tick)}else{over.hidden=true;phase='play';beep(880,140);next();st('Go!')}};tick();
+  }
+  function end(){
+    phase='over';typed='';showTyped();hud();const rec=score>0&&best(KEY,score),b=store.get('best:'+KEY)||0;
+    const acc=right+wrong?Math.round(right*100/(right+wrong)):0;
+    if(rec){S.fx.confetti();S.fx.banner('New best!',score+' points');beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,200))}else beep(330,300);
+    st(`Time! ${score} points.`+(rec?' New best!':''));
+    showOver(`<div class="ms-card"><small>Time!</small><b class="ms-big">${score}</b><p>points</p><div class="ms-res"><span>✔ ${right}</span><span>✖ ${wrong}</span><span>🎯 ${acc}%</span><span>🔥 ${maxCombo}</span></div><p class="ms-best">${rec?'🎉 New best!':'🏆 Best '+b}</p><button class="ms-go">Play again</button></div>`);
+  }
+  function press(k){
+    if(phase==='ready'||phase==='over'){if(k==='enter')begin();return}
+    if(phase!=='play')return;
+    if(k==='b'){typed=typed.slice(0,-1);showTyped();beep(300,25);return}
+    if(k==='c'){typed='';showTyped();return}
+    if(k==='-'){if(!HARD)return;typed=typed.startsWith('-')?typed.slice(1):'-'+typed;showTyped();beep(500,25);return}
+    if(k==='enter'){if(typed)judge(true);return}
+    if(!/^\d$/.test(k)||typed.replace('-','').length>=5)return;
+    if(typed.replace('-','')==='0')typed=typed.replace('0','');
+    typed+=k;showTyped();beep(520+Number(k)*25,25);judge(false);
+  }
+  function judge(force){
+    const r=MS_judge(typed,Q.a,force);if(!r)return;
+    if(r==='ok'){
+      right++;combo++;maxCombo=Math.max(maxCombo,combo);const m=mult();score+=m;
+      flash.className='ms-flash ok';flash.textContent=m>1?'+'+m+' ×'+m:'+1';restartAnim(flash,'ms-fly');
+      beep(660+Math.min(combo,12)*30,70);
+      if(combo%5===0&&bonus<30){bonus+=3;left+=3;S.fx.toast('+3s','Streak '+combo);restartAnim(timeB,'ms-bump')}
+      restartAnim(scB,'ms-bump');next();
+    }else{
+      wrong++;combo=0;flash.className='ms-flash bad';flash.textContent=Q.q+' = '+MS_n(Q.a);restartAnim(flash,'ms-fly');
+      restartAnim(ansBox,'ms-shake');beep(170,180,'sawtooth');
+      const qq=Q;S.after(30,()=>{if(Q===qq)next()});
+    }
+    hud();
+  }
+  g.querySelectorAll('.ms-pad button').forEach(b=>{S.on(b,'pointerdown',e=>{e.preventDefault();press(b.dataset.k);restartAnim(b,'ms-press')})});
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
+    if(/^\d$/.test(k))press(k);else if(k==='-'||k==='_')press('-');else if(k==='Backspace'){e.preventDefault();press('b')}
+    else if(k==='Escape'||k==='Delete')press('c');else if(k==='Enter'||k===' '){e.preventDefault();press('enter')}
+    else return;
+    const b=g.querySelector(`.ms-pad [data-k="${k==='Backspace'?'b':k}"]`);if(b)restartAnim(b,'ms-press');
+  });
+  S.loop(dt=>{if(phase!=='play')return;const was=Math.ceil(left);left-=dt;if(Math.ceil(left)!==was&&left<=5&&left>0)beep(990,40,'square');if(left<=0){left=0;end()}else hud()});
+  lay();S.on(window,'resize',()=>{lay();if(typeof fit==='function')fit()});
+  hud();ready();
+}
+
+/* ---------- Make 24 ---------- */
+const M24_SYM=['+','−','×','÷'];
+/* every 4-card set from 1-13 that can only reach 24 through a fraction (found by M24_stats, checked in the tests) */
+const M24_FRAC=[[1,3,4,6],[1,4,5,6],[1,5,5,5],[1,6,6,8],[1,8,12,12],[2,2,11,11],[2,2,13,13],[2,3,5,12],[2,4,10,10],[2,5,5,10],[2,7,7,10],[3,3,7,7],[3,3,8,8],[4,4,7,7],[5,5,7,11],[5,7,7,11]];
+function M24_gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){const t=a%b;a=b;b=t}return a||1}
+function M24_q(n,d=1){if(d<0){n=-n;d=-d}const g=M24_gcd(n,d);return[n/g,d/g]}
+/* rationals are [numerator, denominator]; o: 0 + 1 − 2 × 3 ÷ (null for ÷0) */
+function M24_op(a,b,o){
+  if(o===0)return M24_q(a[0]*b[1]+b[0]*a[1],a[1]*b[1]);
+  if(o===1)return M24_q(a[0]*b[1]-b[0]*a[1],a[1]*b[1]);
+  if(o===2)return M24_q(a[0]*b[0],a[1]*b[1]);
+  return b[0]===0?null:M24_q(a[0]*b[1],a[1]*b[0]);
+}
+function M24_key(ns){return ns.map(q=>q[0]+'/'+q[1]).sort().join(',')}
+/* calls f(i,j,o,value,rest) for every way to combine two numbers; stops when f returns true */
+function M24_moves(ns,f){
+  for(let i=0;i<ns.length;i++)for(let j=0;j<ns.length;j++){if(i===j)continue;
+    for(let o=0;o<4;o++){if((o===0||o===2)&&j<i)continue;const v=M24_op(ns[i],ns[j],o);if(!v)continue;
+      const rest=ns.filter((_,x)=>x!==i&&x!==j);rest.push(v);if(f(i,j,o,v,rest))return true}}
+  return false;
+}
+function M24_can(ns,t,memo=new Map()){
+  if(ns.length===1)return ns[0][0]===t&&ns[0][1]===1;
+  const k=M24_key(ns);if(memo.has(k))return memo.get(k);
+  const r=M24_moves(ns,(i,j,o,v,rest)=>M24_can(rest,t,memo));memo.set(k,r);return r;
+}
+/* n = number of solution paths, int = solvable without fractions, nodiv = solvable without ÷ */
+function M24_stats(ns,t){
+  let n=0,int=false,nodiv=false;
+  (function go(ns,ai,nd){if(ns.length===1){if(ns[0][0]===t&&ns[0][1]===1){n++;if(ai)int=true;if(nd)nodiv=true}return}
+    M24_moves(ns,(i,j,o,v,rest)=>{go(rest,ai&&v[1]===1,nd&&o!==3);return false})})(ns,true,true);
+  return{n,int,nodiv};
+}
+/* a good first step from ns (prefers whole-number results), or null when the target can't be reached */
+function M24_step(ns,t,memo=new Map()){
+  let alt=null,res=null;
+  M24_moves(ns,(i,j,o,v,rest)=>{if(!M24_can(rest,t,memo))return false;if(v[1]===1&&v[0]>=0){res={i,j,o};return true}if(!alt)alt={i,j,o};return false});
+  return res||alt;
+}
+const M24_str=q=>q[1]===1?String(q[0]):(q[0]<0?'−':'')+Math.abs(q[0])+'/'+q[1];
+const M24_html=q=>q[1]===1?(q[0]<0?'−'+-q[0]:String(q[0])):`${q[0]<0?'−':''}<span class="m24-fr"><i>${Math.abs(q[0])}</i><i>${q[1]}</i></span>`;
+/* one full solution as text, e.g. 8 ÷ (3 − 8 ÷ 3) */
+function M24_solve(ns,t){
+  const memo=new Map();let it=ns.map(q=>({q,s:M24_str(q),p:9}));
+  const prec=[1,1,2,2];
+  while(it.length>1){
+    const s=M24_step(it.map(x=>x.q),t,memo);if(!s)return null;
+    const a=it[s.i],b=it[s.j],P=prec[s.o];
+    const L=a.p<P?'('+a.s+')':a.s,R=(b.p<P||(b.p===P&&s.o%2===1))?'('+b.s+')':b.s;
+    const n={q:M24_op(a.q,b.q,s.o),s:L+' '+M24_SYM[s.o]+' '+R,p:P};
+    it=it.filter((_,x)=>x!==s.i&&x!==s.j);it.push(n);
+  }
+  return it[0].s;
+}
+function M24_tier(L,s){
+  if(!s.n)return false;
+  if(L===1)return s.int&&s.nodiv&&s.n>=28;
+  if(L===2)return s.int&&s.n>=4&&s.n<28;
+  return s.n<=3||!s.int;
+}
+function M24_gen(L,rnd=Math.random,recent=[]){
+  const fresh=ns=>!recent.includes(ns.slice().sort((a,b)=>a-b).join());
+  if(L===4){
+    for(let k=0;k<500;k++){
+      const t=10+Math.floor(rnd()*41),c=rnd()<.5?4:5;if(t===24)continue;
+      const ns=Array.from({length:c},()=>1+Math.floor(rnd()*(c===5?9:12)));
+      if(fresh(ns)&&M24_can(ns.map(v=>[v,1]),t))return{t,ns};
+    }
+    return{t:30,ns:[2,3,4,5]};
+  }
+  if(L===3&&rnd()<.35){const f=M24_FRAC.filter(fresh);if(f.length)return{t:24,ns:shuffle(f[Math.floor(rnd()*f.length)].slice())}}
+  for(let k=0;k<3000;k++){
+    const ns=Array.from({length:4},()=>1+Math.floor(rnd()*(L===1?10:13)));
+    if(fresh(ns)&&M24_tier(L,M24_stats(ns.map(v=>[v,1]),24)))return{t:24,ns};
+  }
+  return{t:24,ns:shuffle(M24_FRAC[Math.floor(rnd()*M24_FRAC.length)].slice())};
+}
+
+function make24(root,S){
+  const L=S.level,TGT=L===4;
+  const st=status(root,TGT?'Combine all the cards with + − × ÷ to hit the target number.':'Combine all four cards with + − × ÷ to make 24.');
+  const g=el('div','m24',root);
+  g.innerHTML=`<div class="m24-top"><div class="m24-goal"><small>Make</small><b>24</b></div><div class="m24-stats"><span class="m24-sv" title="Solved">✔ 0</span><span class="m24-sk" title="Streak">🔥 0</span><span class="m24-bs" title="Best streak">🏆 0</span></div></div>
+  <div class="m24-cards"></div><p class="m24-log" aria-live="polite"></p>
+  <div class="m24-ops">${M24_SYM.map((s,o)=>`<button class="m24-op" data-o="${o}" aria-label="${['Add','Subtract','Multiply','Divide'][o]}">${s}</button>`).join('')}</div>
+  <div class="m24-tools"><button class="m24-tl" data-a="undo">↶ Undo</button><button class="m24-tl" data-a="reset">⟲ Reset</button><button class="m24-tl" data-a="hint">💡 Hint</button><button class="m24-tl" data-a="skip">⏭ Skip</button></div>`;
+  const cardsEl=$('.m24-cards',g),log=$('.m24-log',g),goalB=$('.m24-goal b',g),ops=[...g.querySelectorAll('.m24-op')];
+  const sv=$('.m24-sv',g),sk=$('.m24-sk',g),bs=$('.m24-bs',g),tools={};g.querySelectorAll('.m24-tl').forEach(b=>tools[b.dataset.a]=b);
+  let solved=store.get('m24:solved:'+L)||0,streak=store.get('m24:streak:'+L)||0;
+  const recent=[];let P,slots,start,hist,sel=-1,op=-1,lock=false,cardEls=[];
+  function stats(){sv.textContent='✔ '+solved;sk.textContent='🔥 '+streak;bs.textContent='🏆 '+(store.get('best:make24'+L)||0)}
+  function lay(){
+    const kids=[...root.children].filter(c=>c!==g&&getComputedStyle(c).display!=='none'&&getComputedStyle(c).position!=='absolute');
+    const cs=getComputedStyle(root);let used=0;for(const c of kids)used+=c.offsetHeight+(parseFloat(cs.rowGap)||0);
+    const aw=root.clientWidth-8,ah=root.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-used-28;
+    const r=aw/Math.max(1,ah),wide=r>1.15;g.classList.toggle('m24-wide',wide);
+    const ar=wide?clamp(r,1.35,2.4):clamp(r,.52,.85);g.dataset.ar=ar.toFixed(3);g.style.aspectRatio=ar.toFixed(3);g.dataset.max=wide?960:520;
+  }
+  function newPuzzle(){
+    P=M24_gen(L,Math.random,recent);recent.push(P.ns.slice().sort((a,b)=>a-b).join());if(recent.length>12)recent.shift();
+    start=P.ns.map(v=>({q:[v,1]}));slots=start.slice();hist=[];sel=-1;op=-1;lock=false;
+    goalB.textContent=P.t;restartAnim(goalB,'m24-bump');
+    cardsEl.className='m24-cards m24-n'+slots.length;cardsEl.innerHTML='';
+    cardEls=slots.map((_,k)=>{const b=el('button','m24-card',cardsEl);b.style.setProperty('--k',k);S.on(b,'click',()=>tapCard(k));return b});
+    paint(true);
+  }
+  function paint(deal){
+    cardEls.forEach((b,k)=>{
+      const s=slots[k];b.classList.toggle('empty',!s);b.classList.toggle('sel',k===sel);b.classList.remove('hint');
+      b.innerHTML=s?`<span>${M24_html(s.q)}</span>`:'';b.disabled=!s;
+      b.setAttribute('aria-label',s?'Card '+M24_str(s.q).replace('/',' over '):'Empty');
+      const len=s?M24_str(s.q).length:1;b.style.setProperty('--len',Math.max(2,len));
+      if(deal)restartAnim(b,'m24-deal');
+    });
+    ops.forEach((b,o)=>{b.classList.toggle('on',o===op);b.classList.remove('hint')});
+    tools.undo.disabled=!hist.length||lock;tools.reset.disabled=!hist.length||lock;
+  }
+  const left=()=>slots.filter(Boolean).length;
+  function tapCard(k){
+    if(lock||!slots[k])return;
+    if(sel<0||op<0){sel=sel===k?-1:k;op=-1;beep(520,30);paint();return}
+    if(k===sel){sel=-1;op=-1;beep(400,30);paint();return}
+    combine(sel,k,op);
+  }
+  function tapOp(o){
+    if(lock)return;
+    if(sel<0){st('Pick a card first, then an operation.');restartAnim(cardsEl,'m24-nudge');beep(250,60);return}
+    op=op===o?-1:o;beep(700,30);paint();
+  }
+  function combine(i,j,o){
+    const a=slots[i],b=slots[j],v=M24_op(a.q,b.q,o);
+    if(!v){st("You can't divide by zero.");beep(180,160,'sawtooth');restartAnim(cardEls[j],'m24-no');return}
+    hist.push(slots.slice());slots[j]={q:v};slots[i]=null;sel=j;op=-1;
+    log.innerHTML=`${M24_html(a.q)} ${M24_SYM[o]} ${M24_html(b.q)} = <b>${M24_html(v)}</b>`;
+    paint();restartAnim(cardEls[j],'m24-merge');beep(560+left()*-60+o*20,70);
+    if(left()===1){
+      if(v[0]===P.t&&v[1]===1)win();
+      else{st(`That makes ${M24_str(v)}, not ${P.t}. Undo or Reset.`);S.shake();beep(160,250,'sawtooth');restartAnim(cardEls[j],'m24-no')}
+    }
+  }
+  function win(){
+    lock=true;sel=-1;paint();solved++;streak++;store.set('m24:solved:'+L,solved);store.set('m24:streak:'+L,streak);
+    const rec=best('make24'+L,streak);stats();restartAnim(sk,'m24-bump');
+    cardEls.forEach(b=>{if(!b.classList.contains('empty'))restartAnim(b,'m24-win')});
+    S.fx.confetti(90);S.fx.banner(P.t+'!',rec&&streak>1?`New best streak: ${streak}`:streak>1?`Streak ${streak}`:'Solved!');
+    beep(660,90);S.after(110,()=>beep(880,90));S.after(220,()=>beep(1320,160));
+    st(`Solved! ${streak>1?'Streak '+streak+'.':''}`);
+    S.after(1700,()=>{newPuzzle();log.textContent='Next puzzle. Go!'});
+  }
+  function undo(){if(lock||!hist.length)return;slots=hist.pop();sel=-1;op=-1;log.textContent='Undone.';paint();beep(380,40)}
+  function reset(){if(lock||!hist.length)return;slots=start.slice();hist=[];sel=-1;op=-1;log.textContent='Back to the start.';paint(true);beep(340,50)}
+  function hint(){
+    if(lock)return;
+    const idx=[],ns=[];slots.forEach((s,k)=>{if(s){idx.push(k);ns.push(s.q)}});
+    if(ns.length<2){st('Undo or Reset to try again.');return}
+    const h=M24_step(ns,P.t);
+    if(!h){st('Dead end from here. Undo or Reset.');restartAnim(tools.undo,'m24-bump');log.textContent='No way to reach '+P.t+' from these cards.';beep(200,120);return}
+    const a=idx[h.i],b=idx[h.j];sel=-1;op=-1;paint();
+    cardEls[a].classList.add('hint');cardEls[b].classList.add('hint');ops[h.o].classList.add('hint');
+    log.innerHTML=`Hint: ${M24_html(slots[a].q)} ${M24_SYM[h.o]} ${M24_html(slots[b].q)}`;beep(880,60);
+  }
+  function skip(){
+    if(lock)return;const s=M24_solve(start.map(x=>x.q),P.t);
+    if(streak){streak=0;store.set('m24:streak:'+L,0);stats()}
+    newPuzzle();log.textContent=s?'Last one: '+s+' = '+P.t:'';st('Skipped. Streak reset.');beep(300,60);
+  }
+  ops.forEach((b,o)=>S.on(b,'click',()=>tapOp(o)));
+  S.on(tools.undo,'click',undo);S.on(tools.reset,'click',reset);S.on(tools.hint,'click',hint);S.on(tools.skip,'click',skip);
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
+    if(/^[1-5]$/.test(k)){const vis=cardEls.map((_,i)=>i).filter(i=>slots[i]);const i=vis[+k-1];if(i!=null)tapCard(i)}
+    else if(k==='+')tapOp(0);else if(k==='-')tapOp(1);else if(k==='*'||k==='x'||k==='X')tapOp(2);else if(k==='/'){e.preventDefault();tapOp(3)}
+    else if(k==='Backspace'||k==='u'||k==='U'||(k==='z'&&!e.shiftKey))undo();else if(k==='r'||k==='R')reset();else if(k==='h'||k==='H')hint();else if(k==='s'||k==='S')skip();
+    else if(k==='Escape'){sel=-1;op=-1;paint()}
+  });
+  lay();S.on(window,'resize',()=>{lay();if(typeof fit==='function')fit()});
+  stats();newPuzzle();log.textContent='Tap a card, an operation, then another card.';
+}
+
+/* ---------- Cage Sums ---------- */
+const CS_SIZES={4:[.08,.55,.37,0],5:[.06,.5,.36,.08],6:[.05,.45,.36,.14],7:[.05,.43,.36,.16],8:[.04,.42,.38,.16]};
+const CS_SYM={'+':'+','-':'−','*':'×','/':'÷','=':''};
+function CS_latin(n,rnd){
+  const pr=CS_shuf([...Array(n).keys()],rnd),pc=CS_shuf([...Array(n).keys()],rnd),pv=CS_shuf([...Array(n).keys()],rnd);
+  const s=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++)s.push(pv[(pr[r]+pc[c])%n]+1);
+  /* a few random intercalate swaps (2x2 sub-squares a b / b a) so it's not always a shifted cyclic square */
+  for(let k=0;k<n*n*4;k++){
+    const r1=Math.floor(rnd()*n),r2=Math.floor(rnd()*n),c1=Math.floor(rnd()*n),c2=Math.floor(rnd()*n);
+    if(r1===r2||c1===c2)continue;const a=s[r1*n+c1],b=s[r1*n+c2];
+    if(a!==b&&s[r2*n+c1]===b&&s[r2*n+c2]===a){s[r1*n+c1]=b;s[r1*n+c2]=a;s[r2*n+c1]=a;s[r2*n+c2]=b}
+  }
+  return s;
+}
+function CS_shuf(a,rnd){for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function CS_op(cells,sol,rnd){
+  const v=cells.map(i=>sol[i]);
+  if(v.length===1)return{cells,op:'=',t:v[0]};
+  if(v.length===2){
+    const a=Math.max(...v),b=Math.min(...v),r=rnd();
+    if(a%b===0&&r<.5)return{cells,op:'/',t:a/b};
+    if(r<.55)return{cells,op:'-',t:a-b};
+    return r<.8?{cells,op:'+',t:a+b}:{cells,op:'*',t:a*b};
+  }
+  const p=v.reduce((x,y)=>x*y,1);
+  return p<=400&&rnd()<.4?{cells,op:'*',t:p}:{cells,op:'+',t:v.reduce((x,y)=>x+y,0)};
+}
+function CS_partition(n,sol,rnd){
+  const N=n*n,own=Array(N).fill(-1),cages=[],dist=CS_SIZES[n];
+  const nb=i=>{const r=i/n|0,c=i%n,o=[];if(r)o.push(i-n);if(r<n-1)o.push(i+n);if(c)o.push(i-1);if(c<n-1)o.push(i+1);return o};
+  for(const s0 of CS_shuf([...Array(N).keys()],rnd)){
+    if(own[s0]>=0)continue;let x=rnd(),size=1;for(let k=0;k<4;k++){if(x<dist[k]){size=k+1;break}x-=dist[k]}
+    const cells=[s0];own[s0]=cages.length;
+    while(cells.length<size){
+      const f=[];for(const i of cells)for(const j of nb(i))if(own[j]<0&&!f.includes(j))f.push(j);
+      if(!f.length)break;const j=f[Math.floor(rnd()*f.length)];own[j]=cages.length;cells.push(j);
+    }
+    cages.push(cells);
+  }
+  /* lonely cells that wanted a bigger cage join a small neighbour cage */
+  for(let k=0;k<cages.length;k++){
+    if(cages[k].length!==1||rnd()<dist[0]*3)continue;const i=cages[k][0];
+    const opts=nb(i).map(j=>own[j]).filter(o=>o!==k&&cages[o].length>0&&cages[o].length<3);
+    if(!opts.length)continue;const o=opts[Math.floor(rnd()*opts.length)];cages[o].push(i);own[i]=o;cages[k]=[];
+  }
+  return cages.filter(c=>c.length).map(c=>CS_op(c.sort((a,b)=>a-b),sol,rnd));
+}
+/* every value tuple a cage allows (values in a row or column of the cage must differ) */
+function CS_tuples(cg,n){
+  const k=cg.cells.length,out=[],cur=[],{op,t}=cg,rc=cg.cells.map(i=>[i/n|0,i%n]);
+  (function go(d,acc){
+    if(d===k){
+      let ok;if(op==='=')ok=cur[0]===t;else if(op==='+')ok=acc===t;else if(op==='*')ok=acc===t;
+      else if(op==='-')ok=Math.abs(cur[0]-cur[1])===t;else ok=Math.max(cur[0],cur[1])===t*Math.min(cur[0],cur[1]);
+      if(ok)out.push(cur.slice());return;
+    }
+    for(let v=1;v<=n;v++){
+      let bad=false;for(let e=0;e<d;e++)if(cur[e]===v&&(rc[e][0]===rc[d][0]||rc[e][1]===rc[d][1])){bad=true;break}
+      if(bad)continue;let a=acc;
+      if(op==='+'){a+=v;if(a+(k-d-1)>t)break}else if(op==='*'){a*=v;if(t%a)continue}
+      cur[d]=v;go(d+1,a);
+    }
+  })(0,op==='*'?1:0);
+  return out;
+}
+/* counts solutions (stops at max). returns {count, sols, aborted} */
+function CS_solve(n,cages,max=2,limit=400000){
+  const N=n*n,val=new Array(N).fill(0),rowM=new Array(n).fill(0),colM=new Array(n).fill(0);
+  const T=cages.map(cg=>CS_tuples(cg,n)),own=new Array(N),pos=new Array(N);
+  cages.forEach((cg,k)=>cg.cells.forEach((i,p)=>{own[i]=k;pos[i]=p}));
+  const full=(1<<(n+1))-2,sols=[];let nodes=0,aborted=false;
+  const pc=m=>{let c=0;while(m){m&=m-1;c++}return c};
+  function masks(){
+    const m=new Array(N).fill(0);
+    for(let k=0;k<cages.length;k++){
+      const cs=cages[k].cells;let any=false;
+      for(const tu of T[k]){
+        let ok=true;
+        for(let p=0;p<cs.length;p++){const i=cs[p],v=tu[p];if(val[i]){if(val[i]!==v){ok=false;break}}else if(((rowM[i/n|0]|colM[i%n])>>v)&1){ok=false;break}}
+        if(!ok)continue;any=true;for(let p=0;p<cs.length;p++)if(!val[cs[p]])m[cs[p]]|=1<<tu[p];
+      }
+      if(!any)return null;
+    }
+    return m;
+  }
+  function go(){
+    if(++nodes>limit){aborted=true;return}
+    const m=masks();if(!m)return;
+    let best=-1,bc=99;
+    for(let i=0;i<N;i++)if(!val[i]){const c=pc(m[i]);if(!c)return;if(c<bc){bc=c;best=i;if(c===1)break}}
+    if(best<0){sols.push(val.slice());return}
+    /* every row and column must still have a place for each missing value */
+    if(bc>1)for(let r=0;r<n;r++){let u=rowM[r],w=colM[r];for(let c=0;c<n;c++){const a=r*n+c,b=c*n+r;if(!val[a])u|=m[a];if(!val[b])w|=m[b]}if(u!==full||w!==full)return}
+    const i=best,r=i/n|0,c=i%n;
+    for(let v=1;v<=n;v++)if(m[i]>>v&1){
+      val[i]=v;rowM[r]|=1<<v;colM[c]|=1<<v;go();val[i]=0;rowM[r]&=~(1<<v);colM[c]&=~(1<<v);
+      if(sols.length>=max||aborted)return;
+    }
+  }
+  go();return{count:sols.length,sols,aborted,nodes};
+}
+/* generator object: call step() repeatedly (each call is one bounded solve) until it returns a puzzle */
+function CS_maker(n,rnd=Math.random){
+  let sol,cages,fresh=0;
+  const nb=(a,b)=>Math.abs(a-b)===n||(Math.abs(a-b)===1&&(a/n|0)===(b/n|0));
+  function restart(){sol=CS_latin(n,rnd);cages=CS_partition(n,sol,rnd);fresh=0}
+  restart();
+  return{step(){
+    const r=CS_solve(n,cages,2,n<=5?100000:n<8?150000:50000);
+    if(r.aborted||!r.count){restart();return null}
+    if(r.count===1)return{n,sol,cages};
+    if(++fresh>n*2){restart();return null}
+    /* two answers: split a cell where they differ off into its own given, keep the rest of its cage */
+    const diff=[];for(let i=0;i<n*n;i++)if(r.sols[0][i]!==r.sols[1][i])diff.push(i);
+    const big=diff.filter(i=>cages.find(c=>c.cells.includes(i)).cells.length>1);
+    const d=(big.length?big:diff)[Math.floor(rnd()*(big.length?big:diff).length)];
+    const k=cages.findIndex(c=>c.cells.includes(d)),rest=cages[k].cells.filter(i=>i!==d);
+    cages.splice(k,1);cages.push(CS_op([d],sol,rnd));
+    const seen=new Set();
+    for(const s of rest){if(seen.has(s))continue;const comp=[s];seen.add(s);
+      for(let q=0;q<comp.length;q++)for(const j of rest)if(!seen.has(j)&&nb(comp[q],j)){seen.add(j);comp.push(j)}
+      cages.push(CS_op(comp.sort((a,b)=>a-b),sol,rnd));}
+    return null;
+  }};
+}
+
+function cagesums(root,S){
+  const n=S.level+3,N=n*n,KEY='cagesums'+S.level;
+  const st=status(root,`Fill the grid with 1 to ${n} so no number repeats in a row or column. Each cage must make its number with its sign.`);
+  const top=el('div','row cs-bar',root,`<span class="cs-time">⏱️ 0:00</span><button class="btn ghost cs-note" aria-pressed="false">✏️ Notes</button><button class="btn ghost cs-err" aria-pressed="true" title="Highlight repeats and broken cages">⚠️ Conflicts</button><button class="btn ghost cs-hint">💡 Hint</button><button class="btn ghost cs-check">✔ Check</button>`);
+  const g=el('div','cs',root);g.dataset.ar=1;g.dataset.max=600;g.style.setProperty('--n',n);
+  g.innerHTML='<div class="cs-wait"><b>Building puzzle…</b></div>';
+  const pad=el('div','cs-pad',root);pad.style.setProperty('--n',n+1);
+  const keys=[...Array(n).keys()].map(k=>k+1).concat(0).map(v=>{const b=el('button','btn ghost',pad,v||'⌫');b.setAttribute('aria-label',v?'Enter '+v:'Erase');S.on(b,'click',()=>input(v));return b});
+  const clock=$('.cs-time',top),hintB=$('.cs-hint',top),checkB=$('.cs-check',top),noteB=$('.cs-note',top),errB=$('.cs-err',top);
+  let P=null,val=Array(N).fill(0),notes=Array(N).fill(0),fixed=Array(N).fill(false),cells=[],own=[],sel=-1,noteMode=false,over=false,hints=0,t0=0,secs=-1;
+  let showErr=store.get('cs:err')!==false;
+  const fmt=s=>`${s/60|0}:${String(s%60).padStart(2,'0')}`;
+  function build(){
+    g.innerHTML='';own=Array(N);P.cages.forEach((cg,k)=>cg.cells.forEach(i=>own[i]=k));
+    /* colour cages so neighbours differ */
+    const col=P.cages.map(()=>-1);
+    P.cages.forEach((cg,k)=>{const used=new Set();for(const i of cg.cells)for(const j of [i-n,i+n,i%n?i-1:-1,i%n<n-1?i+1:-1])if(j>=0&&j<N&&own[j]!==k&&col[own[j]]>=0)used.add(col[own[j]]);let c=0;while(used.has(c))c++;col[k]=c});
+    cells=[];
+    for(let i=0;i<N;i++){
+      const r=i/n|0,c=i%n,k=own[i],e=el('button','cs-c',g);cells.push(e);
+      if(r>0&&own[i-n]!==k)e.classList.add('bt');if(r<n-1&&own[i+n]!==k)e.classList.add('bb');
+      if(c>0&&own[i-1]!==k)e.classList.add('bl');if(c<n-1&&own[i+1]!==k)e.classList.add('br');
+      e.style.setProperty('--cc',`var(--c${[3,5,1,4,2,6][col[k]%6]})`);e.style.animationDelay=Math.min((r+c)*25,500)+'ms';
+      const cg=P.cages[k];if(cg.cells[0]===i)el('span','cs-lab',e,cg.t+CS_SYM[cg.op]);
+      el('span','cs-v',e);el('span','cs-nt',e);
+      S.on(e,'click',()=>{if(over)return;sel=i;paint();beep(480,30)});
+    }
+    for(let i=0;i<N;i++)draw(i);paint();
+  }
+  const name=i=>{const cg=P.cages[own[i]];return `Row ${(i/n|0)+1}, column ${i%n+1}, cage ${cg.t}${{'+':' plus','-':' minus','*':' times','/':' divide','=':''}[cg.op]}`};
+  function draw(i){
+    const e=cells[i],v=val[i];$('.cs-v',e).textContent=v||'';e.classList.toggle('fixed',fixed[i]);
+    $('.cs-nt',e).innerHTML=!v&&notes[i]?[...Array(n).keys()].map(k=>`<i>${notes[i]>>(k+1)&1?k+1:''}</i>`).join(''):'';
+    e.setAttribute('aria-label',name(i)+', '+(v||(notes[i]?'notes':'empty')));
+  }
+  function conflicts(){
+    const bad=new Set();if(!showErr)return bad;
+    for(let i=0;i<N;i++){if(!val[i])continue;const r=i/n|0,c=i%n;for(let k=0;k<n;k++){const a=r*n+k,b=k*n+c;if(a!==i&&val[a]===val[i])bad.add(i);if(b!==i&&val[b]===val[i])bad.add(i)}}
+    P.cages.forEach(cg=>{const v=cg.cells.map(i=>val[i]);if(v.some(x=>!x))return;
+      const ok=cg.op==='='?v[0]===cg.t:cg.op==='+'?v.reduce((a,b)=>a+b)===cg.t:cg.op==='*'?v.reduce((a,b)=>a*b)===cg.t:cg.op==='-'?Math.abs(v[0]-v[1])===cg.t:Math.max(...v)===cg.t*Math.min(...v);
+      if(!ok)cg.cells.forEach(i=>bad.add(i))});
+    return bad;
+  }
+  function paint(){
+    if(!P)return;const bad=conflicts(),sv=sel>=0?val[sel]:0;
+    cells.forEach((e,i)=>{
+      e.classList.toggle('sel',i===sel);e.classList.toggle('peer',sel>=0&&i!==sel&&((i/n|0)===(sel/n|0)||i%n===sel%n));
+      e.classList.toggle('same',!!sv&&i!==sel&&val[i]===sv);e.classList.toggle('err',bad.has(i));
+    });
+    keys.forEach((b,k)=>{if(k<n)b.classList.toggle('done',val.filter(v=>v===k+1).length===n)});
+  }
+  function input(v){
+    if(!P||over)return;
+    if(sel<0){st('Tap a square first.');return}
+    if(fixed[sel])return;
+    if(!v){val[sel]=0;notes[sel]=0;draw(sel);paint();beep(300,40);return}
+    if(noteMode){if(val[sel])return;notes[sel]^=1<<v;draw(sel);beep(620,30);return}
+    val[sel]=val[sel]===v?0:v;notes[sel]=0;
+    if(val[sel]){const r=sel/n|0,c=sel%n;for(let k=0;k<n;k++)for(const j of [r*n+k,k*n+c])if(notes[j]>>v&1){notes[j]&=~(1<<v);draw(j)}}
+    draw(sel);restartAnim(cells[sel],'cs-pop');beep(val[sel]?560+v*30:300,50);paint();
+    const cg=P.cages[own[sel]];
+    if(val[sel]&&cg.cells.every(i=>val[i])&&!conflicts().has(sel))cg.cells.forEach(i=>restartAnim(cells[i],'cs-good'));
+    if(val.every(x=>x)){if(val.every((x,i)=>x===P.sol[i]))win();else st('The grid is full but something is off. Try ✔ Check.')}
+  }
+  function win(){
+    over=true;sel=-1;paint();const t=Math.max(1,Math.round((performance.now()-t0)/1000));clock.textContent='⏱️ '+fmt(t);
+    cells.forEach((e,i)=>{e.style.animationDelay=((i/n|0)+i%n)*35+'ms';restartAnim(e,'cs-wave')});
+    let msg=`Solved in ${fmt(t)}!`;
+    if(!hints){const rec=best(KEY,t,true);msg+=rec?' New best time.':` Best: ${fmt(store.get('best:'+KEY))}.`}else msg+=` (${hints} hint${hints>1?'s':''}, best times count without hints.)`;
+    st(msg);S.after(500,S.next);
+  }
+  function check(){
+    if(!P||over)return;let wrong=0,filled=0;
+    for(let i=0;i<N;i++)if(val[i]&&!fixed[i]){filled++;if(val[i]!==P.sol[i]){wrong++;restartAnim(cells[i],'cs-wrong')}}
+    if(!filled){st('Fill in some squares first.');return}
+    if(wrong){st(`${wrong} square${wrong>1?'s are':' is'} wrong.`);beep(200,160,'sawtooth')}else{st('All correct so far!');S.fx.toast('All correct!');beep(780,90)}
+  }
+  function hint(){
+    if(!P||over)return;
+    let i=sel>=0&&!fixed[sel]&&val[sel]!==P.sol[sel]?sel:-1;
+    if(i<0){const wrong=[...Array(N).keys()].filter(j=>val[j]&&val[j]!==P.sol[j]),empty=[...Array(N).keys()].filter(j=>!val[j]);const pool=wrong.length?wrong:empty;if(!pool.length)return;i=pool[rand(pool.length)]}
+    hints++;val[i]=P.sol[i];notes[i]=0;fixed[i]=true;sel=i;
+    const r=i/n|0,c=i%n,v=val[i];for(let k=0;k<n;k++)for(const j of [r*n+k,k*n+c])if(notes[j]>>v&1){notes[j]&=~(1<<v);draw(j)}
+    draw(i);restartAnim(cells[i],'cs-pop');paint();beep(880,70);st(`Hint ${hints}: that square is ${v}.`);
+    if(val.every((x,j)=>x===P.sol[j]))win();
+  }
+  S.on(hintB,'click',hint);S.on(checkB,'click',check);
+  S.on(noteB,'click',()=>{noteMode=!noteMode;noteB.classList.toggle('on',noteMode);noteB.setAttribute('aria-pressed',noteMode);restartAnim(noteB,'bump')});
+  const errPaint=()=>{errB.classList.toggle('on',showErr);errB.setAttribute('aria-pressed',showErr)};
+  S.on(errB,'click',()=>{showErr=!showErr;store.set('cs:err',showErr);errPaint();paint();restartAnim(errB,'bump')});errPaint();
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey||!P)return;const d=KEYDIR[e.key];
+    if(d&&e.key.startsWith('Arrow')){e.preventDefault();if(over)return;if(sel<0)sel=0;else{const r=sel/n|0,c=sel%n;sel=d==='up'?((r+n-1)%n)*n+c:d==='down'?((r+1)%n)*n+c:d==='left'?r*n+(c+n-1)%n:r*n+(c+1)%n}cells[sel].focus();paint()}
+    else if(/^[1-9]$/.test(e.key)&&+e.key<=n)input(+e.key);
+    else if(e.key==='Backspace'||e.key==='Delete'||e.key==='0')input(0);
+    else if(e.key==='n'||e.key==='N')noteB.click();else if(e.key==='h'||e.key==='H')hint();else if(e.key==='c'||e.key==='C')check();else if(e.key==='e'||e.key==='E')errB.click();
+  });
+  S.every(250,()=>{if(!P||over)return;const s=Math.floor((performance.now()-t0)/1000);if(s!==secs){secs=s;clock.textContent='⏱️ '+fmt(s)}});
+  /* build the puzzle a bounded step at a time so the page never freezes */
+  const maker=CS_maker(n);
+  const work=()=>{const p=maker.step();if(p){P=p;build();t0=performance.now();st(`Fill the grid with 1 to ${n}. No repeats in a row or column.`)}else S.after(0,work)};
+  S.after(30,work);
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -9267,13 +9787,16 @@ const GAMES=[
   {id:'poker',name:'Texas Hold\'em',icon:'♣️',blurb:'No-limit poker vs 1, 3 or 5 bots, or pass & play. Play chips only.',help:'Tap Fold, Check/Call or Raise. Drag the slider or tap Min, ½ Pot, Pot or All-in to size a raise. Keys: F fold, C call, R raise, A all-in, ← → change the amount. Chips are just for fun. Each player has 60 seconds per move; when time runs out you check if you can, otherwise fold.',mount:poker,levels:4,open:true,names:['vs 1','vs 3','vs 5','Pass & Play'],unit:'chips',isNew:true},
   {id:'mafia',name:'Mafia',icon:'🕵️',blurb:'The party game of lies for 4–12 friends, with the app as narrator.',help:'Pass the phone: each player privately sees their role, takes a secret night turn and (in Secret vote mode) votes in private. Tap \'Tap when ready\' on each Pass screen, Enter/Space on a keyboard. The narrator voice can be switched off with 🔊.',mount:mafia,run:true,names:['Pass & Play'],unit:'days',isNew:true},
   {id:'codewords',name:'Code Words',icon:'🗝️',blurb:'Team word-association spy game. Solo vs the clock or party play.',help:'Read the clue and number, then tap a card twice to guess it. Find all your agents first and avoid the assassin. Party: the spymaster types a clue; spymasters can see the key with Spymaster view or on their own phone with the game code.',mount:codewords,levels:3,open:true,names:['Solo','Party','Spymaster key'],unit:'sec',isNew:true},
-  {id:'thirty',name:'30 Seconds Rush',icon:'⏱️',blurb:'Describe 5 words in 30 seconds while your team shouts guesses.',help:'Set up 2 to 4 teams, then pass the phone to each team\'s describer. Tap Ready, describe the words without saying them, and tap each word your team guesses (tap again to undo). Classic gives 30 seconds for 5 words, Quick gives 20 seconds, Kids gives 3 easy words.',mount:thirty,levels:3,open:true,names:['Classic','Quick','Kids'],isNew:true}
+  {id:'thirty',name:'30 Seconds Rush',icon:'⏱️',blurb:'Describe 5 words in 30 seconds while your team shouts guesses.',help:'Set up 2 to 4 teams, then pass the phone to each team\'s describer. Tap Ready, describe the words without saying them, and tap each word your team guesses (tap again to undo). Classic gives 30 seconds for 5 words, Quick gives 20 seconds, Kids gives 3 easy words.',mount:thirty,levels:3,open:true,names:['Classic','Quick','Kids'],isNew:true},
+  {id:'mathsprint',name:'Math Sprint',icon:'➗',blurb:'Answer as many sums as you can in 60 seconds.',help:'Tap the number pad or type on your keyboard. The answer is checked as soon as you\'ve typed enough digits. Five right in a row adds 3 seconds and boosts your points. Pick the kind of sums at the top.',mount:mathsprint,levels:6,open:true,names:['Addition','Subtraction','Multiplication','Division','Mixed','Hard mix'],unit:'points',isNew:true},
+  {id:'make24',name:'Make 24',icon:'🧠',blurb:'Combine four numbers with + − × ÷ to make exactly 24.',help:'Tap a card, then an operation, then another card to combine them into a new card. Keep going until one card is left. Undo, Reset, Hint and Skip are under the operations. Keys: 1–5 pick cards, + − * / pick operations, U undo, R reset, H hint, S skip.',mount:make24,levels:4,open:true,names:['Easy','Medium','Hard','Target mode'],unit:'streak',isNew:true},
+  {id:'cagesums',name:'Cage Sums',icon:'➕',blurb:'Fill the grid so every cage adds, subtracts or multiplies right.',help:'Tap a square, then a number. No number may repeat in a row or column, and each outlined cage must make its target with its sign. ✏️ Notes pencils in options, ⚠️ shows conflicts, ✔ checks your work, 💡 fills a square. Keyboard: arrows, numbers, Backspace, N, C, H.',mount:cagesums,levels:5,open:true,names:['4×4','5×5','6×6','7×7','8×8'],unit:'seconds',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play'};
-const CATS={'mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
-const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['2p','2 Players','👥']];
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle'};
+const CATS={'jumpquest':'Arcade','sling':'Arcade','mathsprint':'Math','make24':'Math','cagesums':'Math','binary':'Coding','robocode':'Coding','gates':'Coding','mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
+const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
 const isFav=id=>favs().includes(id);
 
