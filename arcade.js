@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html", "jumpquest": "jump-quest.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html", "jumpquest": "jump-quest.html", "arrows": "arrows.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -11463,6 +11463,319 @@ function jumpquest(root,S){
   S.loop(dt=>{acc+=dt;let n=0;while(acc>=STEP&&n<5){update(STEP);acc-=STEP;n++}if(n>=5)acc=0;draw(dt)});
 }
 
+/* Arrows escape engine. Cells are y*cols+x. Directions 0 up, 1 right, 2 down, 3 left.
+   An arrow is {cells:[tail..head], d}: its head points along d (for 2+ cells, the last segment also points
+   along d). Tapped, it slides out like a snake: the head runs along its ray to the edge and the body follows its
+   own path, so it escapes exactly when every cell on the head's ray is empty.
+   Levels are built in reverse: each new arrow (removed before every arrow already placed) must have a clear ray
+   through the arrows already placed, so removing them newest-first always works. */
+const ARROWS_DX=[0,1,0,-1],ARROWS_DY=[-1,0,1,0];
+const ARROWS_E=(()=>{
+  const DX=ARROWS_DX,DY=ARROWS_DY;
+  function rng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+  /* board shape for a level: short side grows 5..14 cells, long side follows the screen's shape (ratio 1..1.75),
+     both shrunk if cells would get smaller than MIN css px. portrait: more rows than columns */
+  function dims(level,aw,ah,MIN=26,pad=.64){
+    const portrait=ah>=aw,lo=Math.min(aw,ah),hi=Math.max(aw,ah);
+    const ratio=Math.round(clamp(hi/Math.max(1,lo),1,1.75)*10)/10;
+    let s=Math.min(14,5+Math.floor((level-1)/3)),l=Math.round(s*ratio);
+    const ms=Math.max(4,Math.floor(lo/MIN-pad)),ml=Math.max(4,Math.floor(hi/MIN-pad));
+    if(s>ms||l>ml){const k=Math.min(ms/s,ml/l);s=Math.max(4,Math.floor(s*k));l=Math.max(s,Math.floor(l*k))}
+    return portrait?{cols:s,rows:l}:{cols:l,rows:s};
+  }
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+  /* first cell on the head's ray that is taken (not by arrow `skip`'s already-gone cells): {k,id} or null when clear */
+  function blocker(occ,cols,rows,a,id){
+    const h=a.cells[a.cells.length-1];let x=h%cols,y=(h/cols)|0;
+    for(let k=1;;k++){x+=DX[a.d];y+=DY[a.d];if(x<0||y<0||x>=cols||y>=rows)return null;const o=occ[y*cols+x];if(o>=0)return{k,id:o,cell:y*cols+x}}
+  }
+  function rayCells(a,cols,rows){const out=[],h=a.cells[a.cells.length-1];let x=h%cols,y=(h/cols)|0;for(;;){x+=DX[a.d];y+=DY[a.d];if(x<0||y<0||x>=cols||y>=rows)return out;out.push(y*cols+x)}}
+  function occOf(P,alive){const o=new Int16Array(P.cols*P.rows).fill(-1);P.arrows.forEach((a,i)=>{if(!alive||alive[i])for(const c of a.cells)o[c]=i});return o}
+  function build(level,cols,rows,R){
+    const N=cols*rows,occ=new Int16Array(N).fill(-1),A=[];
+    const snakeP=Math.min(.75,.15+level*.025),maxS=Math.min(Math.max(cols,rows)-1,3+Math.floor(level/5)),maxSn=Math.min(14,4+Math.floor(level/4));
+    const centre=Math.min(1.6,.3+level*.03); /* later levels place inner arrows first: longer chains of blockers */
+    /* clear[d][i]: the ray from i in direction d is empty */
+    const clear=[0,1,2,3].map(()=>new Uint8Array(N));
+    function sweep(){
+      for(let d=0;d<4;d++){const C=clear[d];
+        const ys=DY[d]>0?[...Array(rows).keys()].reverse():[...Array(rows).keys()],xs=DX[d]>0?[...Array(cols).keys()].reverse():[...Array(cols).keys()];
+        for(const y of ys)for(const x of xs){const nx=x+DX[d],ny=y+DY[d];C[y*cols+x]=(nx<0||ny<0||nx>=cols||ny>=rows)?1:(occ[ny*cols+nx]<0&&C[ny*cols+nx])?1:0}}
+    }
+    const free=(x,y)=>x>=0&&y>=0&&x<cols&&y<rows&&occ[y*cols+x]<0;
+    for(let guard=0;guard<N;guard++){
+      sweep();let best=-1,bs=-1e9;
+      for(let i=0;i<N;i++){if(occ[i]>=0)continue;const x=i%cols,y=(i/cols)|0;let ok=0;for(let d=0;d<4;d++)if(clear[d][i]&&free(x-DX[d],y-DY[d]))ok=1;if(!ok)continue;
+        const bd=Math.min(x,y,cols-1-x,rows-1-y)/Math.max(1,Math.min(cols,rows)/2);
+        let nb=0;for(let d=0;d<4;d++)if(free(x+DX[d],y+DY[d]))nb++;
+        const s=R()+centre*bd-(nb===0?.6:0);if(s>bs){bs=s;best=i}}
+      if(best<0)break;
+      const hx=best%cols,hy=(best/cols)|0;
+      /* direction: clear ray, prefer one with room behind the head */
+      const ds=[0,1,2,3].filter(d=>clear[d][best]);const room=ds.filter(d=>free(hx-DX[d],hy-DY[d]));
+      const pool=room.length?room:ds,d=pool[(R()*pool.length)|0];
+      const ray=new Set();{let x=hx,y=hy;for(;;){x+=DX[d];y+=DY[d];if(x<0||y<0||x>=cols||y>=rows)break;ray.add(y*cols+x)}}
+      const snake=R()<snakeP,len=snake?3+((R()*(maxSn-2))|0):2+((R()*(maxS-1))|0);
+      const body=[best];occ[best]=A.length;let cx=hx,cy=hy,bd=d;
+      for(let k=1;k<len;k++){
+        let opts;
+        if(k===1)opts=[d];
+        else if(!snake)opts=[bd];
+        else{const turn=R()<.45;opts=turn?shuffleR([(bd+1)%4,(bd+3)%4],R).concat([bd]):[bd].concat(shuffleR([(bd+1)%4,(bd+3)%4],R))}
+        let moved=false;
+        for(const o of opts){const nx=cx-DX[o],ny=cy-DY[o];if(!free(nx,ny)||ray.has(ny*cols+nx))continue;cx=nx;cy=ny;bd=o;body.push(ny*cols+nx);occ[ny*cols+nx]=A.length;moved=true;break}
+        if(!moved)break;
+      }
+      A.push({cells:body.reverse(),d,key:A.length});
+    }
+    fill(level,cols,rows,occ,A);
+    A.sort((a,b)=>a.key-b.key);
+    /* removal order is newest first */
+    const arrows=A.reverse().map(a=>({cells:a.cells,d:a.d}));
+    return{cols,rows,arrows};
+  }
+  function shuffleR(a,R){for(let i=a.length-1;i>0;i--){const j=(R()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+  /* leftover empty cells: grow an arrow's tail into them, or add a one-cell arrow at a safe point in the order */
+  function fill(level,cols,rows,occ,A){
+    const N=cols*rows;
+    for(let pass=0;pass<6;pass++){
+      let changed=false;
+      /* cov[i]: highest key of an arrow whose ray covers i (those are removed before... they need i empty) */
+      const cov=new Float64Array(N).fill(-Infinity);
+      for(const a of A)for(const c of rayCells(a,cols,rows))cov[c]=Math.max(cov[c],a.key);
+      const byId=new Map(A.map((a,i)=>[i,a]));
+      for(let i=0;i<N;i++){
+        if(occ[i]>=0)continue;const x=i%cols,y=(i/cols)|0;
+        /* tail growth */
+        let done=false;
+        for(let d=0;d<4&&!done;d++){
+          const nx=x+DX[d],ny=y+DY[d];if(nx<0||ny<0||nx>=cols||ny>=rows)continue;
+          const id=occ[ny*cols+nx];if(id<0)continue;const a=byId.get(id);
+          if(a.cells[0]!==ny*cols+nx||a.key<=cov[i])continue;
+          if(a.cells.length===1){const h=a.cells[0];if(i!==h-DX[a.d]-DY[a.d]*cols||x!==(h%cols)-DX[a.d])continue}
+          if(rayCells(a,cols,rows).includes(i))continue;
+          a.cells.unshift(i);occ[i]=id;done=changed=true;
+          for(const c of rayCells(a,cols,rows))cov[c]=Math.max(cov[c],a.key);
+        }
+        if(done)continue;
+        /* a new one-cell arrow placed right after the last arrow whose ray needs this cell */
+        const keys=A.map(a=>a.key).sort((p,q)=>p-q);const after=keys.find(k=>k>cov[i]);
+        const key=after==null?(keys.length?keys[keys.length-1]+1:0):(cov[i]===-Infinity?after-1:(cov[i]+after)/2);
+        const ds=[0,1,2,3].filter(d=>{let px=x,py=y;for(;;){px+=DX[d];py+=DY[d];if(px<0||py<0||px>=cols||py>=rows)return true;const o=occ[py*cols+px];if(o>=0&&byId.get(o).key<key)return false}});
+        if(!ds.length)continue;
+        /* prefer pointing along an empty neighbour so the next pass can lengthen it */
+        const pick=ds.find(d=>{const bx=x-DX[d],by=y-DY[d];return bx>=0&&by>=0&&bx<cols&&by<rows&&occ[by*cols+bx]<0})??ds[0];
+        const id=A.length;A.push({cells:[i],d:pick,key});byId.set(id,A[id]);occ[i]=id;changed=true;
+        for(const c of rayCells(A[id],cols,rows))cov[c]=Math.max(cov[c],key);
+      }
+      if(!changed)break;
+    }
+  }
+  function hash(a,b,c){let h=2166136261;for(const v of [a,b,c,0x5eed]){h^=v;h=Math.imul(h,16777619);h^=h>>>13}return h>>>0}
+  /* the level in portrait shape (cols<=rows), the same every time */
+  function gen(level,cols,rows){
+    const T=cols>rows;if(T)[cols,rows]=[rows,cols];
+    let best=null,bd=-1;
+    for(let t=0;t<10;t++){
+      const P=build(level,cols,rows,rng(hash(level,cols*100+rows,t)));
+      const filled=P.arrows.reduce((s,a)=>s+a.cells.length,0)/(cols*rows);
+      const ones=P.arrows.filter(a=>a.cells.length===1).length/P.arrows.length;
+      const sc=filled-ones*.5;if(sc>bd){bd=sc;best=P}
+      if(filled>=.97&&ones<.12)break;
+    }
+    return T?transpose(best):best;
+  }
+  function transpose(P){
+    const{cols,rows}=P,tc=i=>(i%cols)*rows+((i/cols)|0);
+    return{cols:rows,rows:cols,arrows:P.arrows.map(a=>({...a,cells:a.cells.map(tc),d:[3,2,1,0][a.d]}))};
+  }
+  /* rounds of "remove everything that can go": -1 if stuck */
+  function depth(P){
+    const alive=P.arrows.map(()=>true);let left=P.arrows.length,r=0;
+    while(left){const occ=occOf(P,alive);const go=P.arrows.map((a,i)=>alive[i]&&!blocker(occ,P.cols,P.rows,a,i));const n=go.filter(Boolean).length;if(!n)return-1;go.forEach((g,i)=>{if(g){alive[i]=false;left--}});r++}
+    return r;
+  }
+  return{dims,gen,blocker,rayCells,occOf,transpose,depth,rng};
+})();
+
+function arrowsEscape(root,S){
+  const E=ARROWS_E,DX=ARROWS_DX,DY=ARROWS_DY,COLS=['--c4','--c1','--c3','--c5','--c6','--c2'];
+  const level=Math.max(1,store.get('arrows:lv')||1);
+  const st=status(root,'Tap an arrow to slide it off the board. It only escapes if nothing is in its way. A blocked arrow costs a heart.');
+  if(S.show)S.show(level);
+  const hud=el('div','arw-hud',root,`<span class="arw-hp" aria-label="Hearts"></span><span class="arw-left"><i aria-hidden="true">➜</i> <b>0</b></span><button class="btn ghost arw-hint" aria-label="Hint">💡 <b>3</b></button>`);
+  const wrap=el('div','arw-wrap',root);const c=el('canvas','arw-cv',wrap);const x=c.getContext('2d');
+  const over=el('div','arw-over',wrap);over.hidden=true;
+  const fxp=sparks();
+  /* measure the free space for the board: #game minus the HUD and gaps */
+  function avail(){
+    const cs=getComputedStyle(root),pad=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+    const st0=$('.status',root),sh=st0&&getComputedStyle(st0).display!=='none'?st0.offsetHeight:0;
+    const W=root.clientWidth-(COMPACT.matches?2:8)-6,H=root.clientHeight-pad-6;
+    /* phone on its side: the engine moves the HUD beside the board */
+    if(COMPACT.matches&&W>H*1.25)return{w:W-Math.max(hud.offsetWidth,150)-20,h:H-10};
+    return{w:W,h:H-hud.offsetHeight-sh-(COMPACT.matches?40:60)};
+  }
+  const av=avail();const dm=E.dims(level,av.w,av.h);
+  let P=E.gen(level,dm.cols,dm.rows),cols=P.cols,rows=P.rows;
+  const total=P.arrows.length;
+  let alive=P.arrows.map(()=>true),occ=E.occOf(P,alive),hearts=3,hints=3,left=total,state='play',hintId=-1,hintT=0,shk=0,tm=0;
+  /* per-arrow animation: s = cells travelled along its track, mode 'out' | 'bump' */
+  let anim=P.arrows.map(()=>null),flash=P.arrows.map(()=>0);
+  const PAD=.32;
+  function setAR(){const ar=(cols+2*PAD)/(rows+2*PAD);wrap.dataset.ar=ar.toFixed(4);wrap.style.aspectRatio=ar.toFixed(4);wrap.dataset.max=Math.round((cols+2*PAD)*64)}
+  setAR();
+  function paintHud(){
+    $('.arw-hp',hud).innerHTML=[0,1,2].map(i=>`<i class="${i<hearts?'on':'off'}">${i<hearts?'❤️':'🤍'}</i>`).join('');
+    $('.arw-left b',hud).textContent=left;$('.arw-hint b',hud).textContent=hints;$('.arw-hint',hud).disabled=hints<=0||state!=='play';
+  }
+  paintHud();
+  c.arrowsGame={get P(){return P},get alive(){return alive},get hearts(){return hearts},get state(){return state},get hints(){return hints},level,
+    free:()=>P.arrows.map((a,i)=>alive[i]&&!E.blocker(occ,cols,rows,a,i)),
+    cellXY:i=>{const b=c.getBoundingClientRect(),u=b.width/(cols+2*PAD);return{x:b.left+(PAD+i%cols+.5)*u,y:b.top+(PAD+((i/cols)|0)+.5)*u}}};
+  /* ---- geometry: track = points from just behind the tail, through every cell, then far along the ray ---- */
+  const ctr=i=>[i%cols+.5,((i/cols)|0)+.5];
+  function track(a){
+    const p=a.cells.map(ctr);let td;
+    if(a.cells.length>1){const[a0,a1]=[p[0],p[1]];td=[a0[0]-a1[0],a0[1]-a1[1]]}else td=[-DX[a.d],-DY[a.d]];
+    const back=a.cells.length>1?.34:.3;const pts=[[p[0][0]+td[0]*back,p[0][1]+td[1]*back],...p];
+    const h=p[p.length-1],far=Math.max(cols,rows)+a.cells.length+4;pts.push([h[0]+DX[a.d]*far,h[1]+DY[a.d]*far]);
+    const len=back+a.cells.length-1;return{pts,len,back};
+  }
+  const TR=new Map();const trk=i=>{if(!TR.has(i))TR.set(i,track(P.arrows[i]));return TR.get(i)};
+  function at(pts,s){let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(acc+l>=s||k===pts.length-1){const t=l?(s-acc)/l:0;return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,k}}acc+=l}}
+  /* the points of the sub-path [s0,s1] */
+  function sub(pts,s0,s1){
+    const out=[],A=at(pts,s0),B=at(pts,s1);out.push([A.x,A.y]);
+    let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k];acc+=Math.hypot(b[0]-a[0],b[1]-a[1]);if(acc>s0+1e-6&&acc<s1-1e-6)out.push(b)}
+    out.push([B.x,B.y]);return out;
+  }
+  let K=pal(),dark=false;function theme(){K=pal();dark=getComputedStyle(document.documentElement).colorScheme==='dark'}theme();
+  const colOf=i=>K[COLS[i%6].slice(2)];
+  /* ---- input ---- */
+  function pick(e){
+    const b=c.getBoundingClientRect(),u=b.width/(cols+2*PAD);
+    const gx=(e.clientX-b.left)/u-PAD,gy=(e.clientY-b.top)/u-PAD;
+    const cx=Math.floor(gx),cy=Math.floor(gy);
+    if(cx>=0&&cy>=0&&cx<cols&&cy<rows&&occ[cy*cols+cx]>=0)return occ[cy*cols+cx];
+    /* forgiving: nearest arrow cell within 0.75 cell */
+    let best=-1,bd=.75;
+    for(let y=Math.max(0,cy-1);y<=Math.min(rows-1,cy+1);y++)for(let xx=Math.max(0,cx-1);xx<=Math.min(cols-1,cx+1);xx++){const o=occ[y*cols+xx];if(o<0)continue;const d=Math.hypot(xx+.5-gx,y+.5-gy);if(d<bd){bd=d;best=o}}
+    return best;
+  }
+  S.on(c,'click',e=>{if(state!=='play')return;const i=pick(e);if(i>=0)tap(i)});
+  function tap(i){
+    if(!alive[i]||state!=='play')return;
+    if(hintId===i)hintId=-1;
+    const b=E.blocker(occ,cols,rows,P.arrows[i],i);
+    if(!b){
+      alive[i]=false;for(const cc of P.arrows[i].cells)occ[cc]=-1;left--;
+      anim[i]={mode:'out',s:0,v:9,popped:false};beep(520+Math.min(400,(total-left)*6),60,'triangle');
+      if(hintId>=0&&!alive[hintId])hintId=-1;
+      paintHud();
+      if(left===0)win();
+    }else{
+      anim[i]={mode:'bump',s:0,v:16,peak:b.k-1+.32,back:false,by:b.id};flash[i]=1;
+      hearts--;shk=1;beep(150,180,'sawtooth');restartAnim($('.arw-hp',hud),'bump');
+      if(navigator.vibrate)try{navigator.vibrate(60)}catch(e){}
+      paintHud();
+      if(hearts<=0)lose();else st(hearts===1?'Careful, last heart!':'Blocked! '+hearts+' hearts left.');
+    }
+  }
+  function win(){
+    state='won';st(`Level ${level} cleared!`);
+    store.set('arrows:lv',level+1);best('arrows',level,false);
+    S.after(500,()=>{S.fx.confetti();beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,220));S.fx.banner(`Level ${level} cleared!`,`Up next: level ${level+1}`)});
+    S.after(2300,()=>S.restart());paintHud();
+  }
+  function lose(){
+    state='lost';st('Out of hearts. Try the level again!');beep(220,300,'square');S.after(250,()=>beep(160,400,'square'));
+    S.after(700,()=>{over.hidden=false;over.innerHTML=`<div class="arw-card"><b>Out of hearts</b><span>Level ${level} · ${left} arrow${left===1?'':'s'} left</span><button class="btn arw-retry">↻ Try again</button></div>`;$('.arw-retry',over).focus()});
+    paintHud();
+  }
+  S.on(over,'click',e=>{if(e.target.closest('.arw-retry'))S.restart()});
+  function hint(){
+    if(state!=='play')return;
+    if(hints<=0){S.fx.toast('No hints left');return}
+    const fr=P.arrows.map((a,i)=>alive[i]&&!(anim[i]&&anim[i].mode==='out')&&!E.blocker(occ,cols,rows,a,i));
+    /* point at the longest arrow that can go now */
+    let bi=-1,bs=-1;fr.forEach((f,i)=>{if(!f)return;let s=P.arrows[i].cells.length;if(s>bs){bs=s;bi=i}});
+    if(bi<0)return;hints--;hintId=bi;hintT=0;beep(990,80);paintHud();
+  }
+  S.on($('.arw-hint',hud),'click',hint);
+  S.on(window,'keydown',e=>{if(e.key==='h'||e.key==='H')hint();else if(e.key==='Enter'&&state==='lost'){e.preventDefault();S.restart()}});
+  /* ---- rotation: keep the puzzle and everything played, turn it over the diagonal to match the screen ---- */
+  let rzT=0;
+  function relayout(){
+    const a=avail();if(a.w<40||a.h<40)return;
+    const wantPortrait=a.h>=a.w,isPortrait=rows>=cols;
+    if(wantPortrait!==isPortrait&&cols!==rows){
+      P=E.transpose(P);cols=P.cols;rows=P.rows;occ=E.occOf(P,alive);TR.clear();
+      for(let i=0;i<anim.length;i++)if(anim[i]&&anim[i].mode==='bump')anim[i]=null;
+      setAR();if(typeof fit==='function')fit();
+    }
+  }
+  S.on(window,'resize',()=>{const k=++rzT;S.after(160,()=>{if(k===rzT)relayout()})});
+  /* ---- drawing ---- */
+  function draw(dt){
+    const dpr=Math.min(window.devicePixelRatio||1,3),W=c.clientWidth,H=c.clientHeight;if(!W||!H)return;
+    if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr)}
+    const u=W/(cols+2*PAD);x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+    x.save();
+    if(shk>0&&!REDUCED)x.translate(Math.sin(tm*70)*shk*4,Math.cos(tm*53)*shk*2);
+    x.translate(PAD*u,PAD*u);
+    /* empty-cell dots */
+    x.fillStyle=K.line;
+    for(let i=0;i<cols*rows;i++){if(occ[i]>=0)continue;const[cx,cy]=ctr(i);x.beginPath();x.arc(cx*u,cy*u,Math.max(1.5,u*.07),0,7);x.fill()}
+    const lw=Math.max(5,u*.26);x.lineCap='round';x.lineJoin='round';
+    for(let i=0;i<P.arrows.length;i++){
+      const an=anim[i];if(!alive[i]&&!an)continue;
+      const t=trk(i),s=an?an.s:0;
+      const pts=sub(t.pts,s,s+t.len);
+      let col=colOf(i);
+      const fl=flash[i];
+      const hl=i===hintId;
+      if(hl){x.strokeStyle=K.c2;x.globalAlpha=.35+.25*Math.sin(hintT*8);x.lineWidth=lw*2.3;line(pts,u);x.globalAlpha=1}
+      x.strokeStyle=col;x.fillStyle=col;x.lineWidth=lw;
+      line(pts,u);head(pts,u,lw,col);
+      if(fl>0){x.globalAlpha=fl;x.strokeStyle='#FF3B4E';x.fillStyle='#FF3B4E';line(pts,u);head(pts,u,lw,'#FF3B4E');x.globalAlpha=1}
+    }
+    x.restore();
+    x.save();x.translate(PAD*u,PAD*u);fxp.draw(x,dt);x.restore();
+  }
+  function line(pts,u){x.beginPath();x.moveTo(pts[0][0]*u,pts[0][1]*u);for(let k=1;k<pts.length;k++)x.lineTo(pts[k][0]*u,pts[k][1]*u);x.stroke()}
+  function head(pts,u,lw,col){
+    const n=pts.length,b=pts[n-1];let a=pts[n-2];for(let k=n-2;k>=0&&Math.hypot(b[0]-pts[k][0],b[1]-pts[k][1])<1e-4;k--)a=pts[k-1]||a;
+    let dx=b[0]-a[0],dy=b[1]-a[1];const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;
+    const tx=b[0]*u+dx*u*.1,ty=b[1]*u+dy*u*.1,L=u*.42,Wd=u*.3;
+    x.beginPath();x.moveTo(tx+dx*L*.55,ty+dy*L*.55);x.lineTo(tx-dx*L*.45-dy*Wd,ty-dy*L*.45+dx*Wd);x.lineTo(tx-dx*L*.45+dy*Wd,ty-dy*L*.45-dx*Wd);x.closePath();
+    x.fillStyle=col;x.lineWidth=lw*.45;x.strokeStyle=col;x.fill();x.stroke();
+  }
+  /* the arrow is fully off the board when its tail has passed the edge */
+  function offAt(i){const a=P.arrows[i],h=a.cells[a.cells.length-1];const hx=h%cols,hy=(h/cols)|0;const dist=[hy,cols-1-hx,rows-1-hy,hx][a.d]+.5+PAD;return trk(i).len+dist+.6}
+  function popAt(i){const a=P.arrows[i],h=a.cells[a.cells.length-1];const hx=h%cols,hy=(h/cols)|0;return[hy,cols-1-hx,rows-1-hy,hx][a.d]+.5}
+  function edgePt(i){const a=P.arrows[i],h=a.cells[a.cells.length-1];let ex=h%cols+.5,ey=((h/cols)|0)+.5;if(a.d===0)ey=0;if(a.d===2)ey=rows;if(a.d===1)ex=cols;if(a.d===3)ex=0;return[ex,ey]}
+  let themeT=0;
+  S.loop(dt=>{
+    tm+=dt;themeT+=dt;if(themeT>1){themeT=0;theme()}
+    hintT+=dt;shk=Math.max(0,shk-dt*3.2);
+    for(let i=0;i<anim.length;i++){
+      const an=anim[i];if(!an)continue;
+      if(an.mode==='out'){
+        an.v+=dt*60;an.s+=an.v*dt;const t=trk(i);
+        if(!an.popped&&an.s>=popAt(i)){an.popped=true;const[ex,ey]=edgePt(i);const W=c.clientWidth,u=W/(cols+2*PAD);fxp.add(ex*u,ey*u,colOf(i),14,200);beep(880,50,'sine')}
+        if(an.s>=offAt(i))anim[i]=null;
+      }else{
+        if(!an.back){an.s+=an.v*dt;if(an.s>=an.peak){an.s=an.peak;an.back=true;flash[an.by]=1}}
+        else{an.s-=an.v*.8*dt;if(an.s<=0)anim[i]=null}
+      }
+    }
+    for(let i=0;i<flash.length;i++)if(flash[i]>0)flash[i]=Math.max(0,flash[i]-dt*1.6);
+    draw(dt);
+  });
+  requestAnimationFrame(()=>{if(typeof fit==='function')fit()});
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -11526,11 +11839,12 @@ const GAMES=[
   {id:'robocode',name:'Robo Code',icon:'🤖',blurb:'Program a little robot with command tiles to light every lamp.',help:'Tap command tiles to add them to the selected program, tap a placed tile to remove it, or drag tiles around. Tap Main, F1 or F2 to choose where new tiles go. Press Run to watch, Step to go one move at a time. Keys: arrows add moves, J jump, Space light, 1/2 functions, Tab switches program, Backspace removes, Enter runs.',mount:robocode,levels:22,open:true,names:['First steps','Corner','Two lamps','Hop up','Stairs','Up & over','Functions','Square','Climbing','Snake','Recursion','Zig-zag','Round trip','Loop it','Loop a call','Landings','Rooms','Pink turns','Two colors','Spiral','Winding','Pyramid'],isNew:true},
   {id:'gates',name:'Logic Gates',icon:'⚡',blurb:'Wire AND, OR, NOT and XOR gates to light the lamp just right.',help:'Pick a gate below and tap an empty slot to place it. To wire, tap a dot on the right of a switch or gate, then a dot on the left of a gate or lamp. Tap a gate or wire to remove it. Tap the switches (or keys 1 to 4) to test; the truth table checks every combination.',mount:gates,levels:20,open:true,names:['AND','OR','NOT','XOR','NOT AND','Build NOR','A not B','Three-way','Alarm','Just NAND','Majority','Make XOR','Half adder','Equal?','Selector','4 NANDs','Compare','Full adder','2-bit equal','Sandbox'],isNew:true},
   {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true},
-  {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true}
+  {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true},
+  {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per level).',mount:arrowsEscape,run:true,unit:'levels',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game',jumpquest:'super mario style game, platformer, mario like game online, jump and run, retro platform game, side scroller, super mario bros, mario game, platform jumper, run and jump'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game',jumpquest:'super mario style game, platformer, mario like game online, jump and run, retro platform game, side scroller, super mario bros, mario game, platform jumper, run and jump',arrows:'arrows game, arrows puzzle, arrow escape, tap arrows puzzle, arrows out, unblock arrows, logic puzzle, arrows puzzle escape, snake arrows'};
 const CATS={'arrows':'Puzzle','jumpquest':'Arcade','sling':'Arcade','mathsprint':'Math','make24':'Math','cagesums':'Math','binary':'Coding','robocode':'Coding','gates':'Coding','mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['Coding','Coding','💻'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
