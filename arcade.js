@@ -1469,7 +1469,7 @@ function bubbles(root,S){
   function region(xp){let lo=0,hi=W;for(const w of walls){if(w.open)continue;if(w.x<=xp)lo=Math.max(lo,w.x);else hi=Math.min(hi,w.x)}return[lo,hi]}
   function award(p,pts){if(p)p.score+=pts}
   function pop(b,p){
-    balls.splice(balls.indexOf(b),1);award(p,50*(6-b.s));fx.add(b.x,b.y,ballCol,16+b.s*2,200);beep(820-b.s*70,70);
+    balls.splice(balls.indexOf(b),1);award(p,50*(6-b.s));fx.add(b.x,b.y,ballCol,5+b.s*2,105);beep(820-b.s*70,70);
     if(b.s>1)for(const d of[-1,1])balls.push({s:b.s-1,x:b.x+d*4,y:b.y,vx:d*SPD[b.s-1]*(levelDef(lvl).sp||1),vy:-Math.sqrt(2*G*BH[b.s-1])*.7});
     if(balls.length&&dropsLeft>0&&Math.random()<.13){
       dropsLeft--;const r=Math.random(),type=r<.07?'life':r<.27?'double':r<.45?'sticky':r<.6?'freeze':r<.74?'shield':r<.84?'dyn':'fruit';
