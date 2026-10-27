@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html", "jumpquest": "jump-quest.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -11069,6 +11069,400 @@ function slingsmash(root,S){
   });
 }
 
+/* Jump Quest: a side-scrolling platformer. Levels are written in a tiny command language (see JQ_parse).
+   Heights count tile rows up from the bottom of the 15-row map (0..14); the default ground is 2 rows high.
+   g a,b[,h] ground cols a..b · t a,b,h ceiling · r x,y,str tiles in a row from col x at height y ('.' skips)
+   o x,y,n coins · c x,y,h[,ch] column · p x,h[,base] 2-wide pillar · s x,n,dir[,base] stairs
+   w/k/f/j x[,y] walker / shell beetle / flyer / hopper · m x,y,w,h|v,range,speed moving platform
+   cp x checkpoint · end x goal pole · lava a,b
+   Tiles: # ground  X stone  b brick  ? coin block  p power block  u life block  m coin brick  E used block
+   P pillar  = one-way ledge  ^ spikes  o coin  L lava */
+const JQ_T=16,JQ_R=15,JQ_SOL='#XbpumEP?';
+const JQ_PH={run:125,acc:720,air:480,fric:950,jv:365,gUp:950,g:2000,fall:520,coy:.1,buf:.12,cut:150};
+const JQ_LV=[
+{n:'1-1',th:0,w:200,s:'g0,66 g69,118 g122,158 g161,199 o9,4,3 r14,5,? r19,5,b?bpb r21,9,? w24 p28,2 w33 p37,3 w42 w45 o46,6,3 p50,3 r56,5,b?b w61 o66,5,3 r72,5,??? w76 k81 r85,5,bbb r88,8,bb?bbbb o88,9,7 w92 cp100 r104,5,?.?.? r106,9,p w111 w125 o119,6,3 s126,4,1 s132,4,-1 o130,7,2 r138,5,bmb k146 w151 w156 s166,8,1 end180'},
+{n:'1-2',th:1,w:216,s:'g0,40 g44,70 g74,100 g105,140 g144,175 g179,215 o8,3,4 r14,5,?p? w20 w24 r27,4,==== r32,7,==== o32,8,4 k36 o41,5,3 r46,5,b?b?b w50 k55 w58 p62,3 p66,2 o71,6,3 r76,4,=== r81,7,=== o81,8,3 w80 w92 k96 r102,4,== o101,6,4 cp110 s114,3,1 s120,3,-1 w117 w125 w128 r131,5,bbmbb o141,6,3 k148 k152 r155,5,?u? p160,2 p164,3 p168,4 o176,7,3 s185,7,1 end198'},
+{n:'1-3',th:2,w:208,s:'g0,15 o16,6,4 r17,4,==== r23,6,==== m30,5,3,h,4,35 g41,52 f47,6 o44,3,6 r55,5,=== r60,7,=== r65,5,=== f62,10 o60,8,3 g70,79 cp73 w77 m81,3,3,v,4,30 r87,8,===== o87,9,5 m94,7,3,h,5,40 g104,113 w108 k111 r116,4,== r120,6,== r124,8,==== f126,11 m130,8,3,h,6,45 o131,10,4 r141,6,=== m146,4,3,v,4,32 g152,166 w156 w160 r169,5,=== m174,5,3,h,4,45 g184,207 s186,4,1 end194'},
+{n:'1-4',th:3,w:208,s:'t0,207,2 g0,30 r8,5,b?bb w14 w18 r22,2,^^ g33,60 j40 r44,5,bbbbpbbbb o44,6,9 r44,9,XXXXXXXXX k50 r56,2,^^^ g63,95 c66,2,3 c67,2,3 j72 j78 r80,2,^ r84,2,^ r88,5,?m? w90 w92 g98,140 cp100 r104,4,=== r109,6,=== r114,8,=== o114,9,3 r106,2,^^^^^^^^^^ j120 k126 r130,5,bupb w132 g144,175 r148,2,^^ j152 c156,2,2 c157,2,4 c158,2,6 o160,8,3 r162,2,^^^ g166,175 g179,207 s180,5,1 j178 end194'},
+{n:'2-1',th:4,w:220,s:'g0,30 r10,5,?p? j18 r24,2,^^ g35,62 w40 j46 r50,2,^^^ o49,6,5 m64,2,3,v,5,35 g70,90 c72,2,2 r78,6,=== j82 r86,2,^^ g95,120 cp97 k104 w108 r110,5,b?b?b j116 m122,3,3,h,5,40 g134,160 r138,2,^^^ c143,2,3 c144,2,3 j149 w153 r156,5,=== o156,6,3 g165,175 r170,2,^ m178,4,3,v,4,35 g186,219 j190 s194,6,1 end206'},
+{n:'2-2',th:5,w:224,s:'g0,34 r9,5,b?b r12,5,p w16 k22 p26,3 w30 g38,64 p40,2 p46,4 w44 k52 w56 r58,6,=== o58,7,3 p62,3 g68,90 k72 k76 r80,5,bbmbb r80,9,===== o80,10,5 w86 g94,124 cp96 p100,2 p106,4 p112,6 o112,9,2 w104 w109 k118 g128,150 r132,4,=== r137,7,=== j142 k146 g154,180 r158,5,?u?b w162 w165 k170 p176,3 g184,223 w188 k192 s196,6,1 end210'},
+{n:'2-3',th:6,w:216,s:'g0,14 m16,4,3,h,5,40 r28,6,=== f31,9 g35,44 w40 m46,3,3,v,5,32 r52,8,==== o52,9,4 m58,8,3,h,6,48 f64,11 g70,82 cp72 k78 m84,3,3,h,6,50 f90,8 r96,5,== m100,5,3,v,5,36 r106,10,=== o106,11,3 m111,8,3,h,6,50 f118,6 g122,136 w128 w132 m138,3,2,h,7,55 f143,9 r150,6,=== m155,6,3,v,4,34 r161,9,=== m166,8,3,h,7,58 f172,6 g178,215 j184 s190,6,1 end204'},
+{n:'2-4',th:7,w:232,s:'t0,231,1 g0,28 r9,5,b?p?b k18 r23,2,^^ lava29,33 g34,58 w38 j44 f50,7 r52,2,^^^ lava59,64 m60,3,3,h,3,40 g67,90 k72 c76,2,3,X c77,2,3,X j82 r86,2,^^ lava91,96 r93,5,== g97,124 cp99 r104,5,bbubb f110,8 w114 k118 r121,2,^^ lava125,140 m126,3,3,h,4,45 r135,6,=== f136,10 g141,170 j146 r150,2,^^^ c156,2,4,X r158,7,=== j162 w166 lava171,180 m172,4,3,v,4,34 r177,7,== g181,231 k186 s194,7,1 end212'}
+];
+const JQ_TH=[
+  {sky:['#5DBBFF','#CFF1FF'],far:'#9ED7B8',near:'#5FBF6A',top:'#5BCB4F',dirt:'#B26B3C',dirt2:'#8E522C',deco:'hills'},
+  {sky:['#FF9F6E','#FFE3B0'],far:'#E59C8A',near:'#7FBF5A',top:'#6CCB4A',dirt:'#A8643A',dirt2:'#7E4626',deco:'hills'},
+  {sky:['#7FD3FF','#F2FBFF'],far:'#FFFFFF',near:'#D8F1FF',top:'#7BD55C',dirt:'#C07A48',dirt2:'#9A5C33',deco:'sky'},
+  {sky:['#15122B','#2A2550'],far:'#231E45',near:'#2F2A5C',top:'#6E7BD8',dirt:'#4A4F8F',dirt2:'#363A73',deco:'cave'},
+  {sky:['#FF7A59','#FFD27A'],far:'#F2A65A',near:'#E9B86B',top:'#F4D58D',dirt:'#D9A35B',dirt2:'#B9843F',deco:'dunes'},
+  {sky:['#7ED9C3','#E2FFF0'],far:'#5FB89A',near:'#2F8F6A',top:'#44B05A',dirt:'#7A5235',dirt2:'#5C3C25',deco:'trees'},
+  {sky:['#0B1240','#2C3A7A'],far:'#26306A',near:'#1C2456',top:'#5AA8D8',dirt:'#3B4A8A',dirt2:'#2B3870',deco:'night'},
+  {sky:['#2A0E1A','#5A1E2A'],far:'#3E1622',near:'#4B1C28',top:'#9A9AAE',dirt:'#6A6A80',dirt2:'#50506A',deco:'fort'}
+];
+function JQ_parse(def){
+  const R=JQ_R,Wd=def.w,G=[...Array(R)].map(()=>Array(Wd).fill('.'));
+  const set=(c,y,ch)=>{if(c>=0&&c<Wd&&y>=0&&y<R)G[R-1-y][c]=ch};
+  const out={n:def.n,th:def.th,w:Wd,G,ents:[],plats:[],cps:[],goal:Wd-12,start:3};
+  for(const tok of def.s.trim().split(/\s+/)){
+    const m=tok.match(/^([a-z]+)(.*)$/),k=m[1],a=m[2].split(','),n=a.map(Number);
+    if(k==='g'){const h=a[2]?n[2]:2;for(let c=n[0];c<=n[1];c++)for(let y=0;y<h;y++)set(c,y,'#')}
+    else if(k==='t'){for(let c=n[0];c<=n[1];c++)for(let y=0;y<n[2];y++)set(c,R-1-y,'#')}
+    else if(k==='r')[...a[2]].forEach((ch,i)=>{if(ch!=='.')set(n[0]+i,n[1],ch)});
+    else if(k==='o'){for(let i=0;i<n[2];i++)set(n[0]+i,n[1],'o')}
+    else if(k==='c'){for(let y=0;y<n[2];y++)set(n[0],n[1]+y,a[3]||'X')}
+    else if(k==='p'){const b=a[2]?n[2]:2;for(let y=0;y<n[1];y++){set(n[0],b+y,'P');set(n[0]+1,b+y,'P')}}
+    else if(k==='s'){const b=a[3]?n[3]:2;for(let i=0;i<n[1];i++){const hh=n[2]>0?i+1:n[1]-i;for(let y=0;y<hh;y++)set(n[0]+i,b+y,'X')}}
+    else if(k==='w'||k==='k'||k==='f'||k==='j')out.ents.push({k,c:n[0],y:a[1]?n[1]:2});
+    else if(k==='m'){const T=JQ_T,rp=n[4]*T,spd=n[5]||40;out.plats.push({x0:n[0]*T,y0:(R-n[1])*T,w:n[2]*T,ax:a[3],rp,per:Math.PI*rp/spd})}
+    else if(k==='cp')out.cps.push(n[0]);
+    else if(k==='end')out.goal=n[0];
+    else if(k==='lava'){for(let c=n[0];c<=n[1];c++)set(c,0,'L')}
+  }
+  return out;
+}
+function JQ_tile(G,c,r){if(c<0||c>=G[0].length)return 'X';if(r<0||r>=JQ_R)return '.';return G[r][c]}
+/* standing surface (pixel y of the feet) for a column: the top of the lowest-reaching solid with room above */
+function JQ_floor(G,c){for(let r=1;r<JQ_R;r++){const ch=G[r][c];if((JQ_SOL.includes(ch)||ch==='=')&&!JQ_SOL.includes(G[r-1][c]))return r*JQ_T}return null}
+function JQ_platPos(p,t){const f=.5-.5*Math.cos(2*Math.PI*t/p.per);return p.ax==='h'?[p.x0+p.rp*f,p.y0]:[p.x0,p.y0-p.rp*f]}
+function JQ_platsAt(P,t,dt){for(const p of P){const[a,b]=JQ_platPos(p,t),[a0,b0]=JQ_platPos(p,t-dt);p.x=a;p.y=b;p.dx=a-a0;p.dy=b-b0}}
+/* move a box through the tile map (x then y). Sets b.wall (-1/0/1), b.ground, b.plat and b.head (bumped tile) */
+function JQ_move(b,G,dt,plats,nudge){
+  const T=JQ_T,sol=(c,r)=>JQ_SOL.includes(JQ_tile(G,c,r));
+  b.wall=0;b.head=null;
+  if(b.plat){b.x+=b.plat.dx;b.y=b.plat.y-b.h}
+  const ox=b.x-(b.plat?b.plat.dx:0);b.x+=b.vx*dt;const dx=b.x-ox;
+  const r0=Math.floor(b.y/T),r1=Math.floor((b.y+b.h-.01)/T);
+  if(dx>0){const c=Math.floor((b.x+b.w-.01)/T);for(let r=r0;r<=r1;r++)if(sol(c,r)){b.x=c*T-b.w;b.wall=1;break}}
+  else if(dx<0){const c=Math.floor(b.x/T);for(let r=r0;r<=r1;r++)if(sol(c,r)){b.x=(c+1)*T;b.wall=-1;break}}
+  const ob=b.y+b.h;b.y+=b.vy*dt;b.ground=false;b.plat=null;
+  let c0=Math.floor(b.x/T),c1=Math.floor((b.x+b.w-.01)/T);
+  if(b.vy>=0){
+    const nb=b.y+b.h,r=Math.floor((nb-.01)/T);
+    if(r>=0&&ob<=r*T+.5)for(let c=c0;c<=c1;c++){const ch=JQ_tile(G,c,r);if(JQ_SOL.includes(ch)||(ch==='='&&!b.drop)){b.y=r*T-b.h;b.vy=0;b.ground=true;break}}
+    if(!b.ground&&plats)for(const p of plats){if(b.x+b.w>p.x+1&&b.x<p.x+p.w-1&&ob<=Math.max(p.y,p.y-p.dy)+.5&&nb>=p.y){b.y=p.y-b.h;b.vy=0;b.ground=true;b.plat=p;break}}
+  }else{
+    const r=Math.floor(b.y/T);const hits=[];for(let c=c0;c<=c1;c++)if(sol(c,r))hits.push(c);
+    if(hits.length&&nudge&&hits.length===1&&c0!==c1){ // corner forgiveness: slide past a block edge clipped by <=5px
+      const c=hits[0];if(c===c0&&(c+1)*T-b.x<=5&&!sol(c0+1,r)&&!sol(c1+1,r1)){b.x=(c+1)*T;hits.length=0}
+      else if(c===c1&&b.x+b.w-c*T<=5&&!sol(c0-1,r)&&!sol(c0-1,r1)){b.x=c*T-b.w;hits.length=0}
+    }
+    if(hits.length){const cx=b.x+b.w/2;hits.sort((p,q)=>Math.abs(p*T+8-cx)-Math.abs(q*T+8-cx));b.y=(r+1)*T;b.vy=0;b.head={c:hits[0],r}}
+  }
+}
+/* hero control: acceleration/friction, coyote time, jump buffer, variable jump height. inp={dir,jump,press} */
+function JQ_ctl(h,inp,dt){
+  const P=JQ_PH,d=inp.dir,tgt=d*P.run;let a=h.ground?(d?P.acc:P.fric):(d?P.air:P.air*.25);
+  if(d&&h.vx&&Math.sign(h.vx)!==Math.sign(d))a*=1.9;
+  h.vx+=clamp(tgt-h.vx,-a*dt,a*dt);
+  h.coy=h.ground?P.coy:h.coy-dt;
+  if(inp.press)h.buf=P.buf;else h.buf-=dt;
+  let jumped=false;
+  if(h.buf>0&&h.coy>0){h.vy=-(P.jv+Math.abs(h.vx)*.15);h.coy=0;h.buf=0;h.jumping=true;h.ground=false;h.plat=null;jumped=true}
+  if(h.jumping&&!inp.jump){if(h.vy<-P.cut)h.vy=-P.cut;h.jumping=false}
+  if(h.vy>=0)h.jumping=false;
+  h.vy=Math.min(P.fall,h.vy+(h.jumping&&inp.jump&&h.vy<0?P.gUp:P.g)*dt);
+  return jumped;
+}
+function jumpquest(root,S){
+  const st=status(root,'Run and jump to the flag at the end of each level. Stomp enemies, bump blocks for coins and power-ups, and avoid pits and spikes.');
+  const T=JQ_T,STEP=1/60,LI=clamp(S.level-1,0,JQ_LV.length-1),L=JQ_parse(JQ_LV[LI]),TH=JQ_TH[L.th],G=L.G;
+  /* landscape/desktop: a 432x240 view of the whole 15-row map. Portrait phones: a canvas that fills the screen
+     (tall) with the world zoomed so about 9-11 tiles fit across; the camera follows vertically if rows don't fit */
+  let portrait,W,H,Z,VW,VH,OY=0,camY=0,c,x,pad=null;
+  const fx=sparks();const k=held(S);
+  const LW=L.w*T,goalX=L.goal*T+T/2,goalY=JQ_floor(G,L.goal)||13*T,hutX=(L.goal+6)*T;
+  const plats=L.plats.map(p=>({...p}));
+  let hero,ents,items=[],balls=[],pops=[],bumps=[],texts=[],state='play',stT=0,simT=0,acc=0,cam=0,t=0;
+  let score=0,coins=0,lives=3,cpIdx=-1,moveDir=0,btnHeld=false,press=false,flagY=0,stomps=0,deaths=0,combo=0,bannerT=2,lastJumpT=-9,won=false;
+  const multi={};
+  const clouds=[...Array(12)].map((_,i)=>({x:i*128+rand(80),y:12+rand(70)-(i%3===1?rand(90):0),s:.7+Math.random()*.6}));
+  const stars=[...Array(50)].map(()=>({x:rand(900),y:Math.random()*.8,s:Math.random()}));
+  function setup(){
+    portrait=COMPACT.matches&&innerHeight>innerWidth;W=portrait?288:432;H=portrait?tall(W,240,760,56):240;
+    Z=portrait?clamp(H/240,W/176,W/152):1;VW=W/Z;VH=H/Z;
+    if(c)c.remove();({c,x}=canvas(root,W,H));if(pad)pad.before(c);
+    if(window.__jqTest){ /* read-only state and helpers for automated tests only */
+      c.jq=()=>({x:hero.x,y:hero.y,w:hero.w,h:hero.h,vx:hero.vx,vy:hero.vy,ground:hero.ground,pow:hero.pow,state,lives,coins,score,stomps,deaths,cam,camY,Z,W,H,goal:L.goal,
+        balls:balls.length,items:items.length,grid:G.map(r=>r.join('')),ents:ents.filter(e=>e.on&&!e.dead).map(e=>({k:e.k,x:e.x,y:e.y,w:e.w,h:e.h,st:e.st}))});
+      c.jqDbg={give:kd=>grow(kd),bump:(cc,r)=>bumpTile(cc,r)};
+    }
+    if(VH>=JQ_R*T)camY=JQ_R*T-VH;else if(hero)camY=clamp(hero.y+hero.h/2-VH*.5,0,JQ_R*T-VH);OY=-camY;
+    if(hero)cam=clamp(cam,0,LW-VW);
+  }
+  setup();
+  function spawnHero(){
+    const col=cpIdx>=0?L.cps[cpIdx]:L.start,fy=JQ_floor(G,col)||13*T;
+    hero={x:col*T+2,y:fy-14,w:12,h:14,vx:0,vy:0,ground:true,coy:0,buf:0,jumping:false,face:1,pow:0,inv:0,walk:0,plat:null,fireT:0};
+    cam=clamp(hero.x-VW*.4,0,LW-VW);if(VH<JQ_R*T){camY=clamp(hero.y+hero.h/2-VH*.5,0,JQ_R*T-VH);OY=-camY}
+  }
+  function makeEnts(){
+    ents=L.ents.map(e=>{const b={k:e.k,x:e.c*T+1,w:14,h:e.k==='k'?16:e.k==='f'?12:14,vx:-30,vy:0,on:false,dead:0,t:Math.random()*6};
+      if(e.k==='f'){b.y0=(JQ_R-e.y)*T-6;b.y=b.y0;b.x0=b.x;b.vx=-25}else b.y=(JQ_R-e.y)*T-b.h;
+      if(e.k==='j'){b.vx=0;b.jt=.8+Math.random()}if(e.k==='k')b.vx=-26;b.st='walk';return b});
+  }
+  spawnHero();makeEnts();
+  S.show(S.level);
+  /* sound */
+  const snd={jump:()=>beep(560,70,'square'),coin:()=>{beep(1320,50,'square');S.after(55,()=>beep(1760,90,'square'))},stomp:()=>beep(260,90,'square'),
+    bump:()=>beep(170,60,'square'),brk:()=>beep(120,140,'sawtooth'),up:()=>[523,659,784,1047].forEach((f,i)=>S.after(i*70,()=>beep(f,90,'square'))),
+    hurt:()=>beep(220,220,'sawtooth'),die:()=>[494,392,330,247].forEach((f,i)=>S.after(i*110,()=>beep(f,120,'triangle'))),fire:()=>beep(900,45,'square'),kick:()=>beep(480,60,'square'),
+    life:()=>[784,988,1175,1568].forEach((f,i)=>S.after(i*80,()=>beep(f,110,'triangle'))),flag:()=>[523,659,784,1047,1319].forEach((f,i)=>S.after(i*90,()=>beep(f,140,'square')))};
+  const addScore=(v,px,py)=>{score+=v;if(px!=null)texts.push({x:px,y:py,s:String(v),t:.8})};
+  const addCoin=()=>{coins++;score+=200;if(coins%50===0){lives++;snd.life();S.fx.toast('1UP!','50 coins')}else snd.coin()};
+  /* input */
+  const jumpKey=e=>e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key==='z'||e.key==='Z';
+  const fireKey=e=>e.key==='x'||e.key==='X'||e.key==='Shift'||e.key==='k'||e.key==='K';
+  function jumpDown(){if(state==='over'){S.restart();return}press=true;lastJumpT=simT}
+  function fire(){
+    if(state!=='play')return;
+    if(simT-lastJumpT<.2&&hero.jumping&&hero.vy<0){hero.vy=0;hero.jumping=false} // swipe-down to throw cancels the little hop it began with
+    if(hero.pow<2||balls.length>=2||hero.fireT>0)return;hero.fireT=.18;
+    balls.push({x:hero.x+hero.w/2+hero.face*6,y:hero.y+6,vx:hero.face*240,vy:60,w:8,h:8,t:2.5});snd.fire();
+  }
+  S.on(window,'keydown',e=>{if(e.repeat)return;if(jumpKey(e)){e.preventDefault();jumpDown()}else if(fireKey(e)){fire()}});
+  pad=el('div','row bpad jq-pad',root);
+  controls(pad,S,{axis:'x',onMove:v=>{moveDir=v}});
+  const bw=el('div','fjbtns',pad);
+  const fb=el('button','btn ghost fjdown jq-fire',bw,'✦');fb.setAttribute('aria-label','Throw spark');
+  S.on(fb,'pointerdown',e=>{e.preventDefault();restartAnim(fb,'hit');fire()});
+  const jb=el('button','btn bfire',bw,'⤒');jb.setAttribute('aria-label','Jump');
+  S.on(jb,'pointerdown',e=>{e.preventDefault();restartAnim(jb,'hit');btnHeld=true;jumpDown()});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>S.on(jb,ev,()=>{btnHeld=false}));
+  S.after(90,()=>{const hh=document.querySelector('.tz-hint.tz-r');if(hh)hh.textContent='tap to jump · swipe ↓ to throw'});
+  /* rotating the phone (or resizing) rebuilds the canvas for the new shape and keeps the game going */
+  let recheck=false;
+  function onResize(){const p=COMPACT.matches&&innerHeight>innerWidth;
+    if(p!==portrait||(p&&Math.abs(tall(288,240,760,56)-H)>16)){setup();if(typeof fit==='function')requestAnimationFrame(fit);if(!recheck){recheck=true;S.after(350,()=>{recheck=false;onResize()})}}}
+  S.on(window,'resize',()=>S.after(120,onResize));
+  /* game logic */
+  const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+  function bumpTile(cx,r){
+    const ch=G[r][cx];bumps.push({c:cx,r,t:.15});
+    // enemies or items standing on the bumped tile get knocked
+    for(const e of ents)if(!e.dead&&e.on&&Math.abs(e.y+e.h-r*T)<3&&e.x+e.w>cx*T&&e.x<cx*T+T){killEnt(e,true);addScore(100,e.x,e.y)}
+    for(const it of items)if(Math.abs(it.y+it.h-r*T)<3&&it.x+it.w>cx*T&&it.x<cx*T+T){it.vy=-220;it.vx=(it.x+it.w/2<cx*T+8?-1:1)*Math.abs(it.vx||60)}
+    if(r>0&&G[r-1][cx]==='o'){G[r-1][cx]='.';addCoin();pops.push({x:cx*T+8,y:(r-1)*T,t:.5})}
+    if(ch==='?'){G[r][cx]='E';addCoin();pops.push({x:cx*T+8,y:r*T,t:.5})}
+    else if(ch==='m'){const n=(multi[cx+','+r]=(multi[cx+','+r]||0)+1);addCoin();pops.push({x:cx*T+8,y:r*T,t:.5});if(n>=8)G[r][cx]='E'}
+    else if(ch==='p'||ch==='u'){G[r][cx]='E';const kind=ch==='u'?'life':hero.pow>0?'spark':'grow';items.push({k:kind,x:cx*T+1,y:r*T,w:14,h:14,vx:0,vy:0,rise:16,dir:hero.x+hero.w/2<cx*T+8?1:-1});beep(660,80,'square');S.after(80,()=>beep(880,90,'square'))}
+    else if(ch==='b'){if(hero.pow>0){G[r][cx]='.';addScore(50);snd.brk();for(let i=0;i<4;i++)fx.add(cx*T+4+(i%2)*8,r*T+4+(i>>1)*8,TH.dirt,3,160);fx.add(cx*T+8,r*T+8,'#E07A3F',8,200);bumps.pop()}else snd.bump()}
+    else snd.bump();
+  }
+  function killEnt(e,flip){e.dead=flip?1.2:.5;e.flip=!!flip;e.vy=flip?-200:0;if(flip)fx.add(e.x+7,e.y+7,'#fff',6,120)}
+  function hurt(){
+    if(hero.inv>0||state!=='play')return;
+    if(hero.pow>0){hero.pow--;hero.inv=2;snd.hurt();S.shake();if(hero.pow===0){hero.y+=12;hero.h=14}st('Ouch! Careful now.');return}
+    die();
+  }
+  function die(){if(state!=='play')return;state='dead';stT=0;deaths++;hero.vy=-380;hero.vx=0;snd.die();S.shake();fx.add(hero.x+6,hero.y+8,'#FF5D73',20,220)}
+  function grow(kind){
+    if(kind==='life'){lives++;snd.life();S.fx.toast('1UP!');addScore(1000,hero.x,hero.y);return}
+    addScore(1000,hero.x,hero.y);snd.up();
+    if(kind==='grow'||hero.pow===0){if(hero.pow===0){hero.pow=1;hero.y-=12;hero.h=26}st('Powered up! You can take an extra hit.')}
+    else{if(hero.pow===0){hero.y-=12;hero.h=26}hero.pow=2;st('Spark power! Press X, or swipe down on the right side, to throw sparks.')}
+    fx.add(hero.x+6,hero.y+10,'#FFC53D',18,180);
+  }
+  function update(dt){
+    simT+=dt;JQ_platsAt(plats,simT,dt);
+    for(const b of bumps)b.t-=dt;bumps=bumps.filter(b=>b.t>0);
+    if(state==='dead'){stT+=dt;hero.vy+=1400*dt;hero.y+=hero.vy*dt;if(stT>1.8){lives--;if(lives>0){spawnHero();makeEnts();items=[];balls=[];state='play';st(`${lives} ${lives===1?'life':'lives'} left. Keep going!`)}else{state='over';stT=0;st('Game over. Jump or press ↻ to try again.')}}return}
+    if(state==='over'){stT+=dt;return}
+    const h=hero;
+    if(state==='goal'){
+      stT+=dt;
+      if(h.y+h.h<goalY){h.y=Math.min(goalY-h.h,h.y+150*dt);flagY=Math.min(T*9-20,flagY+150*dt)}
+      else if(stT>.5){h.vx=70;h.face=1;h.vy+=JQ_PH.g*dt;JQ_move(h,G,dt,plats);h.walk+=dt*12;if(h.x>hutX+T){h.x=hutX+T;h.vx=0;h.gone=true}}
+      if(stT>2.6&&!won){won=true;const nb=best('jumpquest'+L.n,score);st(`${L.n} cleared with ${score.toLocaleString()} points!${nb?' New best!':''}`);S.next()}
+      return;
+    }
+    h.inv=Math.max(0,h.inv-dt);h.fireT=Math.max(0,h.fireT-dt);
+    let dir=moveDir;if(k.ArrowLeft||k.a||k.A)dir=-1;if(k.ArrowRight||k.d||k.D)dir=1;
+    const jh=!!(btnHeld||k[' ']||k.ArrowUp||k.w||k.W||k.z||k.Z);
+    if(JQ_ctl(h,{dir,jump:jh,press},dt))snd.jump();press=false;
+    if(dir)h.face=dir>0?1:-1;h.walk=h.ground&&Math.abs(h.vx)>10?h.walk+dt*Math.abs(h.vx)*.12:0;
+    const pb=h.y+h.h;
+    JQ_move(h,G,dt,plats,true);if(h.wall)h.vx=0;
+    if(h.x<0)h.x=0;if(h.x>LW-h.w)h.x=LW-h.w;
+    if(h.ground)combo=0;
+    if(h.head){const{c:hc,r:hr}=h.head;bumpTile(hc,hr)}
+    // tiles touched: coins, spikes, lava
+    const c0=Math.floor(h.x/T),c1=Math.floor((h.x+h.w-.01)/T),r0=Math.floor(h.y/T),r1=Math.floor((h.y+h.h-.01)/T);
+    for(let cc=c0;cc<=c1;cc++)for(let rr=r0;rr<=r1;rr++){const ch=JQ_tile(G,cc,rr);
+      if(ch==='o'){G[rr][cc]='.';addCoin();fx.add(cc*T+8,rr*T+8,'#FFD23F',6,90)}
+      else if(ch==='^'&&h.y+h.h>rr*T+7){hurt();if(state==='play'){h.vy=-280;h.jumping=false}}
+      else if(ch==='L'&&h.y+h.h>rr*T+6)die()}
+    if(h.y>JQ_R*T+24)die();
+    // checkpoints and goal
+    L.cps.forEach((cp,i)=>{if(i>cpIdx&&h.x+h.w/2>cp*T){cpIdx=i;beep(880,80,'square');S.after(90,()=>beep(1175,120,'square'));S.fx.toast('Checkpoint!');st('Checkpoint reached.')}});
+    if(state==='play'&&h.x+h.w>=goalX-2){
+      state='goal';stT=0;h.vx=0;h.vy=0;h.x=goalX-h.w;const top=goalY-T*9,frac=clamp(1-(h.y+h.h-top)/(goalY-top),0,1);
+      const v=[100,400,800,2000,5000][Math.min(4,Math.floor(frac*5))];addScore(v,h.x,h.y);flagY=0;snd.flag();S.fx.confetti(60);
+    }
+    // camera
+    const tgt=clamp(h.x+h.w/2-VW*.42+h.face*VW*.06,0,LW-VW);cam+=(tgt-cam)*Math.min(1,dt*6);
+    if(VH>=JQ_R*T)camY=JQ_R*T-VH;else{const ty=clamp(h.y+h.h/2-VH*.5+(h.vy>150?VH*.12:0),-24,JQ_R*T-VH);camY+=(ty-camY)*Math.min(1,dt*5)}OY=-camY;
+    // enemies
+    for(const e of ents){
+      if(e.dead){e.dead-=dt;if(e.flip){e.vy+=1200*dt;e.y+=e.vy*dt}continue}
+      if(!e.on){if(e.x<cam+Math.max(VW,432)+40&&e.x>cam-60)e.on=true;else continue}
+      e.t+=dt;
+      if(e.k==='f'){e.x+=e.vx*dt;if(Math.abs(e.x-e.x0)>3*T){e.vx=-e.vx;e.x=e.x0+Math.sign(e.x-e.x0)*3*T}e.y=e.y0+Math.sin(e.t*2.2)*T*1.4}
+      else{
+        if(e.k==='j'){if(e.ground){e.vx=0;e.jt-=dt;if(e.jt<=0){e.vy=-340;e.vx=(hero.x<e.x?-1:1)*45;e.jt=1.1+Math.random()*.6}}}
+        if(e.k==='k'&&e.st==='shell'){e.vx=0;e.sht-=dt;if(e.sht<=0){e.st='walk';e.vx=hero.x<e.x?-26:26;e.h=16;e.y-=4}}
+        e.vy=Math.min(520,e.vy+1600*dt);const vx0=e.vx;JQ_move(e,G,dt,plats);
+        if(e.wall){e.vx=-vx0;if(e.st==='slide'){snd.bump()}}
+        if(e.y>JQ_R*T+30)e.dead=.01;
+      }
+      e.kick=Math.max(0,(e.kick||0)-dt);
+    }
+    // enemy vs enemy: sliding shells knock others out, walkers turn around
+    for(const a of ents){if(a.dead||!a.on)continue;for(const b of ents){if(b===a||b.dead||!b.on||!overlap(a,b))continue;
+      if(a.st==='slide'){if(b.st==='slide'){killEnt(a,true);killEnt(b,true)}else{killEnt(b,true);combo++;addScore(200*combo,b.x,b.y);snd.kick()}}
+      else if(a.k!=='f'&&b.k!=='f'&&b.st!=='slide'&&a.k!=='j'&&(a.x<b.x)===(a.vx>0)&&a.vx){a.vx=-a.vx}}}
+    // hero vs enemies
+    for(const e of ents){
+      if(e.dead||!e.on||!overlap(h,e))continue;
+      const stomp=h.vy>0&&pb<=e.y+6;
+      if(e.k==='k'&&e.st==='shell'){
+        e.st='slide';e.vx=(h.x+h.w/2<e.x+e.w/2?1:-1)*250;e.kick=.3;snd.kick();addScore(400,e.x,e.y);
+        if(stomp){h.vy=-260;h.jumping=jh}else{e.x=e.vx>0?h.x+h.w+1:h.x-e.w-1}continue;
+      }
+      if(stomp){
+        combo++;stomps++;h.vy=jh?-380:-260;h.jumping=jh;h.y=e.y-h.h;
+        if(e.k==='k'){if(e.st==='slide'){e.st='shell';e.vx=0;e.sht=6}else{e.st='shell';e.vx=0;e.sht=6;e.h=12;e.y+=4}}
+        else killEnt(e,e.k!=='w');
+        addScore(100*Math.min(8,combo),e.x,e.y);snd.stomp();fx.add(e.x+7,e.y+4,'#fff',8,120);continue;
+      }
+      if(e.st==='slide'&&e.kick>0)continue;
+      hurt();
+    }
+    // items
+    for(const it of items){
+      if(it.rise>0){it.rise-=dt*24;it.y-=dt*24;if(it.rise<=0)it.vx=it.k==='spark'?0:55*it.dir;continue}
+      if(it.k!=='spark'){it.vy=Math.min(520,it.vy+1400*dt);const v0=it.vx;JQ_move(it,G,dt,plats);if(it.wall)it.vx=-v0}
+      if(overlap(h,it)){it.got=true;grow(it.k)}
+      if(it.y>JQ_R*T+30)it.got=true;
+    }
+    items=items.filter(i=>!i.got);
+    // spark balls
+    for(const b of balls){
+      b.t-=dt;b.vy=Math.min(400,b.vy+1400*dt);const v0=b.vx;JQ_move(b,G,dt,plats);
+      if(b.ground)b.vy=-230;
+      if(b.wall||b.head){b.t=0;fx.add(b.x+4,b.y+4,'#FFC53D',6,110)}
+      for(const e of ents)if(!e.dead&&e.on&&overlap(b,e)){killEnt(e,true);addScore(200,e.x,e.y);b.t=0;snd.kick();fx.add(b.x+4,b.y+4,'#FF8A3D',8,140)}
+      if(b.x<cam-20||b.x>cam+VW+20)b.t=0;
+    }
+    balls=balls.filter(b=>b.t>0);
+  }
+  /* drawing */
+  const R=(X,Y,w,h2,col)=>{x.fillStyle=col;x.fillRect(X,Y,w,h2)};
+  function drawBG(){
+    const g=x.createLinearGradient(0,0,0,VH);g.addColorStop(0,TH.sky[0]);g.addColorStop(1,TH.sky[1]);x.fillStyle=g;x.fillRect(0,0,VW,VH);
+    const d=TH.deco,base=OY+13*T;
+    if(d==='night'||d==='cave'||d==='fort'){for(const s of stars){x.fillStyle=`rgba(255,255,255,${(d==='cave'?.15:.35)+.4*Math.abs(Math.sin(t*1.3+s.s*9))})`;x.fillRect((s.x-cam*.05+900)%900*VW/900,s.y*VH,1.5,1.5)}}
+    if(d==='night'){x.fillStyle='#FFF4C2';x.beginPath();x.arc(VW*.8,OY+50,18,0,7);x.fill();x.fillStyle=TH.sky[0];x.beginPath();x.arc(VW*.8+7,OY+45,15,0,7);x.fill()}
+    if(d==='dunes'||d==='hills'&&L.th===1){x.fillStyle='rgba(255,240,200,.85)';x.beginPath();x.arc(VW*.75,OY+70,26,0,7);x.fill()}
+    // far layer
+    const far=(f,amp,per,yy,col)=>{x.fillStyle=col;x.beginPath();x.moveTo(0,VH);const o=cam*f;for(let X=0;X<=VW+8;X+=8){const u=(X+o)/per;x.lineTo(X,yy-amp*(.55+.45*Math.sin(u*2*Math.PI)*Math.sin(u*.7+1.3)))}x.lineTo(VW,VH);x.fill()};
+    if(d==='cave'){x.fillStyle=TH.far;for(let i=-1;i<8;i++){const X=i*90-(cam*.3)%90;x.beginPath();x.moveTo(X,OY+24);x.lineTo(X+22,OY+24+40+(i&1)*30);x.lineTo(X+44,OY+24);x.fill();x.beginPath();x.moveTo(X+40,base);x.lineTo(X+60,base-50-(i&1)*20);x.lineTo(X+80,base);x.fill()}}
+    else if(d==='fort'){x.fillStyle=TH.far;for(let i=-1;i<8;i++){const X=i*110-(cam*.25)%110;x.fillRect(X,base-90,50,90);for(let j=0;j<4;j++)x.fillRect(X+j*14-2,base-100,8,10);x.fillStyle='rgba(255,140,60,.35)';x.fillRect(X+20,base-70,8,12);x.fillStyle=TH.far}far(.45,30,260,base+6,TH.near)}
+    else if(d==='sky'){far(.15,40,420,base+40,'rgba(255,255,255,.7)')}
+    else{far(.2,70,380,base-10,TH.far);
+      if(d==='trees'){for(let i=-1;i<12;i++){const X=i*48-(cam*.5)%48,hh=40+(i*37%3)*14;x.fillStyle=TH.near;x.fillRect(X+10,base-hh+20,6,hh);x.beginPath();x.arc(X+13,base-hh+16,16,0,7);x.fill()}}
+      else if(d==='dunes')far(.45,26,300,base+4,TH.near);
+      else far(.45,34,240,base+2,TH.near)}
+    // clouds
+    if(d!=='cave'&&d!=='fort'){x.fillStyle=d==='night'?'rgba(180,200,255,.18)':'rgba(255,255,255,.9)';for(const cl of clouds){const X=((cl.x-cam*.3)%1530+1530)%1530-120,Y=OY+cl.y;if(X>VW+60)continue;const s=cl.s;x.beginPath();x.arc(X,Y,12*s,0,7);x.arc(X+14*s,Y-7*s,15*s,0,7);x.arc(X+30*s,Y,12*s,0,7);x.rect(X,Y,30*s,12*s);x.fill()}}
+  }
+  function drawTile(ch,cx,r,X,Y){
+    switch(ch){
+      case '#':{const top=r===0||G[r-1][cx]!=='#';R(X,Y,T,T,TH.dirt);x.fillStyle=TH.dirt2;x.fillRect(X+((cx*7+r*3)%10)+1,Y+((cx*5+r*11)%9)+4,3,3);x.fillRect(X+((cx*3+r*7)%9)+3,Y+((cx*11+r*5)%7)+2,2,2);
+        if(top){R(X,Y,T,5,TH.top);x.fillStyle='rgba(255,255,255,.25)';x.fillRect(X,Y,T,1.5);x.fillStyle=TH.top;x.fillRect(X+3,Y+5,3,2);x.fillRect(X+10,Y+5,3,3)}
+        if(L.th===3||L.th===7){x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=1;x.strokeRect(X+.5,Y+.5,T-1,T-1)}break}
+      case 'X':R(X,Y,T,T,'#8C7C6E');R(X,Y,T,2,'#B3A495');R(X,Y,2,T,'#A6978A');R(X,Y+T-2,T,2,'#5E5248');R(X+T-2,Y,2,T,'#6B5E53');break;
+      case 'b':case 'm':R(X,Y,T,T,'#D9733B');x.fillStyle='#8A3A17';x.fillRect(X,Y+7,T,1.5);x.fillRect(X,Y+15,T,1);x.fillRect(X+7,Y,1.5,7);x.fillRect(X+3,Y+8,1.5,7);x.fillRect(X+12,Y+8,1.5,7);x.fillStyle='rgba(255,255,255,.3)';x.fillRect(X,Y,T,1.5);break;
+      case '?':case 'p':case 'u':{R(X,Y,T,T,'#7A4E12');R(X+1,Y+1,T-2,T-2,'#FFB72B');R(X+1,Y+1,T-2,2,'#FFE08A');const s=1+Math.sin(t*5+cx)*.18;x.fillStyle='#fff';x.save();x.translate(X+8,Y+8);x.scale(s,s);x.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?1.6:4.6;x.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}x.fill();x.restore();x.fillStyle='#7A4E12';[[3,3],[12,3],[3,12],[12,12]].forEach(([a,b])=>x.fillRect(X+a,Y+b,1.5,1.5));break}
+      case 'E':R(X,Y,T,T,'#6B4A2B');R(X+1,Y+1,T-2,T-2,'#9C7449');x.fillStyle='#6B4A2B';[[3,3],[12,3],[3,12],[12,12]].forEach(([a,b])=>x.fillRect(X+a,Y+b,1.5,1.5));break;
+      case 'P':{let n=0;while(JQ_tile(G,cx-1-n,r)==='P')n++;const left=n%2===0,top=r===0||G[r-1][cx]!=='P';
+        R(X,Y,T,T,'#1FA67A');x.fillStyle='rgba(255,255,255,.28)';if(left)x.fillRect(X+3,Y,3,T);x.fillStyle='rgba(0,0,0,.18)';if(!left)x.fillRect(X+10,Y,4,T);
+        if(left)R(X,Y,1.5,T,'#0B5B42');else R(X+T-1.5,Y,1.5,T,'#0B5B42');
+        if(top){R(X-(left?2:0),Y,T+2,7,'#27C08E');R(X-(left?2:0),Y,T+2,1.5,'#0B5B42');R(X-(left?2:0),Y+6,T+2,1.5,'#0B5B42');if(left)R(X-2,Y,1.5,7,'#0B5B42');else R(X+T,Y,1.5,7,'#0B5B42')}break}
+      case '=':R(X,Y,T,6,'#A86B3A');R(X,Y,T,1.5,'#D69A5E');R(X,Y+5,T,1,'#6E4220');if(cx%2===0)R(X+7,Y+6,2,4,'#6E4220');break;
+      case '^':x.fillStyle='#C8CCD8';for(let i=0;i<3;i++){x.beginPath();x.moveTo(X+i*5.33,Y+T);x.lineTo(X+i*5.33+2.66,Y+6);x.lineTo(X+i*5.33+5.33,Y+T);x.fill()}x.fillStyle='#fff';for(let i=0;i<3;i++)x.fillRect(X+i*5.33+2.2,Y+7,1,4);break;
+      case 'L':{const g=x.createLinearGradient(0,Y,0,Y+T);g.addColorStop(0,'#FFD23F');g.addColorStop(1,'#FF4D2E');x.fillStyle=g;x.beginPath();x.moveTo(X,Y+T);for(let i=0;i<=4;i++)x.lineTo(X+i*4,Y+3+Math.sin(t*4+cx*1.7+i)*2);x.lineTo(X+T,Y+T);x.fill();break}
+      case 'o':{const s=Math.abs(Math.cos(t*4+cx*.6));x.fillStyle='#B87A00';x.beginPath();x.ellipse(X+8,Y+8,5*s+1,6.5,0,0,7);x.fill();x.fillStyle='#FFD23F';x.beginPath();x.ellipse(X+8,Y+8,4*s+.6,5.5,0,0,7);x.fill();x.fillStyle='rgba(255,255,255,.7)';x.fillRect(X+7-2*s,Y+4,1.3,4);break}
+    }
+  }
+  function drawHero(){
+    const h=hero;if(h.gone)return;if(state==='play'&&h.inv>0&&Math.floor(t*14)%2)return;
+    const big=h.h>20,f=h.face,X=Math.round(h.x),Y=Math.round(h.y),air=state==='dead'||!h.ground,sw=h.walk?Math.sin(h.walk):0,spark=h.pow===2;
+    const hood=spark?'#FF5D3D':'#22B573',tunic=spark?'#FFF3D6':'#FF9A3C',boot='#5B3A29',skin='#FFD9B0';
+    const ly=Y+h.h-4,l1=air?-2:Math.round(sw*3);
+    R(X+1+l1,ly,5,4,boot);R(X+6-l1,ly,5,4,boot);
+    const bodyTop=big?Y+12:Y+7,bodyH=ly-bodyTop+1;
+    R(X+1,bodyTop,10,bodyH,tunic);R(X+1,bodyTop+bodyH-3,10,2,'#5B3A29');
+    if(big){R(X+1,bodyTop,10,2,'rgba(0,0,0,.12)');x.fillStyle=spark?'#FFB02E':'#FFD34D';x.beginPath();x.arc(X+6,bodyTop+6,2,0,7);x.fill()}
+    const ax=f>0?X+(air?10:9+Math.round(sw)):X+(air?-1:0-Math.round(sw));R(ax,bodyTop+(air?-1:2),3,big?7:4,skin);
+    const hy=big?Y+1:Y;R(X,hy+1,12,8,skin);
+    x.fillStyle=hood;x.beginPath();x.moveTo(X-1,hy+5);x.quadraticCurveTo(X+6,hy-5,X+13,hy+5);x.lineTo(X+13,hy+3);x.lineTo(X-1,hy+3);x.fill();R(X-1,hy+1,14,3,hood);
+    if(f>0)R(X-1,hy+3,3,5,hood);else R(X+10,hy+3,3,5,hood);
+    x.fillStyle='#4CD964';x.beginPath();x.ellipse(X+6-f*2,hy-2,2.2,4,f*.7,0,7);x.fill();
+    const ex=f>0?X+6:X+2;R(ex,hy+4,2.4,3,'#1E1F3A');R(ex+3.4,hy+4,2.4,3,'#1E1F3A');R(ex+.6,hy+4.4,1,1,'#fff');R(ex+4,hy+4.4,1,1,'#fff');
+    if(state==='dead'){R(ex-.5,hy+4,6.5,3,skin);x.strokeStyle='#1E1F3A';x.lineWidth=1;x.beginPath();x.moveTo(ex,hy+4);x.lineTo(ex+2.4,hy+7);x.moveTo(ex+2.4,hy+4);x.lineTo(ex,hy+7);x.moveTo(ex+3.4,hy+4);x.lineTo(ex+5.8,hy+7);x.moveTo(ex+5.8,hy+4);x.lineTo(ex+3.4,hy+7);x.stroke()}
+  }
+  function drawEnt(e){
+    const X=Math.round(e.x),Y=Math.round(e.y);
+    if(e.dead&&!e.flip){R(X,Y+e.h-5,14,5,'#7B3FA0');R(X+3,Y+e.h-4,2,1.5,'#fff');R(X+9,Y+e.h-4,2,1.5,'#fff');return}
+    x.save();if(e.flip){x.translate(X+7,Y+e.h/2);x.scale(1,-1);x.translate(-X-7,-Y-e.h/2)}
+    const lf=e.vx<0?-1:1,st2=Math.floor(e.t*8)%2;
+    if(e.k==='w'){x.fillStyle='#9B4FCB';x.beginPath();x.moveTo(X,Y+14);x.quadraticCurveTo(X,Y,X+7,Y);x.quadraticCurveTo(X+14,Y,X+14,Y+14);x.fill();R(X+1+st2,Y+12,4,2,'#4A1F66');R(X+9-st2,Y+12,4,2,'#4A1F66');
+      R(X+3,Y+5,3,4,'#fff');R(X+8,Y+5,3,4,'#fff');R(X+(lf>0?4.5:3),Y+6.5,1.5,2,'#1E1F3A');R(X+(lf>0?9.5:8),Y+6.5,1.5,2,'#1E1F3A');R(X+3,Y+3.5,3,1.3,'#4A1F66');R(X+8,Y+3.5,3,1.3,'#4A1F66')}
+    else if(e.k==='k'){
+      if(e.st==='walk'){R(X+(lf>0?10:0),Y+4,4,6,'#FFD34D');R(X+(lf>0?11:1),Y+5,1.5,1.5,'#1E1F3A');R(X+2+st2,Y+14,3,2,'#3A2A10');R(X+9-st2,Y+14,3,2,'#3A2A10')}
+      const sy=e.st==='walk'?Y:Y-1;x.fillStyle='#2E7DD8';x.beginPath();x.ellipse(X+7,sy+10,7,6.5,0,Math.PI,0);x.fill();R(X,sy+10,14,3,'#1D4F91');
+      x.fillStyle='#8FC7FF';x.beginPath();x.arc(X+5,sy+7,1.8,0,7);x.arc(X+9,sy+6,1.3,0,7);x.fill();
+      if(e.st!=='walk'&&e.sht<1.5&&st2)R(X+5,sy+12,4,2,'#FFD34D')}
+    else if(e.k==='f'){const fl=Math.sin(e.t*18)*4;R(X+1,Y+2,12,9,'#FFC53D');R(X+4,Y+2,2,9,'#1E1F3A');R(X+8,Y+2,2,9,'#1E1F3A');x.fillStyle='rgba(255,255,255,.8)';x.beginPath();x.ellipse(X+5,Y-1-fl*.3,4,2.5+fl*.2,-.4,0,7);x.ellipse(X+10,Y-1-fl*.3,4,2.5+fl*.2,.4,0,7);x.fill();R(X+(lf>0?11:1),Y+4,2,2,'#1E1F3A');R(X+(lf>0?-1:13),Y+7,2,1,'#1E1F3A')}
+    else if(e.k==='j'){const sq=e.ground?2:0;x.fillStyle='#FF6FA0';x.beginPath();x.ellipse(X+7,Y+9+sq*.5,7,5-sq*.5+(e.ground?0:1),0,0,7);x.fill();R(X+1,Y+12,4,2,'#C2416E');R(X+9,Y+12,4,2,'#C2416E');
+      x.fillStyle='#fff';x.beginPath();x.arc(X+4,Y+4+sq,2.6,0,7);x.arc(X+10,Y+4+sq,2.6,0,7);x.fill();R(X+3.5+lf*.6,Y+3.5+sq,1.5,1.5,'#1E1F3A');R(X+9.5+lf*.6,Y+3.5+sq,1.5,1.5,'#1E1F3A')}
+    x.restore();
+  }
+  function drawItem(it){
+    const X=Math.round(it.x),Y=Math.round(it.y);
+    if(it.k==='grow'){x.fillStyle='#E8283C';x.beginPath();x.arc(X+7,Y+8,6.5,0,7);x.fill();x.fillStyle='rgba(255,255,255,.6)';x.beginPath();x.arc(X+5,Y+6,1.8,0,7);x.fill();x.fillStyle='#2FA84F';x.beginPath();x.ellipse(X+9,Y+1.5,4,2,-.5,0,7);x.fill();R(X+6.5,Y,1.5,3,'#6B4A2B')}
+    else if(it.k==='life'){x.fillStyle='#2FC46A';x.beginPath();x.moveTo(X+7,Y+14);x.bezierCurveTo(X-4,Y+6,X+2,Y-2,X+7,Y+4);x.bezierCurveTo(X+12,Y-2,X+18,Y+6,X+7,Y+14);x.fill();x.fillStyle='#fff';x.font=`6px ${DISPLAY}`;x.textAlign='center';x.fillText('1UP',X+7,Y+9)}
+    else{const a=t*3;x.fillStyle='#2FA84F';R(X+6,Y+8,2,6,'#2FA84F');for(let i=0;i<5;i++){x.fillStyle=i%2?'#FFC53D':'#FF7A2E';x.beginPath();x.arc(X+7+Math.cos(a+i*1.26)*4,Y+6+Math.sin(a+i*1.26)*4,3,0,7);x.fill()}x.fillStyle='#fff';x.beginPath();x.arc(X+7,Y+6,2.4,0,7);x.fill()}
+  }
+  function draw(dt){
+    t+=dt;x.save();x.scale(Z,Z);drawBG();x.translate(-Math.round(cam*Z)/Z,Math.round(OY*Z)/Z);
+    const ca=Math.max(0,Math.floor(cam/T)-1),cb=Math.min(L.w-1,Math.floor((cam+VW)/T)+1);
+    // goal pole, hut, checkpoints (behind tiles)
+    if(goalX>cam-40&&goalX<cam+VW+120){const top=goalY-T*9;R(goalX-1.5,top,3,goalY-top,'#E9EEF5');x.fillStyle='#FFC53D';x.beginPath();x.arc(goalX,top-3,4,0,7);x.fill();
+      const fy=top+4+flagY;x.fillStyle='#FF5D73';x.beginPath();x.moveTo(goalX-2,fy);x.lineTo(goalX-24,fy+7);x.lineTo(goalX-2,fy+14);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(goalX-10,fy+7,2.5,0,7);x.fill();
+      const hy=JQ_floor(G,L.goal+6)||goalY;R(hutX,hy-40,48,40,'#C98B5A');x.fillStyle='#8A3A17';x.beginPath();x.moveTo(hutX-6,hy-38);x.lineTo(hutX+24,hy-60);x.lineTo(hutX+54,hy-38);x.fill();R(hutX+17,hy-22,14,22,'#3B2414');R(hutX+5,hy-32,9,8,'#FFE08A');R(hutX+34,hy-32,9,8,'#FFE08A')}
+    L.cps.forEach((cp,i)=>{const px=cp*T+8,fy=JQ_floor(G,cp)||13*T;if(px<cam-20||px>cam+VW+20)return;R(px-1,fy-30,2.5,30,'#E9EEF5');x.fillStyle=i<=cpIdx?'#2FC46A':'#9AA0B4';x.beginPath();x.moveTo(px+1,fy-30);x.lineTo(px+15,fy-25);x.lineTo(px+1,fy-20);x.fill()});
+    if(G[0][0]==='#'&&OY>0)for(let r=-Math.ceil(OY/T);r<0;r++)for(let cx=ca;cx<=cb;cx++)drawTile('#',cx,1,cx*T,r*T); // rock above a cave or fortress ceiling
+    for(let r=0;r<JQ_R;r++)for(let cx=ca;cx<=cb;cx++){const ch=G[r][cx];if(ch==='.')continue;const bp=bumps.find(b=>b.c===cx&&b.r===r);drawTile(ch,cx,r,cx*T,r*T-(bp?Math.sin(bp.t/.15*Math.PI)*5:0))}
+    for(const p of plats){if(p.x>cam+VW||p.x+p.w<cam)continue;R(p.x,p.y,p.w,7,'#7D8BA6');R(p.x,p.y,p.w,2,'#C9D3E6');R(p.x,p.y+6,p.w,1.5,'#4A556E');for(let i=8;i<p.w;i+=16)R(p.x+i-1,p.y+2.5,2,2,'#4A556E')}
+    for(const it of items)drawItem(it);
+    for(const e of ents)if(e.on&&(!e.dead||e.dead>0))drawEnt(e);
+    for(const b of balls){x.fillStyle='#FF8A3D';x.beginPath();x.arc(b.x+4,b.y+4,4,0,7);x.fill();x.fillStyle='#FFF3B0';x.beginPath();x.arc(b.x+4,b.y+4,2,0,7);x.fill()}
+    for(const p of pops){p.t-=dt;const k2=1-p.t/.5;x.fillStyle='#FFD23F';x.beginPath();x.ellipse(p.x,p.y-8-k2*26,4*Math.abs(Math.cos(k2*12)),5.5,0,0,7);x.fill()}pops=pops.filter(p=>p.t>0);
+    drawHero();fx.draw(x,dt);
+    x.font=`8px ${DISPLAY}`;x.textAlign='center';for(const s of texts){s.t-=dt;s.y-=dt*30;x.fillStyle='#fff';x.strokeStyle='rgba(0,0,0,.5)';x.lineWidth=2;x.strokeText(s.s,s.x+7,s.y);x.fillText(s.s,s.x+7,s.y)}texts=texts.filter(s=>s.t>0);
+    x.restore();
+    // HUD
+    const hy=4;x.fillStyle='rgba(20,18,50,.55)';rr(x,4,hy,W-8,20,8);x.fill();x.font=`10px ${DISPLAY}`;x.textBaseline='middle';
+    x.textAlign='left';x.fillStyle='#fff';x.fillText(L.n,12,hy+10.5);x.fillStyle='#FFD23F';x.fillText('● '+coins,48,hy+10.5);
+    x.textAlign='center';x.fillStyle='#fff';x.fillText(score.toLocaleString(),W/2+16,hy+10.5);
+    x.textAlign='right';x.fillStyle='#FF5D73';x.fillText('♥ '+Math.max(0,lives),W-12,hy+10.5);x.textBaseline='alphabetic';
+    if(bannerT>0&&state==='play'){bannerT-=dt;x.globalAlpha=Math.min(1,bannerT*2);x.fillStyle='rgba(20,18,50,.55)';x.fillRect(0,H*.3-22,W,44);x.fillStyle='#fff';x.textAlign='center';x.font=`20px ${DISPLAY}`;x.fillText('WORLD '+L.n,W/2,H*.3+7);x.globalAlpha=1}
+    if(state==='over'){x.fillStyle='rgba(10,10,30,.6)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font=`26px ${DISPLAY}`;x.fillText('GAME OVER',W/2,H/2-6);x.font=`10px ${DISPLAY}`;x.fillText('Jump to try again',W/2,H/2+18)}
+  }
+  S.loop(dt=>{acc+=dt;let n=0;while(acc>=STEP&&n<5){update(STEP);acc-=STEP;n++}if(n>=5)acc=0;draw(dt)});
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -11131,11 +11525,12 @@ const GAMES=[
   {id:'binary',name:'Binary Bits',icon:'💡',blurb:'Flip the bits to make the number, then read binary back. Beat the clock.',help:'Tap the bit cards (or keys 1 to 8) to switch them on until they add up to the number. When bits are shown, type the number on the pad or keyboard and press ✓ or Enter. 3 misses and the game is over.',mount:binary,levels:4,open:true,names:['4 bits','8 bits','Both ways','Hex'],unit:'points',isNew:true},
   {id:'robocode',name:'Robo Code',icon:'🤖',blurb:'Program a little robot with command tiles to light every lamp.',help:'Tap command tiles to add them to the selected program, tap a placed tile to remove it, or drag tiles around. Tap Main, F1 or F2 to choose where new tiles go. Press Run to watch, Step to go one move at a time. Keys: arrows add moves, J jump, Space light, 1/2 functions, Tab switches program, Backspace removes, Enter runs.',mount:robocode,levels:22,open:true,names:['First steps','Corner','Two lamps','Hop up','Stairs','Up & over','Functions','Square','Climbing','Snake','Recursion','Zig-zag','Round trip','Loop it','Loop a call','Landings','Rooms','Pink turns','Two colors','Spiral','Winding','Pyramid'],isNew:true},
   {id:'gates',name:'Logic Gates',icon:'⚡',blurb:'Wire AND, OR, NOT and XOR gates to light the lamp just right.',help:'Pick a gate below and tap an empty slot to place it. To wire, tap a dot on the right of a switch or gate, then a dot on the left of a gate or lamp. Tap a gate or wire to remove it. Tap the switches (or keys 1 to 4) to test; the truth table checks every combination.',mount:gates,levels:20,open:true,names:['AND','OR','NOT','XOR','NOT AND','Build NOR','A not B','Three-way','Alarm','Just NAND','Majority','Make XOR','Half adder','Equal?','Selector','4 NANDs','Compare','Full adder','2-bit equal','Sandbox'],isNew:true},
-  {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true}
+  {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true},
+  {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game',jumpquest:'super mario style game, platformer, mario like game online, jump and run, retro platform game, side scroller, super mario bros, mario game, platform jumper, run and jump'};
 const CATS={'jumpquest':'Arcade','sling':'Arcade','mathsprint':'Math','make24':'Math','cagesums':'Math','binary':'Coding','robocode':'Coding','gates':'Coding','mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['Coding','Coding','💻'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];

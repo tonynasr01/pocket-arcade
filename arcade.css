@@ -2058,3 +2058,6 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 /* Sling Smash */
 .cv.sl-cv{border-radius:16px;box-shadow:0 6px 0 var(--edge);background:var(--board);cursor:grab}
 .cv.sl-cv:active{cursor:grabbing}
+/* Jump Quest */
+.jq-fire{font-size:1.5rem;color:var(--c6)}
+.jq-pad .fjbtns .bfire{background:var(--c3)}
