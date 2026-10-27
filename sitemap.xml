@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://pocket-arcade.games/</loc><lastmod>2026-10-26</lastmod><priority>1.0</priority></url>
+  <url><loc>https://pocket-arcade.games/</loc><lastmod>2026-10-27</lastmod><priority>1.0</priority></url>
   <url><loc>https://pocket-arcade.games/2048.html</loc><lastmod>2026-10-11</lastmod><priority>0.8</priority></url>
   <url><loc>https://pocket-arcade.games/blob-maze.html</loc><lastmod>2026-10-11</lastmod><priority>0.8</priority></url>
   <url><loc>https://pocket-arcade.games/breakout.html</loc><lastmod>2026-10-11</lastmod><priority>0.8</priority></url>
@@ -66,4 +66,5 @@
   <url><loc>https://pocket-arcade.games/binary-bits.html</loc><lastmod>2026-10-26</lastmod><priority>0.8</priority></url>
   <url><loc>https://pocket-arcade.games/robo-code.html</loc><lastmod>2026-10-26</lastmod><priority>0.8</priority></url>
   <url><loc>https://pocket-arcade.games/logic-gates.html</loc><lastmod>2026-10-26</lastmod><priority>0.8</priority></url>
+  <url><loc>https://pocket-arcade.games/sling-smash.html</loc><lastmod>2026-10-27</lastmod><priority>0.8</priority></url>
 </urlset>

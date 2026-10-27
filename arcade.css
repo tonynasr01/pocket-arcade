@@ -2055,3 +2055,6 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .lg-next[hidden]{display:none}
 .lg-tip.lg-hint{animation:lgHint .5s}
 @keyframes lgHint{0%{color:var(--c4)}}
+/* Sling Smash */
+.cv.sl-cv{border-radius:16px;box-shadow:0 6px 0 var(--edge);background:var(--board);cursor:grab}
+.cv.sl-cv:active{cursor:grabbing}
