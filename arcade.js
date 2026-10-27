@@ -11463,22 +11463,26 @@ function jumpquest(root,S){
   S.loop(dt=>{acc+=dt;let n=0;while(acc>=STEP&&n<5){update(STEP);acc-=STEP;n++}if(n>=5)acc=0;draw(dt)});
 }
 
+
 /* Arrows escape engine. Cells are y*cols+x. Directions 0 up, 1 right, 2 down, 3 left.
    An arrow is {cells:[tail..head], d}: its head points along d (for 2+ cells, the last segment also points
    along d). Tapped, it slides out like a snake: the head runs along its ray to the edge and the body follows its
    own path, so it escapes exactly when every cell on the head's ray is empty.
-   Levels are built in reverse: each new arrow (removed before every arrow already placed) must have a clear ray
+   Maps are built in reverse: each new arrow (removed before every arrow already placed) must have a clear ray
    through the arrows already placed, so removing them newest-first always works. */
 const ARROWS_DX=[0,1,0,-1],ARROWS_DY=[-1,0,1,0];
+/* per mode (Easy..Expert): short side range, snake share, longest straight / snake, how strongly inner arrows go first */
+const ARROWS_MODES=[{lo:5,hi:7,snake:.15,maxS:3,maxSn:4,centre:.3},{lo:8,hi:10,snake:.35,maxS:5,maxSn:7,centre:.7},
+  {lo:11,hi:13,snake:.65,maxS:7,maxSn:10,centre:1.2},{lo:14,hi:16,snake:.85,maxS:9,maxSn:14,centre:1.6}];
 const ARROWS_E=(()=>{
   const DX=ARROWS_DX,DY=ARROWS_DY;
   function rng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
-  /* board shape for a level: short side grows 5..14 cells, long side follows the screen's shape (ratio 1..1.75),
-     both shrunk if cells would get smaller than MIN css px. portrait: more rows than columns */
-  function dims(level,aw,ah,MIN=26,pad=.64){
-    const portrait=ah>=aw,lo=Math.min(aw,ah),hi=Math.max(aw,ah);
-    const ratio=Math.round(clamp(hi/Math.max(1,lo),1,1.75)*10)/10;
-    let s=Math.min(14,5+Math.floor((level-1)/3)),l=Math.round(s*ratio);
+  /* board shape for a mode (0..3) and seed: short side from the mode's range, long side follows the screen's
+     shape (ratio 1..1.9), both shrunk if cells would get smaller than MIN css px. portrait: more rows than columns */
+  function dims(mode,aw,ah,seed,MIN=26,pad=.64){
+    const M=ARROWS_MODES[mode],portrait=ah>=aw,lo=Math.min(aw,ah),hi=Math.max(aw,ah);
+    const ratio=clamp(hi/Math.max(1,lo),1,1.9);
+    let s=M.lo+((rng(seed^0x9e3779b9)()*(M.hi-M.lo+1))|0),l=Math.round(s*ratio);
     const ms=Math.max(4,Math.floor(lo/MIN-pad)),ml=Math.max(4,Math.floor(hi/MIN-pad));
     if(s>ms||l>ml){const k=Math.min(ms/s,ml/l);s=Math.max(4,Math.floor(s*k));l=Math.max(s,Math.floor(l*k))}
     return portrait?{cols:s,rows:l}:{cols:l,rows:s};
@@ -11491,10 +11495,10 @@ const ARROWS_E=(()=>{
   }
   function rayCells(a,cols,rows){const out=[],h=a.cells[a.cells.length-1];let x=h%cols,y=(h/cols)|0;for(;;){x+=DX[a.d];y+=DY[a.d];if(x<0||y<0||x>=cols||y>=rows)return out;out.push(y*cols+x)}}
   function occOf(P,alive){const o=new Int16Array(P.cols*P.rows).fill(-1);P.arrows.forEach((a,i)=>{if(!alive||alive[i])for(const c of a.cells)o[c]=i});return o}
-  function build(level,cols,rows,R){
+  function build(mode,cols,rows,R){
     const N=cols*rows,occ=new Int16Array(N).fill(-1),A=[];
-    const snakeP=Math.min(.75,.15+level*.025),maxS=Math.min(Math.max(cols,rows)-1,3+Math.floor(level/5)),maxSn=Math.min(14,4+Math.floor(level/4));
-    const centre=Math.min(1.6,.3+level*.03); /* later levels place inner arrows first: longer chains of blockers */
+    const M=ARROWS_MODES[mode],snakeP=M.snake,maxS=Math.min(Math.max(cols,rows)-1,M.maxS),maxSn=M.maxSn;
+    const centre=M.centre; /* harder modes place inner arrows first: longer chains of blockers */
     /* clear[d][i]: the ray from i in direction d is empty */
     const clear=[0,1,2,3].map(()=>new Uint8Array(N));
     function sweep(){
@@ -11528,7 +11532,7 @@ const ARROWS_E=(()=>{
       }
       A.push({cells:body.reverse(),d,key:A.length});
     }
-    fill(level,cols,rows,occ,A);
+    fill(cols,rows,occ,A);
     A.sort((a,b)=>a.key-b.key);
     /* removal order is newest first */
     const arrows=A.reverse().map(a=>({cells:a.cells,d:a.d}));
@@ -11536,7 +11540,7 @@ const ARROWS_E=(()=>{
   }
   function shuffleR(a,R){for(let i=a.length-1;i>0;i--){const j=(R()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a}
   /* leftover empty cells: grow an arrow's tail into them, or add a one-cell arrow at a safe point in the order */
-  function fill(level,cols,rows,occ,A){
+  function fill(cols,rows,occ,A){
     const N=cols*rows;
     for(let pass=0;pass<6;pass++){
       let changed=false;
@@ -11572,12 +11576,12 @@ const ARROWS_E=(()=>{
     }
   }
   function hash(a,b,c){let h=2166136261;for(const v of [a,b,c,0x5eed]){h^=v;h=Math.imul(h,16777619);h^=h>>>13}return h>>>0}
-  /* the level in portrait shape (cols<=rows), the same every time */
-  function gen(level,cols,rows){
+  /* a map for mode and seed, built in portrait shape (cols<=rows); the same seed gives the same map */
+  function gen(mode,cols,rows,seed){
     const T=cols>rows;if(T)[cols,rows]=[rows,cols];
     let best=null,bd=-1;
     for(let t=0;t<10;t++){
-      const P=build(level,cols,rows,rng(hash(level,cols*100+rows,t)));
+      const P=build(mode,cols,rows,rng(hash(seed,cols*100+rows,t*31+mode)));
       const filled=P.arrows.reduce((s,a)=>s+a.cells.length,0)/(cols*rows);
       const ones=P.arrows.filter(a=>a.cells.length===1).length/P.arrows.length;
       const sc=filled-ones*.5;if(sc>bd){bd=sc;best=P}
@@ -11600,37 +11604,42 @@ const ARROWS_E=(()=>{
 
 function arrowsEscape(root,S){
   const E=ARROWS_E,DX=ARROWS_DX,DY=ARROWS_DY,COLS=['--c4','--c1','--c3','--c5','--c6','--c2'];
-  const level=Math.max(1,store.get('arrows:lv')||1);
+  const mode=clamp((S.level||1)-1,0,3),NAMES=['Easy','Medium','Hard','Expert'],K_W='arrows:won:'+mode,K_S='arrows:streak:'+mode,K_B='arrows:bs:'+mode;
   const st=status(root,'Tap an arrow to slide it off the board. It only escapes if nothing is in its way. A blocked arrow costs a heart.');
-  if(S.show)S.show(level);
   const hud=el('div','arw-hud',root,`<span class="arw-hp" aria-label="Hearts"></span><span class="arw-left"><i aria-hidden="true">➜</i> <b>0</b></span><button class="btn ghost arw-hint" aria-label="Hint">💡 <b>3</b></button>`);
   const wrap=el('div','arw-wrap',root);const c=el('canvas','arw-cv',wrap);const x=c.getContext('2d');
   const over=el('div','arw-over',wrap);over.hidden=true;
+  const foot=el('div','arw-foot',root,`<span class="arw-stat"></span><button class="btn ghost arw-new">🔀 New map</button>`);
   const fxp=sparks();
-  /* measure the free space for the board: #game minus the HUD and gaps */
+  /* measure the free space for the board: #game minus the rows around it and gaps */
   function avail(){
     const cs=getComputedStyle(root),pad=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
     const st0=$('.status',root),sh=st0&&getComputedStyle(st0).display!=='none'?st0.offsetHeight:0;
     const W=root.clientWidth-(COMPACT.matches?2:8)-6,H=root.clientHeight-pad-6;
-    /* phone on its side: the engine moves the HUD beside the board */
-    if(COMPACT.matches&&W>H*1.25)return{w:W-Math.max(hud.offsetWidth,150)-20,h:H-10};
-    return{w:W,h:H-hud.offsetHeight-sh-(COMPACT.matches?40:60)};
+    /* phone on its side: the engine moves the other rows beside the board */
+    if(COMPACT.matches&&W>H*1.25)return{w:W-Math.max(hud.offsetWidth,foot.offsetWidth,150)-20,h:H-10};
+    return{w:W,h:H-hud.offsetHeight-foot.offsetHeight-sh-(COMPACT.matches?52:74)};
   }
-  const av=avail();const dm=E.dims(level,av.w,av.h);
-  let P=E.gen(level,dm.cols,dm.rows),cols=P.cols,rows=P.rows;
-  const total=P.arrows.length;
-  let alive=P.arrows.map(()=>true),occ=E.occOf(P,alive),hearts=3,hints=3,left=total,state='play',hintId=-1,hintT=0,shk=0,tm=0;
-  /* per-arrow animation: s = cells travelled along its track, mode 'out' | 'bump' */
-  let anim=P.arrows.map(()=>null),flash=P.arrows.map(()=>0);
   const PAD=.32;
+  let P,cols,rows,total,alive,occ,hearts,hints,left,state,hintId=-1,hintT=0,shk=0,tm=0,anim,flash,seed,touched=false;
+  const TR=new Map();
+  const newSeed=()=>(Math.random()*4294967296)>>>0;
+  /* start a map: a fresh seed, or the same one again (retry keeps the board's shape too) */
+  function load(sd,same){
+    seed=sd;
+    if(same)P=E.gen(mode,P.cols,P.rows,seed);else{const av=avail(),dm=E.dims(mode,av.w,av.h,seed);P=E.gen(mode,dm.cols,dm.rows,seed)}
+    cols=P.cols;rows=P.rows;total=left=P.arrows.length;alive=P.arrows.map(()=>true);occ=E.occOf(P,alive);
+    hearts=3;hints=3;state='play';hintId=-1;touched=false;anim=P.arrows.map(()=>null);flash=P.arrows.map(()=>0);TR.clear();
+    over.hidden=true;over.innerHTML='';setAR();paintHud();if(typeof fit==='function')fit();
+  }
   function setAR(){const ar=(cols+2*PAD)/(rows+2*PAD);wrap.dataset.ar=ar.toFixed(4);wrap.style.aspectRatio=ar.toFixed(4);wrap.dataset.max=Math.round((cols+2*PAD)*64)}
-  setAR();
+  const stat=()=>({won:store.get(K_W)||0,streak:store.get(K_S)||0,best:store.get(K_B)||0});
   function paintHud(){
     $('.arw-hp',hud).innerHTML=[0,1,2].map(i=>`<i class="${i<hearts?'on':'off'}">${i<hearts?'❤️':'🤍'}</i>`).join('');
     $('.arw-left b',hud).textContent=left;$('.arw-hint b',hud).textContent=hints;$('.arw-hint',hud).disabled=hints<=0||state!=='play';
+    const t=stat();$('.arw-stat',foot).innerHTML=`<span title="Maps cleared">🏆 <b>${t.won}</b> cleared</span><span title="Streak (best)">🔥 <b>${t.streak}</b> <small>best ${t.best}</small></span>`;
   }
-  paintHud();
-  c.arrowsGame={get P(){return P},get alive(){return alive},get hearts(){return hearts},get state(){return state},get hints(){return hints},level,
+  c.arrowsGame={get P(){return P},get alive(){return alive},get hearts(){return hearts},get state(){return state},get hints(){return hints},get seed(){return seed},mode,stat,
     free:()=>P.arrows.map((a,i)=>alive[i]&&!E.blocker(occ,cols,rows,a,i)),
     cellXY:i=>{const b=c.getBoundingClientRect(),u=b.width/(cols+2*PAD);return{x:b.left+(PAD+i%cols+.5)*u,y:b.top+(PAD+((i/cols)|0)+.5)*u}}};
   /* ---- geometry: track = points from just behind the tail, through every cell, then far along the ray ---- */
@@ -11642,7 +11651,7 @@ function arrowsEscape(root,S){
     const h=p[p.length-1],far=Math.max(cols,rows)+a.cells.length+4;pts.push([h[0]+DX[a.d]*far,h[1]+DY[a.d]*far]);
     const len=back+a.cells.length-1;return{pts,len,back};
   }
-  const TR=new Map();const trk=i=>{if(!TR.has(i))TR.set(i,track(P.arrows[i]));return TR.get(i)};
+  const trk=i=>{if(!TR.has(i))TR.set(i,track(P.arrows[i]));return TR.get(i)};
   function at(pts,s){let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(acc+l>=s||k===pts.length-1){const t=l?(s-acc)/l:0;return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,k}}acc+=l}}
   /* the points of the sub-path [s0,s1] */
   function sub(pts,s0,s1){
@@ -11666,7 +11675,7 @@ function arrowsEscape(root,S){
   S.on(c,'click',e=>{if(state!=='play')return;const i=pick(e);if(i>=0)tap(i)});
   function tap(i){
     if(!alive[i]||state!=='play')return;
-    if(hintId===i)hintId=-1;
+    if(hintId===i)hintId=-1;touched=true;
     const b=E.blocker(occ,cols,rows,P.arrows[i],i);
     if(!b){
       alive[i]=false;for(const cc of P.arrows[i].cells)occ[cc]=-1;left--;
@@ -11683,17 +11692,23 @@ function arrowsEscape(root,S){
     }
   }
   function win(){
-    state='won';st(`Level ${level} cleared!`);
-    store.set('arrows:lv',level+1);best('arrows',level,false);
-    S.after(500,()=>{S.fx.confetti();beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,220));S.fx.banner(`Level ${level} cleared!`,`Up next: level ${level+1}`)});
-    S.after(2300,()=>S.restart());paintHud();
+    state='won';st('Map cleared!');
+    const won=(store.get(K_W)||0)+1,streak=(store.get(K_S)||0)+1;store.set(K_W,won);store.set(K_S,streak);
+    if(streak>(store.get(K_B)||0))store.set(K_B,streak);best('arrows',streak,false);paintHud();
+    S.after(450,()=>{S.fx.confetti();beep(660,120);S.after(120,()=>beep(880,120));S.after(240,()=>beep(1320,220));S.fx.banner('Map cleared!',`${NAMES[mode]} · ${won} cleared · streak ${streak}`)});
+    S.after(2300,()=>{if(state==='won'){load(newSeed());st('New map. Find an arrow with a clear path!')}});
   }
   function lose(){
-    state='lost';st('Out of hearts. Try the level again!');beep(220,300,'square');S.after(250,()=>beep(160,400,'square'));
-    S.after(700,()=>{over.hidden=false;over.innerHTML=`<div class="arw-card"><b>Out of hearts</b><span>Level ${level} · ${left} arrow${left===1?'':'s'} left</span><button class="btn arw-retry">↻ Try again</button></div>`;$('.arw-retry',over).focus()});
-    paintHud();
+    state='lost';st('Out of hearts. Try the map again or get a new one.');beep(220,300,'square');S.after(250,()=>beep(160,400,'square'));
+    store.set(K_S,0);paintHud();
+    S.after(700,()=>{if(state!=='lost')return;over.hidden=false;over.innerHTML=`<div class="arw-card"><b>Out of hearts</b><span>${left} arrow${left===1?'':'s'} left</span><button class="btn arw-retry">↻ Try again</button><button class="btn ghost arw-new2">🔀 New map</button></div>`;$('.arw-retry',over).focus()});
   }
-  S.on(over,'click',e=>{if(e.target.closest('.arw-retry'))S.restart()});
+  function newMap(){
+    if(state==='play'&&touched&&left>0)store.set(K_S,0); /* walking away from a started map ends the streak */
+    beep(700,60);load(newSeed());
+  }
+  S.on(over,'click',e=>{if(e.target.closest('.arw-retry')){beep(700,60);load(seed,true)}else if(e.target.closest('.arw-new2'))newMap()});
+  S.on($('.arw-new',foot),'click',newMap);
   function hint(){
     if(state!=='play')return;
     if(hints<=0){S.fx.toast('No hints left');return}
@@ -11703,7 +11718,7 @@ function arrowsEscape(root,S){
     if(bi<0)return;hints--;hintId=bi;hintT=0;beep(990,80);paintHud();
   }
   S.on($('.arw-hint',hud),'click',hint);
-  S.on(window,'keydown',e=>{if(e.key==='h'||e.key==='H')hint();else if(e.key==='Enter'&&state==='lost'){e.preventDefault();S.restart()}});
+  S.on(window,'keydown',e=>{if(e.key==='h'||e.key==='H')hint();else if(e.key==='Enter'&&state==='lost'&&!over.hidden&&!e.target.closest('button')){e.preventDefault();load(seed,true)}else if(e.key==='n'||e.key==='N')newMap()});
   /* ---- rotation: keep the puzzle and everything played, turn it over the diagonal to match the screen ---- */
   let rzT=0;
   function relayout(){
@@ -11773,6 +11788,7 @@ function arrowsEscape(root,S){
     for(let i=0;i<flash.length;i++)if(flash[i]>0)flash[i]=Math.max(0,flash[i]-dt*1.6);
     draw(dt);
   });
+  load(newSeed());
   requestAnimationFrame(()=>{if(typeof fit==='function')fit()});
 }
 
@@ -11840,7 +11856,7 @@ const GAMES=[
   {id:'gates',name:'Logic Gates',icon:'⚡',blurb:'Wire AND, OR, NOT and XOR gates to light the lamp just right.',help:'Pick a gate below and tap an empty slot to place it. To wire, tap a dot on the right of a switch or gate, then a dot on the left of a gate or lamp. Tap a gate or wire to remove it. Tap the switches (or keys 1 to 4) to test; the truth table checks every combination.',mount:gates,levels:20,open:true,names:['AND','OR','NOT','XOR','NOT AND','Build NOR','A not B','Three-way','Alarm','Just NAND','Majority','Make XOR','Half adder','Equal?','Selector','4 NANDs','Compare','Full adder','2-bit equal','Sandbox'],isNew:true},
   {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true},
   {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true},
-  {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per level).',mount:arrowsEscape,run:true,unit:'levels',isNew:true}
+  {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per map), 🔀 deals a new map. Pick Easy to Expert at the top.',mount:arrowsEscape,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'in a row',isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
