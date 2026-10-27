@@ -1446,7 +1446,7 @@ function bubbles(root,S){
   function fire(p){
     if(!p||p.out||state==='over'||state==='clear')return;if(state==='ready')state='play';
     const max=pw.double>0?2:1;if(p.shots.length>=max)return;
-    p.shots.push({x:p.x,y:FL-p.h,stick:0});beep(760,40);
+    p.shots.push({x:p.x,y:FL-4,stick:0})   /* the harpoon rises from the ground, like the classic */;beep(760,40);
   }
   S.on(window,'keydown',e=>{
     if(e.repeat)return;const key=e.key;
@@ -1521,7 +1521,7 @@ function bubbles(root,S){
     if(two){x.font=`10px ${DISPLAY}`;x.textAlign='center';x.fillStyle=shirt;x.fillText(`P${p.i+1}`,px,top-8)}
   }
   function harpoon(sh,p){
-    const sx=sh.x,sy=sh.y,by=FL-p.h-6,stuck=sh.stick>0,g=x.createLinearGradient(0,by,0,sy);
+    const sx=sh.x,sy=sh.y,by=FL,stuck=sh.stick>0,g=x.createLinearGradient(0,by,0,sy);
     g.addColorStop(0,'rgba(91,108,255,.15)');g.addColorStop(1,stuck?'rgba(255,197,61,.7)':'rgba(91,108,255,.55)');
     x.lineCap='round';x.strokeStyle=g;x.lineWidth=9;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
     x.strokeStyle='#fff';x.lineWidth=3;x.beginPath();x.moveTo(sx,by);x.lineTo(sx,sy+10);x.stroke();
@@ -1569,7 +1569,7 @@ function bubbles(root,S){
         for(const w of walls){if(w.open)continue;if(b.x<w.x&&b.x+r>w.x-4){b.x=w.x-4-r;b.vx=-Math.abs(b.vx)}else if(b.x>w.x&&b.x-r<w.x+4){b.x=w.x+4+r;b.vx=Math.abs(b.vx)}}
         if(b.y>FL-r){b.y=FL-r;b.vy=-Math.sqrt(2*G*BH[b.s])}
         if(b.y<r){b.y=r;b.vy=Math.abs(b.vy)}
-        for(const p of players)for(const sh of p.shots)if(!sh.dead&&Math.abs(b.x-sh.x)<r+2&&b.y+r>sh.y-12&&b.y-r<FL-p.h){sh.dead=sh.stick<=0;pop(b,p);if(state!=='play')break outer;continue outer}
+        for(const p of players)for(const sh of p.shots)if(!sh.dead&&Math.abs(b.x-sh.x)<r+2&&b.y+r>sh.y-12&&b.y-r<FL){sh.dead=sh.stick<=0;pop(b,p);if(state!=='play')break outer;continue outer}
         for(const p of alive()){
           const cx=clamp(b.x,p.x-p.w/2,p.x+p.w/2),cy=clamp(b.y,FL-p.h,FL);
           if(!p.inv&&(b.x-cx)**2+(b.y-cy)**2<r*r*.8){hurt(p);break outer}
