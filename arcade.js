@@ -1556,7 +1556,7 @@ function bubbles(root,S){
         if(dir){p.x+=dir*230*dt;if(i===0)mx=null}else if(i===0&&mx!=null){if(Math.abs(mx-p.x)>4)p.x+=Math.sign(mx-p.x)*Math.min(Math.abs(mx-p.x),230*dt);else mx=null}
         const[lo,hi]=region(ox);p.x=clamp(p.x,lo+p.w/2,hi-p.w/2);
         if(Math.abs(p.x-ox)>.1){p.face=Math.sign(p.x-ox);p.walk+=dt*14}else p.walk=0;
-        for(const sh of p.shots){if(sh.stick>0){sh.stick-=dt}else{sh.y-=560*KV*dt;if(sh.y<=12){if(pw.sticky>0){sh.y=12;sh.stick=4}else sh.dead=true}}if(sh.stick<0)sh.dead=true}
+        for(const sh of p.shots){if(sh.stick>0){sh.stick-=dt}else{sh.y-=430*KV*dt;if(sh.y<=12){if(pw.sticky>0){sh.y=12;sh.stick=4}else sh.dead=true}}if(sh.stick<0)sh.dead=true}
         p.shots=p.shots.filter(sh=>!sh.dead);
       });
       for(const d of drops){d.vy+=500*KV*dt;d.y=Math.min(FL-12,d.y+d.vy*dt);d.life-=dt;const p=alive().find(p=>Math.abs(d.x-p.x)<p.w/2+12&&d.y>FL-p.h-12);if(p){d.got=true;collect(d,p)}}
