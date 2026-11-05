@@ -2401,7 +2401,7 @@ function fuse(root,S){
 }
 
 /* ---------- registry ---------- */
-const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html", "jumpquest": "jump-quest.html", "arrows": "arrows.html"};
+const PAGES={"tictactoe": "tic-tac-toe.html", "memory": "memory-match.html", "whack": "whack-a-mole.html", "simon": "simon-says.html", "hangman": "hangman.html", "snake": "snake.html", "pong": "pong.html", "flappy": "flappy-bird.html", "tower": "tower-block.html", "crane": "sky-crane.html", "blobmaze": "blob-maze.html", "breakout": "breakout.html", "2048": "2048.html", "mines": "minesweeper.html", "sudoku": "sudoku.html", "bbtan": "brick-balls.html", "paper": "land-grab.html", "taxi": "rush-taxi.html", "solitaire": "solitaire.html", "helix": "helix-drop.html", "bubbles": "bubble-pop.html", "chess": "chess.html", "blast": "cannon-blast.html", "pinball": "pinball.html", "fuse": "fuse-jumper.html", "backgammon": "backgammon.html", "blockfill": "block-fill.html", "checkers": "checkers.html", "connect": "color-connect.html", "dots": "dots-and-boxes.html", "four": "four-in-a-row.html", "hanoi": "tower-of-hanoi.html", "pool": "billiards.html", "slide": "sliding-puzzle.html", "water": "water-sort.html", "woodblocks": "wood-blocks.html", "wordfind": "word-finder.html", "wordguess": "word-guess.html", "clash": "color-clash.html", "clashflip": "color-clash-flip.html", "rugs": "rug-market.html", "quad": "four-alike.html", "cubes": "cube-push.html", "pyramid": "ball-pyramid.html", "squadro": "shuttle-race.html", "quantik": "shape-grid.html", "qawale": "stone-sow.html", "walls": "wall-race.html", "pento": "pento-box.html", "wahoo": "wahoo.html", "jackaroo": "jackaroo.html", "poker": "texas-holdem.html", "mafia": "mafia.html", "codewords": "code-words.html", "thirty": "30-seconds.html", "mathsprint": "math-sprint.html", "make24": "make-24.html", "cagesums": "cage-sums.html", "binary": "binary-bits.html", "robocode": "robo-code.html", "gates": "logic-gates.html", "sling": "sling-smash.html", "jumpquest": "jump-quest.html", "arrows": "arrows.html", "jean": "jean-escapes-the-toilet.html"};
 const BASE_TITLE=document.title;
 /* Backgammon engine. A position is [white, red]; each side is an array of 26 counts in that side's own
    numbering: 1..24 points (the side moves from 24 toward 1 and its home is 1..6), 25 = bar, 0 = borne off.
@@ -11792,6 +11792,929 @@ function arrowsEscape(root,S){
   requestAnimationFrame(()=>{if(typeof fit==='function')fit()});
 }
 
+/* Jean Escapes the Toilet: a point-and-click escape room in three chapters.
+   Logic (JEAN_CH chapter data + JEAN_E engine) is pure and runs in Node; JEAN_ART draws the scenes;
+   jeanEscape() is the UI. Scene art lives in a 360x520 design space (floor at y=410) that is scaled to fit
+   the canvas, with walls and floor drawn far past its edges so any canvas shape is filled. */
+const JEAN_DW=360,JEAN_DH=520,JEAN_FL=410;
+const JEAN_NOPE=['Hmm, %s does nothing there.','I wave the %s at it. Nothing. Rude.','That is not how %s works. I think.','The %s and that thing are not friends.','Nope. The %s refuses to cooperate.','I tried. The %s tried. Nobody won.'];
+const JEAN_NOCOMB=['%a and %b? That is just a pile of stuff.','I squish %a against %b. Still two things.','%a + %b = confusion.'];
+const JEAN_E=(()=>{
+  function fresh(ch){return{v:ch.walls[0],inv:ch.start.slice(),f:{},n:{},d:{},hint:[-1,0],won:false}}
+  function hots(ch,st){const V=ch.views[st.v];return V?(V.hot||[]).filter(h=>!h.vis||h.vis(st.f,st)):[]}
+  function lockOn(ch,st){const L=ch.views[st.v]&&ch.views[st.v].lock;return L&&!L.done(st.f)&&(!L.need||L.need(st.f))?L:null}
+  function line(L,st,key,f){if(typeof L==='function')L=L(f);if(!Array.isArray(L))return L;const k=st.n[key]||0;st.n[key]=k+1;return L[k%L.length]}
+  function fill(t,m){return t.replace(/%(\w)/g,(_,k)=>m[k]||'')}
+  function api(ch,st,ev){
+    return{f:st.f,
+      say(t,m){ev.push({say:t,m:m||'talk'})},
+      give(id){if(!st.inv.includes(id))st.inv.push(id);ev.push({give:id})},
+      use(id){const i=st.inv.indexOf(id);if(i>=0)st.inv.splice(i,1);ev.push({use:id})},
+      has:id=>st.inv.includes(id),
+      set(k,v=1){st.f[k]=v},
+      sfx(n){ev.push({sfx:n})},
+      win(){st.won=true;ev.push({win:1})}};
+  }
+  /* a = {t:'turn',d} | {t:'back'} | {t:'tap',h,it} | {t:'code',arg} | {t:'look',it} | {t:'comb',a,b}; returns events */
+  function act(ch,st,a){
+    const ev=[];if(st.won)return ev;const A=api(ch,st,ev),V=ch.views[st.v],I=ch.items;
+    if(a.t==='turn'){const W=ch.walls,i=W.indexOf(st.v);if(i<0)return ev;st.v=W[(i+a.d+W.length)%W.length];ev.push({go:st.v,turn:a.d})}
+    else if(a.t==='back'){if(V.back){st.v=V.back;ev.push({go:st.v,back:1})}}
+    else if(a.t==='code'){const L=lockOn(ch,st);if(L&&a.arg===L.code)L.ok(st.f,A);else if(L)ev.push({wrong:1})}
+    else if(a.t==='tap'){
+      const h=hots(ch,st).find(h=>h.id===a.h);if(!h)return ev;const it=a.it&&st.inv.includes(a.it)?a.it:null;
+      if(it){if(!(h.fn&&h.fn(st.f,it,A))){A.say(fill(line(JEAN_NOPE,st,'nope',st.f),{s:I[it].n.toLowerCase()}),'meh');ev.push({nope:1})}}
+      else if(h.fn&&h.fn(st.f,null,A)){}
+      else if(h.to){st.v=h.to;ev.push({go:h.to,zoom:1})}
+      else if(h.say)A.say(line(h.say,st,h.id,st.f),h.m);
+    }
+    else if(a.t==='look'){if(!st.inv.includes(a.it))return ev;const D=I[a.it];if(!(D.look&&D.look(st.f,A)))A.say(line(D.d,st,'d:'+a.it,st.f),D.m)}
+    else if(a.t==='comb'){
+      if(!st.inv.includes(a.a)||!st.inv.includes(a.b)||a.a===a.b)return ev;
+      const c=ch.combos.find(c=>(c[0]===a.a&&c[1]===a.b)||(c[0]===a.b&&c[1]===a.a));
+      if(!(c&&c[2](st.f,A))){A.say(fill(line(JEAN_NOCOMB,st,'nocomb',st.f),{a:I[a.a].n,b:I[a.b].n.toLowerCase()}),'meh');ev.push({nope:1})}
+    }
+    return ev;
+  }
+  function step(ch,st){const i=ch.steps.findIndex(s=>!s.done(st.f,st));return i<0?ch.steps.length-1:i}
+  /* every action that could do something in this state (for the solver/tests) */
+  function actions(ch,st){
+    const out=[],V=ch.views[st.v];
+    if(ch.walls.includes(st.v))out.push({t:'turn',d:1},{t:'turn',d:-1});
+    if(V.back)out.push({t:'back'});
+    const L=lockOn(ch,st);if(L)out.push({t:'code',arg:L.code});
+    for(const h of hots(ch,st)){out.push({t:'tap',h:h.id});for(const it of st.inv)out.push({t:'tap',h:h.id,it})}
+    for(const it of st.inv)out.push({t:'look',it});
+    for(let i=0;i<st.inv.length;i++)for(let j=i+1;j<st.inv.length;j++)out.push({t:'comb',a:st.inv[i],b:st.inv[j]});
+    return out;
+  }
+  function key(st){return st.v+'|'+st.inv.slice().sort().join(',')+'|'+Object.keys(st.f).sort().map(k=>k+'='+st.f[k]).join(',')+(st.won?'|W':'')}
+  function clone(st){return JSON.parse(JSON.stringify(st))}
+  /* checks a saved state against the chapter: unknown views/items mean it is stale */
+  function valid(ch,st){return st&&typeof st==='object'&&ch.views[st.v]&&Array.isArray(st.inv)&&st.inv.every(i=>ch.items[i])&&st.f&&typeof st.f==='object'}
+  return{fresh,act,step,actions,key,clone,valid,hots,lockOn};
+})();
+
+/* ---------- chapters ---------- */
+const JEAN_CH=[
+{ /* 1 ------------------------------------------------------------------ home */
+  name:'The Stuck Door',set:'home',walls:['door','toilet','sink','window'],start:['handle'],
+  intro:['Ahh, home sweet bathroom. Peace and quiet at last.','*happy humming*','Uh-oh. The handle just... came off. In my hand.'],
+  outro:'FREEDOM! Note to self: next time, bring a phone. And a snack.',
+  items:{
+    handle:{n:'Door handle',d:['The door handle. It came off in my hand. We are no longer friends.','A handle with nothing to handle. Relatable.']},
+    note:{n:"Dad's note",e:'📝',d:'“Jean, if the door jams AGAIN: the cabinet code is on the mirror (hot water first!). The spare handle bar is in the vent. — Dad.” He wrote AGAIN in capitals.'},
+    screwdriver:{n:'Screwdriver',e:'🪛',d:'A trusty screwdriver. Lefty-loosey, righty-tighty.'},
+    plunger:{n:'Plunger',e:'🪠',d:['The plunger. Suction power: legendary.','It sticks to anything. Even my hopes.']},
+    bar:{n:'Handle bar',d:'A square metal bar. The missing bone of my door handle!'},
+    fixed:{n:'Fixed handle',d:'Handle plus bar. Good as new. Well, good as used.'}
+  },
+  combos:[['handle','bar',(f,A)=>{A.use('handle');A.use('bar');A.give('fixed');A.set('fixed');A.sfx('click');A.say('Handle + bar = a real handle again! I am basically an engineer.','happy');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'hole',r:[208,236,48,50],fn(f,it,A){
+        if(it==='fixed'){A.use('fixed');A.sfx('unlock');A.say('Push it in, turn... click... CLACK!','happy');A.win();return true}
+        if(it==='handle'){A.set('knowbar');A.say('I jam the handle in. It spins like a fidget spinner. The square bar inside is missing!','worried');return true}
+        if(it==='screwdriver'){A.say('Too thin. That hole wants something square. Like my geometry grades.','meh');return true}
+        if(!it){A.say(f.knowbar?'Square hole, no bar. I need that spare bar Dad mentioned.':'The hole where the handle used to be. Square, empty and judging me.','worried');return true}}},
+      {id:'switch',r:[283,226,30,42],say:['The light works. The door doesn\'t. Priorities, house.','Click. Click. Still a bathroom.']},
+      {id:'towel',r:[22,176,62,126],say:['A towel with ducks on it. Very brave ducks.','It is soft. Unlike my situation.']},
+      {id:'mat',r:[100,412,160,40],say:'The bath mat says WELCOME. Liar.'},
+      {id:'door',r:[100,88,160,322],say:['Solid oak. Dad built it to survive anything. Including me.','I knocked. The door did not knock back.','I tried the classic shoulder barge. My shoulder lost.']}]},
+    toilet:{name:'Toilet',hot:[
+      {id:'tp',r:[258,258,58,52],glint:f=>!f.note,fn(f,it,A){if(it||f.note)return false;A.set('note');A.give('note');A.sfx('pick');A.say('A note taped inside the roll! Dad, is that you?','shock');return true},say:['Just toilet paper now. Soft. Reliable. Unlike that door.','Two-ply. We are not animals.']},
+      {id:'plunger',r:[42,296,56,116],vis:f=>!f.plunger,glint:()=>true,fn(f,it,A){if(it)return false;A.set('plunger');A.give('plunger');A.sfx('pick');A.say('The mighty plunger! Every hero needs a sword.','happy');return true}},
+      {id:'lid',r:[124,214,112,38],to:'tank'},
+      {id:'pic',r:[136,92,88,86],say:'A painting of a duck. Dad calls it Sir Quacks-a-Lot.'},
+      {id:'toilet',r:[116,252,128,160],say:['My throne. We had a good run.','I am NOT escaping through there.','Flushing myself away is plan Z.']}]},
+    tank:{name:'Toilet tank',back:'toilet',hot:[
+      {id:'duck',r:[200,250,80,70],say:['A rubber duck in the tank? Dad says it saves water. It looks guilty.','Quack. (I said it for him.)']},
+      {id:'chain',r:[120,150,50,170],fn(f,it,A){if(it)return false;A.sfx('flush');A.say('FLUSH! Pointless, but very satisfying.','happy');return true}},
+      {id:'water',r:[50,200,260,170],say:'Cold, clear water. Nothing hidden here. Except the duck.'}]},
+    sink:{name:'Sink',hot:[
+      {id:'hot',r:[130,232,40,32],fn(f,it,A){if(it)return false;A.sfx('water');if(!f.steam){A.set('steam');A.say('Hot water on! It is getting steamy in here. Sauna for one.','happy')}else A.say('Still running. My water bill is crying.','meh');return true}},
+      {id:'cold',r:[190,232,40,32],say:'Cold water. Refreshing, but not very helpful.'},
+      {id:'cup',r:[258,200,40,56],say:'My toothbrush. It has seen things.'},
+      {id:'mirror',r:[108,86,144,138],say:f=>f.steam?['Numbers in the fog: 4 2 9 7. Dad drew a smiley too. Classic Dad.','4 2 9 7. I should remember that.']:['Looking good, Jean. Looking trapped, but good.','Just my face. A very handsome, very stuck face.'],m:'smug'},
+      {id:'cabinet',r:[112,296,136,112],to:'cab'}]},
+    cab:{name:'Cabinet',back:'sink',lock:{kind:'dials',len:4,code:'4297',done:f=>f.cab,ok(f,A){A.set('cab');A.sfx('unlock');A.say('Click! The padlock pops open. Nice one, Dad.','happy')}},hot:[
+      {id:'sd',r:[70,200,110,70],vis:f=>f.cab&&!f.sd,glint:()=>true,fn(f,it,A){if(it)return false;A.set('sd');A.give('screwdriver');A.sfx('pick');A.say('A screwdriver! I feel like a real handyman.','happy');return true}},
+      {id:'rolls',r:[200,180,110,100],vis:f=>f.cab,say:'Spare toilet paper. At least I won\'t run out.'},
+      {id:'sponge',r:[70,300,220,80],vis:f=>f.cab,say:'A sponge and some soap. They seem happy together.'},
+      {id:'lock',r:[60,120,240,280],vis:f=>!f.cab,fn(f,it,A){if(it==='screwdriver'){A.say('Pry it open? Dad would never let me hear the end of it.','meh');return true}return false},say:'A 4-digit padlock. Dad loves padlocks. And riddles. And me, probably.'}]},
+    window:{name:'Window',hot:[
+      {id:'win',r:[118,84,124,112],say:['A tiny window. Too small, even for my ambitions.','I could fit an arm through. Just an arm. Not useful.']},
+      {id:'shelf',r:[96,200,168,46],say:'Shampoo, conditioner and a third bottle labeled MORE.'},
+      {id:'plant',r:[272,236,70,174],say:'A plastic fern. I water it anyway. We are close.'},
+      {id:'basket',r:[14,316,78,94],say:'The laundry basket. Some mysteries should stay mysteries.'},
+      {id:'vent',r:[126,296,108,76],to:'vent'}]},
+    vent:{name:'Air vent',back:'window',hot:[
+      {id:'deep',r:[70,150,220,170],vis:f=>f.vent&&!f.bar,glint:()=>true,fn(f,it,A){
+        if(it==='plunger'){A.use('plunger');A.give('bar');A.set('bar');A.sfx('pop');A.say('Plunger in, pull... POP! The spare handle bar! Dad, you genius.','happy');return true}
+        if(it==='screwdriver'){A.say('Too short. I can only poke it further away.','worried');return true}
+        if(!it){A.say('A metal bar, way in the back. My arm is too short. My arm has always been too short.','worried');return true}}},
+      {id:'dust',r:[70,150,220,170],vis:f=>f.bar,say:'Just dust bunnies now. Hi, bunnies.'},
+      {id:'cover',r:[50,120,260,230],vis:f=>!f.vent,fn(f,it,A){
+        if(it==='screwdriver'){A.use('screwdriver');A.set('vent');A.sfx('unscrew');A.say('Four screws out and the cover is off! The screwdriver deserves a vacation.','happy');return true}
+        if(!it){A.say('An air vent held by four screws. Something shiny is glinting behind the grille!','think');return true}}}]}
+  },
+  steps:[
+    {done:f=>f.note,h:['That toilet paper roll looks suspiciously thick.','Turn to the toilet wall and tap the toilet paper roll.']},
+    {done:f=>f.steam,h:['Dad\'s note says: hot water first. (Tap an item twice to read it.)','Turn to the sink and tap the red hot-water tap.']},
+    {done:f=>f.cab,h:['The steam revealed something on the mirror.','The mirror shows 4 2 9 7. Tap the cabinet under the sink and dial 4-2-9-7.']},
+    {done:f=>f.sd,h:['The open cabinet has something useful inside.','Open the cabinet under the sink and take the screwdriver.']},
+    {done:f=>f.vent,h:['The vent near the floor is held by screws.','Select the screwdriver, then tap the vent on the window wall.']},
+    {done:f=>f.bar,h:['The bar is too deep to grab by hand. Something sticky could pull it out.','Take the plunger next to the toilet, select it, then tap inside the open vent.']},
+    {done:f=>f.fixed,h:['Two broken halves make a whole.','Select the door handle, then tap the handle bar in your inventory to combine them.']},
+    {done:(f,st)=>st.won,h:['A handle with a bar fits that square hole.','Select the fixed handle and tap the hole in the door.']}]
+},
+{ /* 2 ---------------------------------------------------------------- office */
+  name:'The Office Bathroom',set:'office',walls:['door','toilet','sink','window'],start:['phone'],
+  intro:['Just a quick break between meetings. Nobody will notice.','*hums the office printer song*','The keypad is dead?! I have a meeting in five minutes!'],
+  outro:'Made it! And just in time for the meeting about... bathroom safety.',
+  items:{
+    phone:{n:'Phone',e:'📱',d:['0% battery. I was going to call for help. Or play games, honestly.','Still dead. Like my social life.']},
+    memo:{n:'Memo',e:'📄',d:'“NEW DOOR CODE: the first two digits glow in the dark. The last two are Gary\'s desk number. Please stop calling us. — Facilities”'},
+    gloves:{n:'Rubber gloves',e:'🧤',d:'Bright yellow rubber gloves. Courage you can wear.'},
+    coin:{n:'Coin',e:'🪙',d:'A coin. Freshly rescued. I will wash it. Twice.'},
+    clock:{n:'Wall clock',e:'🕰️',d:'The office clock. The battery cover has a slot screw, like for a coin.'},
+    battery:{n:'Battery',e:'🔋',d:'A fresh battery. Full of electric hope.'}
+  },
+  combos:[['coin','clock',(f,A)=>{A.use('coin');A.use('clock');A.give('battery');A.set('batt');A.sfx('unscrew');A.say('The coin turns the screw like a tiny screwdriver. One battery, liberated!','happy');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'switch',r:[284,222,34,48],fn(f,it,A){if(it)return false;A.sfx('click');if(f.dark){A.set('dark',0);A.say('Let there be light!','happy')}else{A.set('dark');A.say('Lights off. Spooky. Is something... glowing over there?','shock')}return true}},
+      {id:'pad',r:[220,206,50,74],vis:f=>!f.dark,to:'keypad'},
+      {id:'tie',r:[22,170,64,120],vis:f=>!f.dark,say:'Someone\'s tie on the hook. Business casual, bathroom edition.'},
+      {id:'door',r:[100,88,160,322],vis:f=>!f.dark,say:['Steel door with a keypad. Fancy. Annoying, but fancy.','I knocked. Somewhere, a meeting started without me.']}]},
+    toilet:{name:'Toilet',hot:[
+      {id:'glow',r:[106,100,148,80],vis:f=>f.dark,fn(f,it,A){if(it)return false;A.set('glow');A.say('Glowing numbers on the wall: 8 3 _ _. The rest is missing.','think');return true}},
+      {id:'bowl',r:[120,300,120,110],vis:f=>!f.dark,fn(f,it,A){
+        if(f.coin)return it?false:(A.say('Clean-ish. Let\'s leave it at that.','meh'),true);
+        if(it==='gloves'){A.set('coin');A.give('coin');A.sfx('splash');A.say('Gloves on. Deep breath... got it! A coin! I will now wash my hands for 3 to 5 business days.','happy');return true}
+        if(!it){A.say('Something shiny at the bottom of the bowl. Not with my bare hands. Not today. Not ever.','worried');return true}}},
+      {id:'sensor',r:[150,238,60,50],vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('flush');A.say('The auto-flush sensor flushes whenever I blink. We don\'t trust each other.','meh');return true}},
+      {id:'roll',r:[262,226,66,80],vis:f=>!f.dark,say:'A jumbo roll dispenser. It gives one square at a time, like my boss gives compliments.'},
+      {id:'wall',r:[90,90,180,120],vis:f=>!f.dark,say:'Plain office tiles. They look like they are hiding something. Tiles always do.'}]},
+    sink:{name:'Sink',hot:[
+      {id:'towels',r:[256,150,70,92],vis:f=>!f.dark,glint:f=>!f.gloves,fn(f,it,A){if(it)return false;if(!f.gloves){A.set('gloves');A.give('gloves');A.sfx('pick');A.say('I pull a towel... and rubber gloves fall out! Thanks, mysterious janitor.','shock')}else A.say('Paper towels. One comes out. Then three. Then none.','meh');return true}},
+      {id:'dryer',r:[26,176,66,70],vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('dryer');A.say('WHOOOOSH! My hair is now executive style.','happy');return true}},
+      {id:'trash',r:[262,318,64,92],vis:f=>!f.dark,to:'trash'},
+      {id:'soap',r:[110,214,40,42],vis:f=>!f.dark,say:'Foam soap. It smells like Corporate Lavender.'},
+      {id:'mirror',r:[110,84,140,120],vis:f=>!f.dark,say:['My interview face. Nailed it.','The mirror shows a man with a meeting in five minutes.'],m:'smug'},
+      {id:'basin',r:[106,240,148,70],vis:f=>!f.dark,say:'A motion-sensor tap. I wave at it. It ignores me. Like the elevator.'}]},
+    trash:{name:'Trash bin',back:'sink',hot:[
+      {id:'memo',r:[120,190,120,90],vis:f=>!f.memo,glint:()=>true,fn(f,it,A){if(it)return false;A.set('memo');A.give('memo');A.sfx('pick');A.say('A crumpled memo from Facilities! Somebody did not read it. Classic.','happy');return true}},
+      {id:'junk',r:[40,140,280,260],say:['Paper towels, a banana peel and someone\'s diet plan. Day 2. Abandoned.','I am not digging deeper. I have standards.']}]},
+    window:{name:'Window',hot:[
+      {id:'clock',r:[42,96,74,74],vis:f=>!f.dark&&!f.clock,glint:()=>true,fn(f,it,A){if(it)return false;A.set('clock');A.give('clock');A.sfx('pick');A.say('I\'ll borrow the clock. Time flies when you\'re stuck in a bathroom.','smug');return true}},
+      {id:'poster',r:[140,180,96,128],vis:f=>!f.dark,to:'poster'},
+      {id:'win',r:[134,80,108,80],vis:f=>!f.dark,say:'A frosted window, painted shut. Frosted AND painted. Double fail.'},
+      {id:'plant',r:[268,250,74,160],vis:f=>!f.dark,say:'An office plant named Kevin. Kevin has seen my worst meetings.'},
+      {id:'sign',r:[30,206,92,60],vis:f=>!f.dark,say:'“TEAMWORK MAKES THE DREAM WORK.” I am a team of one. The dream is the door.'}]},
+    poster:{name:'Poster',back:'window',hot:[
+      {id:'gary',r:[60,90,240,320],fn(f,it,A){if(it)return false;A.set('desk');A.say('Gary. Employee of the Month. Desk 61. His smile says he has never been locked in anywhere.','think');return true}}]},
+    keypad:{name:'Keypad',back:'door',lock:{kind:'pad',len:4,code:'8361',need:f=>f.power,done:f=>false,ok(f,A){A.sfx('unlock');A.say('Beep-boop... ACCESS GRANTED!','happy');A.win()}},hot:[
+      {id:'slot',r:[80,90,200,330],vis:f=>!f.power,fn(f,it,A){
+        if(it==='battery'){A.use('battery');A.set('power');A.sfx('power');A.say('Battery in! The keypad beeps to life. Hello, beautiful.','happy');return true}
+        if(it==='phone'){A.say('My phone is just as dead. We are a dead team.','meh');return true}
+        if(!it){A.say('The keypad is dead. There\'s an empty battery slot at the bottom. Very cutting-edge.','worried');return true}}}]}
+  },
+  steps:[
+    {done:f=>f.memo,h:['Offices are full of memos. Check where paper ends up.','Tap the trash bin under the sink and take the crumpled memo.']},
+    {done:f=>f.gloves||f.coin,h:['Something is stuffed inside the paper towel dispenser.','Tap the paper towel dispenser on the sink wall.']},
+    {done:f=>f.coin,h:['Something shiny is in the toilet bowl. Hands need protection.','Select the rubber gloves and tap the toilet bowl.']},
+    {done:f=>f.clock||f.batt,h:['The keypad needs power. What else in here runs on batteries?','Take the wall clock from the window wall.']},
+    {done:f=>f.batt,h:['The clock\'s battery cover has a slot screw. A coin can turn it.','Select the coin, then tap the clock in your inventory.']},
+    {done:f=>f.power,h:['The keypad has an empty battery slot.','Select the battery and tap the keypad next to the door.']},
+    {done:f=>f.glow,h:['The memo says the first digits glow in the dark.','Flip the light switch by the door, then turn to the toilet wall and tap the glowing numbers.']},
+    {done:f=>f.desk,h:['Who is Gary? Find him on the walls (lights on).','Tap Gary\'s poster on the window wall to read his desk number.']},
+    {done:f=>!f.dark,h:['You can\'t use the keypad in the dark.','Flip the light switch by the door back on.']},
+    {done:(f,st)=>st.won,h:['Glow digits first, then Gary\'s desk number.','Open the keypad next to the door and type 8 3 6 1.']}]
+},
+{ /* 3 ---------------------------------------------------------------- plane */
+  name:'The Airplane Toilet',set:'plane',walls:['door','toilet','sink','window'],start:['pass'],
+  intro:['35,000 feet up and finally a free toilet. Ooh, tiny soap!','*the plane hums along*','The latch is stuck?! On a PLANE?!'],
+  outro:'I\'m out! Everyone is clapping... oh, we just landed. Same thing.',
+  items:{
+    pass:{n:'Boarding pass',e:'🎫',look(f,A){A.set('pass');A.say('Boarding pass: Flight PA 418, seat 27C. Destination: vacation. Current status: toilet.','think');return true}},
+    kit:{n:'Amenity kit',e:'👝',look(f,A){A.use('kit');A.give('tweezers');A.set('tw');A.sfx('pick');A.say('Inside: fluffy socks, an eye mask and... tweezers! Jackpot.','happy');return true}},
+    tweezers:{n:'Tweezers',d:'Pointy tweezers. Great for tiny things. And eyebrows, not that I need them.'},
+    peanut:{n:'Peanut',e:'🥜',look(f,A){A.use('peanut');A.sfx('crunch');A.say('Crunch. Dinner is served. Airline cuisine at its finest.','happy');return true}},
+    hairpin:{n:'Hairpin',d:'A straight hairpin. Thin enough for the latch, but it needs a hook shape.'},
+    hook:{n:'Hairpin hook',d:'A hairpin bent into a perfect little hook. Lock-picker Jean, at your service.'}
+  },
+  combos:[['hairpin','tweezers',(f,A)=>{A.use('hairpin');A.give('hook');A.set('hookmade');A.sfx('click');A.say('I bend the hairpin around the tweezers... a perfect little hook!','happy');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'latch',r:[196,212,72,70],to:'latch'},
+      {id:'sign',r:[132,108,96,40],say:'LAVATORY OCCUPIED. Yes. Very occupied. Possibly forever.'},
+      {id:'ashtray',r:[272,300,56,44],say:'An ashtray, on a plane where smoking is banned. Planes are weird.'},
+      {id:'door',r:[104,88,152,322],say:['A folding door. It folds. Just not open.','I knock. Someone outside knocks back: “Are you done yet?” Not by choice!']}]},
+    toilet:{name:'Toilet',hot:[
+      {id:'flush',r:[226,200,46,46],fn(f,it,A){if(it)return false;A.sfx('flush');
+        if(f.hook&&f.peanut){A.say('WHOOOOSH! The whole plane shakes... and the latch slides open!','shock');A.win()}
+        else if(f.hook)A.say('WHOOSH! The latch rattles, but something is still jamming its track.','worried');
+        else A.say('WHOOOOSH! So loud my soul left my body for a second.','shock');return true}},
+      {id:'signs',r:[100,96,160,60],say:'“Please do not flush: towels, diapers, regrets.”'},
+      {id:'toilet',r:[110,250,140,160],say:['The vacuum toilet. It sounds like a jet engine eating spaghetti.','I will not be sucked out at 35,000 feet. Not today.']}]},
+    sink:{name:'Sink',hot:[
+      {id:'call',r:[262,96,56,56],fn(f,it,A){if(it)return false;A.set('call');A.sfx('ding');A.say('Ding! Speaker: “Sir, that latch sticks. Hook it with something thin, then flush. The shaking frees it. Peanuts?”','think');return true}},
+      {id:'basin',r:[110,232,140,58],fn(f,it,A){
+        if(it==='tweezers'&&!f.pin){A.set('pin');A.give('hairpin');A.sfx('pick');A.say('Tweezers into the drain... a hairpin! Not mine. I am proudly bald.','smug');return true}
+        if(it)return false;A.say(f.pin?'A tiny sink for tiny hands.':'Something thin is glinting deep in the drain. My fingers are way too big.',f.pin?'meh':'think');return true},glint:f=>!f.pin},
+      {id:'drawer',r:[112,306,136,90],to:'drawer'},
+      {id:'mirror',r:[110,80,140,130],say:['The mirror says: you are on vacation. My face says: help.','Even my reflection wants to get out of here.'],m:'smug'}]},
+    drawer:{name:'Crew drawer',back:'sink',lock:{kind:'dials',len:3,code:'814',done:f=>f.drawer,ok(f,A){A.set('drawer');A.sfx('unlock');A.say('Click! The crew drawer slides open. Sorry, Kevin.','happy')}},hot:[
+      {id:'kit',r:[70,200,130,90],vis:f=>f.drawer&&!f.kit,glint:()=>true,fn(f,it,A){if(it)return false;A.set('kit');A.give('kit');A.sfx('pick');A.say('A travel amenity kit! Fancy airplane goodies. (Tap it twice to open.)','happy');return true}},
+      {id:'blank',r:[210,190,100,110],vis:f=>f.drawer,say:'Spare blankets. Scratchy, but spare.'},
+      {id:'lock',r:[60,110,240,290],vis:f=>!f.drawer,fn(f,it,A){if(it==='pass'){A.say('My boarding pass doesn\'t open drawers. It barely opened the gate.','meh');return true}return false},say:'“CREW ONLY.” A 3-digit lock. I am crew now. Crew of one.'}]},
+    window:{name:'Window',hot:[
+      {id:'note',r:[150,236,80,62],vis:f=>f.table,fn(f,it,A){if(it)return false;A.set('note');A.say('Sticky note: “Kevin!! The crew drawer code is our flight number BACKWARDS. Stop forgetting!! — Crew”','think');return true}},
+      {id:'table',r:[100,220,180,110],fn(f,it,A){if(it)return false;if(!f.table){A.set('table');A.sfx('click');A.say('I fold down the changing table... a sticky note was hiding behind it!','shock')}else A.say('A changing table. Thankfully not needed today.','meh');return true}},
+      {id:'win',r:[136,84,88,104],say:['Clouds! We are 35,000 feet up. The window is not an option.','Hello, clouds. Tell my family I said hi.']},
+      {id:'smoke',r:[268,90,50,36],say:'The smoke detector. It\'s watching me. I\'m watching it back.'}]},
+    latch:{name:'Latch',back:'door',hot:[
+      {id:'track',r:[50,120,260,260],fn(f,it,A){
+        if(it==='tweezers'){if(f.peanut){A.say('The track is already clear.','meh');return true}A.set('peanut');A.give('peanut');A.sfx('pop');A.say('Tweezers in... out comes a PEANUT! Airline peanuts get everywhere.','shock');return true}
+        if(it==='hook'){if(f.hook)return false;A.use('hook');A.set('hook');A.sfx('click');A.say('The hook grabs the latch. Now it just needs a really good shake...','think');return true}
+        if(it==='hairpin'){A.say('Too straight, it slips right off. If only I could bend it into a hook...','worried');return true}
+        if(it)return false;
+        A.say(f.hook?(f.peanut?'Hooked and clear. How do I shake the whole plane?':'Hooked, but the track is still jammed.'):f.peanut?'The track is clear, but the latch is too stiff for my fingers.':'The latch is jammed. Something small and round is stuck in the track!','worried');return true}}]}
+  },
+  steps:[
+    {done:f=>f.table,h:['Some things in here fold down.','Tap the fold-down changing table on the window wall.']},
+    {done:f=>f.note,h:['Something was hiding behind the changing table.','Read the sticky note on the window wall.']},
+    {done:f=>f.pass||f.drawer,h:['The note talks about the flight number. Check your pockets.','Tap your boarding pass twice in the inventory to read it.']},
+    {done:f=>f.drawer,h:['Flight 418, backwards...','Tap the drawer under the sink and dial 8 1 4.']},
+    {done:f=>f.kit,h:['The crew drawer has goodies.','Take the amenity kit from the open drawer.']},
+    {done:f=>f.tw,h:['Kits are made to be opened.','Tap the amenity kit twice in your inventory to open it.']},
+    {done:f=>f.peanut,h:['Tweezers are great for tiny stuck things.','Select the tweezers, then tap the latch close-up on the door.']},
+    {done:f=>f.pin,h:['Something thin is stuck in the sink drain.','Select the tweezers and tap the sink.']},
+    {done:f=>f.hookmade,h:['A straight pin slips off. Can you bend it?','Select the hairpin, then tap the tweezers in your inventory.']},
+    {done:f=>f.hook,h:['The hook needs to grab the latch.','Select the hairpin hook and tap the latch close-up on the door.']},
+    {done:(f,st)=>st.won,h:['The flight attendant knows a trick (try the call button).','Press the flush button on the toilet wall. The shaking frees the latch!']}]
+}];
+
+/* ---------- drawing helpers (design space) ---------- */
+const JEAN_O='#2B2240';
+function jnR(x,X,Y,w,h,r,fill,lw=3){x.beginPath();if(x.roundRect)x.roundRect(X,Y,w,h,r);else x.rect(X,Y,w,h);if(fill){x.fillStyle=fill;x.fill()}if(lw){x.lineWidth=lw;x.strokeStyle=JEAN_O;x.lineJoin='round';x.stroke()}}
+function jnE(x,X,Y,rx,ry,fill,lw=3,rot=0){x.beginPath();x.ellipse(X,Y,Math.max(.1,rx),Math.max(.1,ry),rot,0,Math.PI*2);if(fill){x.fillStyle=fill;x.fill()}if(lw){x.lineWidth=lw;x.strokeStyle=JEAN_O;x.stroke()}}
+function jnP(x,pts,fill,lw=3,open){x.beginPath();x.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)x.lineTo(pts[i],pts[i+1]);if(!open)x.closePath();if(fill){x.fillStyle=fill;x.fill()}if(lw){x.lineWidth=lw;x.strokeStyle=JEAN_O;x.lineJoin='round';x.stroke()}}
+function jnL(x,pts,col,lw=3){x.beginPath();x.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)x.lineTo(pts[i],pts[i+1]);x.strokeStyle=col;x.lineWidth=lw;x.lineCap='round';x.lineJoin='round';x.stroke()}
+function jnG(x,x0,y0,x1,y1,...c){const g=x.createLinearGradient(x0,y0,x1,y1);c.forEach((v,i)=>g.addColorStop(i/(c.length-1),v));return g}
+function jnT(x,t,X,Y,sz,col,al='center',wt=800,fam){x.font=`${wt} ${sz}px ${fam||'Nunito, system-ui, sans-serif'}`;x.textAlign=al;x.textBaseline='middle';x.fillStyle=col;x.fillText(t,X,Y)}
+function jnStar(x,X,Y,r,col){x.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,rr2=i%2?r*.32:r;x.lineTo(X+Math.cos(a)*rr2,Y+Math.sin(a)*rr2)}x.closePath();x.fillStyle=col;x.fill()}
+/* a padlock body (art) that the dial UI draws its wheels on */
+function jnPadlock(x,n,col){
+  const w=n*50+(n-1)*12+56,X=180-w/2;
+  x.lineCap='round';x.beginPath();x.arc(180,196,w*.3,Math.PI,0);x.lineWidth=26;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=18;x.strokeStyle='#C9CFD8';x.stroke();
+  jnL(x,[180-w*.3-5,190,180-w*.3-5,150],'rgba(255,255,255,.5)',4);
+  jnR(x,X,190,w,196,22,jnG(x,0,190,0,386,col||'#FFD15C','#E9A92C'),4);
+  jnR(x,X+12,200,w-24,10,5,'rgba(255,255,255,.35)',0);
+}
+/* a door seen from inside, opening (k 0..1) onto a hallway */
+function jnDoorOpen(x,X,Y,w,h,k,col,hall){
+  jnR(x,X,Y,w,h,4,hall||jnG(x,0,Y,0,Y+h,'#FFE7B0','#F2B66B'),3);
+  x.save();x.beginPath();x.rect(X,Y,w,h);x.clip();
+  jnR(x,X+w*.32,Y+h*.62,w*.36,h*.38,0,'rgba(150,90,60,.35)',0);jnE(x,X+w/2,Y+h*.18,w*.18,8,'rgba(255,255,255,.7)',0);x.restore();
+  const pw=w*(1-k*.82);jnP(x,[X,Y,X+pw,Y+k*18,X+pw,Y+h-k*12,X,Y+h],col,3);
+}
+/* wall + floor that run far past the design box, so any canvas shape is covered */
+const JEAN_BG={
+  home(x,close){
+    x.fillStyle='#FFE6CB';x.fillRect(-900,-900,2160,3000);
+    x.fillStyle='#FCD9B4';for(let i=-30;i<42;i++)x.fillRect(i*30+11,-900,8,1150);
+    if(close)return;
+    x.fillStyle='#FFF4E6';x.fillRect(-900,-900,2160,930);jnR(x,-900,24,2160,12,0,'#F1C99B',3);
+    x.fillStyle='#BFE7E0';x.fillRect(-900,252,2160,158);x.strokeStyle='#93CEC4';x.lineWidth=2;x.beginPath();
+    for(let y=252;y<410;y+=26){x.moveTo(-900,y);x.lineTo(1260,y)}for(let i=-30;i<42;i++){x.moveTo(i*30,252);x.lineTo(i*30,410)}x.stroke();
+    jnR(x,-900,246,2160,10,0,'#93CEC4',3);
+    for(let r=0;r<6;r++)for(let i=-30;i<44;i++){x.fillStyle=(r+i)%2?'#E9DFCC':'#FBF6EC';x.fillRect(i*32-(r%2)*0,410+r*24,32,24)}
+    jnR(x,-900,404,2160,10,0,'#9A7458',3);
+  },
+  office(x,close){
+    x.fillStyle='#E4EAF1';x.fillRect(-900,-900,2160,3000);
+    if(close){x.strokeStyle='#CCD6E2';x.lineWidth=2;x.beginPath();for(let y=-880;y<410;y+=40){x.moveTo(-900,y);x.lineTo(1260,y)}for(let i=-15;i<22;i++){x.moveTo(i*60,-900);x.lineTo(i*60,410)}x.stroke();return}
+    x.fillStyle='#F4F7FA';x.fillRect(-900,-900,2160,930);jnR(x,-900,24,2160,10,0,'#C7D2DE',3);
+    x.fillStyle='#D3DDE8';x.fillRect(-900,34,2160,376);x.strokeStyle='#B9C7D6';x.lineWidth=2;x.beginPath();
+    for(let y=34;y<410;y+=46){x.moveTo(-900,y);x.lineTo(1260,y)}for(let i=-15;i<22;i++){x.moveTo(i*64,34);x.lineTo(i*64,410)}x.stroke();
+    x.fillStyle='#2EC4B6';x.fillRect(-900,286,2160,10);
+    for(let r=0;r<5;r++)for(let i=-20;i<30;i++){x.fillStyle=(r+i)%2?'#8D96A6':'#9AA3B3';x.fillRect(i*48,410+r*28,48,28)}
+    jnR(x,-900,404,2160,10,0,'#4E5868',3);
+  },
+  plane(x,close){
+    x.fillStyle='#EEE7DB';x.fillRect(-900,-900,2160,3000);
+    if(close)return;
+    x.fillStyle='#F8F4EC';x.fillRect(-900,-900,2160,940);
+    jnP(x,[-900,40,1260,40,1260,60,-900,60],'#E0D6C6',3);
+    x.strokeStyle='#D9CDBA';x.lineWidth=3;x.beginPath();for(let i=-12;i<16;i++){x.moveTo(i*96+46,60);x.lineTo(i*96+46,404)}x.stroke();
+    x.fillStyle='#E2D9CA';x.fillRect(-900,330,2160,74);jnL(x,[-900,330,1260,330],'#CDBFAA',3);
+    x.fillStyle='#6C7486';x.fillRect(-900,410,2160,200);x.fillStyle='rgba(255,255,255,.12)';for(let i=0;i<260;i++)x.fillRect(((i*97)%2160)-900,412+((i*53)%110),3,3);
+    jnR(x,-900,404,2160,10,0,'#4C5262',3);
+  }
+};
+/* side walls: a soft shadow past the design box edges so a wide canvas reads as a room corner */
+function jnCorners(x){x.fillStyle='rgba(40,30,70,.10)';x.fillRect(-900,-900,900,1800);x.fillRect(360,-900,900,1800);jnL(x,[0,-900,0,1300],'rgba(40,30,70,.18)',3);jnL(x,[360,-900,360,1300],'rgba(40,30,70,.18)',3)}
+function jnVignette(x){const g=x.createRadialGradient(180,260,120,180,260,420);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(30,20,50,.35)');x.fillStyle=g;x.fillRect(-900,-900,2160,2000)}
+function jnShadow(x,X,Y,rx){jnE(x,X,Y,rx,rx*.14,'rgba(40,30,60,.18)',0)}
+
+const JEAN_ART={
+/* ======================= home ======================= */
+home:{
+  door(x,f,t){
+    jnR(x,90,80,180,334,6,'#A86C40',3);
+    if(f._open>0){jnDoorOpen(x,100,88,160,322,f._open,'#C98B57');}
+    else{
+      jnR(x,100,88,160,322,4,jnG(x,100,0,260,0,'#D69A62','#C4844F'),3);
+      jnR(x,116,150,128,104,6,null,3);jnR(x,116,272,128,120,6,null,3);
+      x.fillStyle='rgba(255,255,255,.12)';x.fillRect(120,154,8,96);x.fillRect(120,276,8,112);
+      jnR(x,140,104,80,30,8,'#FFF4E6',3);jnT(x,'♛ THRONE',180,119,13,'#A86C40');
+      jnR(x,222,236,22,52,8,jnG(x,0,236,0,288,'#FFE08A','#D9A33A'),3);jnR(x,228,254,10,10,1,'#3A2A20',0);
+    }
+    jnR(x,286,228,26,38,5,'#FFFDF8',3);jnR(x,295,238,8,18,2,'#E7DCCB',2);
+    jnE(x,54,176,6,6,'#C9CFD8',3);
+    jnP(x,[26,186,84,186,88,300,22,300],'#FFFFFF',3);x.fillStyle='#7FC8F8';x.fillRect(27,262,58,10);x.fillRect(27,278,59,5);
+    for(const [dx,dy] of [[40,220],[64,236]]){jnE(x,dx,dy,9,7,'#FFD447',2);jnE(x,dx+7,dy-6,5,5,'#FFD447',2);jnP(x,[dx+11,dy-6,dx+16,dy-5,dx+11,dy-3],'#FF9F43',0)}
+    jnE(x,180,430,86,18,'#FF9FB2',3);jnE(x,180,430,72,12,null,0);x.setLineDash([4,5]);jnE(x,180,430,74,13,null,2);x.setLineDash([]);
+    jnT(x,'WELCOME',180,431,11,'#FFFFFF');
+  },
+  toilet(x,f,t){
+    jnR(x,132,88,96,94,4,'#E8B04A',3);jnR(x,142,98,76,74,2,'#7FC8F8',3);
+    jnE(x,176,140,20,14,'#FFD447',2.5);jnE(x,192,124,10,10,'#FFD447',2.5);jnP(x,[201,124,211,127,201,130],'#FF9F43',2);jnE(x,195,121,2,2,JEAN_O,0);
+    jnShadow(x,180,410,80);
+    jnR(x,128,226,104,72,10,jnG(x,128,0,232,0,'#FFFFFF','#E2ECF3'),3);
+    jnR(x,122,214,116,18,8,'#FFFFFF',3);jnR(x,134,238,22,8,4,'#C9CFD8',2.5);
+    jnP(x,[150,330,210,330,206,404,154,404],'#EEF4F8',3);
+    x.beginPath();x.moveTo(118,318);x.bezierCurveTo(120,372,160,374,180,374);x.bezierCurveTo(200,374,240,372,242,318);x.closePath();x.fillStyle=jnG(x,118,0,242,0,'#FFFFFF','#E3ECF2');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,316,64,18,'#FFFFFF',3);jnE(x,180,316,46,10,'#BFE3F2',2.5);
+    jnR(x,150,398,60,12,4,'#E3ECF2',3);
+    jnR(x,258,262,12,8,3,'#C9CFD8',2.5);jnL(x,[264,266,290,266],'#C9CFD8',4);
+    jnR(x,276,304,28,40,0,'#FFFFFF',0);jnL(x,[276,304,276,344,304,344,304,304],JEAN_O,2.5);
+    jnE(x,290,286,24,24,'#FFFFFF',3);jnE(x,290,286,9,9,'#D9C3A5',2.5);jnL(x,[276,326,304,326],'#E7E1F7',2);
+    if(!f.note){jnR(x,284,276,12,7,1,'#FFE27A',1.5)}
+    if(!f.plunger){jnShadow(x,70,410,30);jnL(x,[70,300,70,384],JEAN_O,11);jnL(x,[70,300,70,384],'#C98B57',6);
+      x.beginPath();x.moveTo(44,410);x.bezierCurveTo(44,372,96,372,96,410);x.closePath();x.fillStyle='#FF5D73';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();jnL(x,[54,398,62,386],'rgba(255,255,255,.5)',4)}
+  },
+  tank(x,f,t){
+    jnR(x,26,110,308,320,26,jnG(x,26,0,334,0,'#FFFFFF','#E4EDF3'),4);
+    jnR(x,46,140,268,270,14,'#D7E7EE',3);
+    const w=Math.sin(t*2)*3;x.beginPath();x.moveTo(48,200+w);for(let i=0;i<=8;i++)x.quadraticCurveTo(48+i*33+16,192-w,48+i*33+33,200+w);x.lineTo(312,406);x.lineTo(48,406);x.closePath();x.fillStyle=jnG(x,0,190,0,406,'#9ED9F2','#5BB6E0');x.fill();
+    jnR(x,46,140,268,270,14,null,3);
+    jnL(x,[150,128,150,330],'#9AA3AE',4);for(let y=136;y<330;y+=12)jnE(x,150,y,3,5,null,2);
+    jnR(x,124,330,56,24,10,'#FF6B7E',3);jnR(x,120,118,90,14,6,'#C9CFD8',3);
+    jnL(x,[300,180,250,210],JEAN_O,6);jnL(x,[300,180,250,210],'#C9CFD8',3);jnE(x,240,216,16,16,'#FF9F43',3);
+    const bob=Math.sin(t*1.6)*4;jnE(x,238,290+bob,28,18,'#FFD447',3);jnE(x,258,268+bob,15,14,'#FFD447',3);jnP(x,[270,266+bob,286,270+bob,270,274+bob],'#FF9F43',2.5);jnE(x,262,264+bob,2.5,2.5,JEAN_O,0);jnL(x,[222,286+bob,236,292+bob],JEAN_O,2.5);
+  },
+  sink(x,f,t){
+    jnR(x,104,82,152,146,14,'#9FD8F7',4);jnR(x,114,92,132,126,8,jnG(x,114,92,246,218,'#E9F7FF','#BFE6FA'),3);
+    x.save();x.beginPath();x.rect(114,92,132,126);x.clip();jnL(x,[130,200,190,96],'rgba(255,255,255,.7)',8);jnL(x,[150,214,214,100],'rgba(255,255,255,.5)',4);
+    if(f.steam){x.fillStyle='rgba(255,255,255,.72)';x.fillRect(114,92,132,126);
+      x.font='800 34px "Comic Sans MS", Nunito, sans-serif';x.textAlign='center';x.textBaseline='middle';x.strokeStyle='rgba(120,170,200,.85)';x.lineWidth=3;x.fillStyle='rgba(160,205,230,.5)';
+      [['4',138],['2',166],['9',194],['7',222]].forEach(([d,X],i)=>{x.fillText(d,X,138+Math.sin(i)*4);x.strokeText(d,X,138+Math.sin(i)*4)});
+      x.beginPath();x.arc(180,186,12,.2,Math.PI-.2);x.stroke();jnE(x,174,180,1.5,2,'rgba(120,170,200,.9)',0);jnE(x,186,180,1.5,2,'rgba(120,170,200,.9)',0)}
+    x.restore();
+    if(f.steam){for(let i=0;i<5;i++){const p=(t*.35+i/5)%1;x.globalAlpha=(1-p)*.55;jnE(x,150+i*16+Math.sin(t+i)*8,256-p*120,10+p*14,7+p*8,'#FFFFFF',0)}x.globalAlpha=1}
+    jnR(x,256,254,46,8,3,'#F1C99B',2.5);jnR(x,264,214,26,40,6,'#7FC8F8',3);jnL(x,[272,214,268,196],'#FF5D73',5);jnL(x,[282,214,286,192],'#2EC4B6',5);
+    jnR(x,170,236,20,26,4,'#C9CFD8',3);jnR(x,170,232,44,10,5,'#DDE2EA',3);
+    jnE(x,150,248,13,10,'#FF5D73',3);jnE(x,210,248,13,10,'#5B9BFF',3);jnL(x,[146,244,152,242],'rgba(255,255,255,.7)',3);jnL(x,[206,244,212,242],'rgba(255,255,255,.7)',3);
+    if(f.steam){const k=(t*6)%1;jnL(x,[208,242,208,278],'rgba(110,190,240,.9)',5);jnE(x,208,280,7+k*3,3,'rgba(110,190,240,.6)',0)}
+    jnShadow(x,180,410,76);
+    x.beginPath();x.moveTo(100,262);x.lineTo(260,262);x.quadraticCurveTo(256,296,236,298);x.lineTo(124,298);x.quadraticCurveTo(104,296,100,262);x.closePath();x.fillStyle='#FFFFFF';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,266,62,6,'#D7E7EE',2.5);
+    jnR(x,112,298,136,112,6,'#D69A62',3);jnL(x,[180,300,180,408],JEAN_O,3);
+    if(f.cab){jnP(x,[180,300,214,306,214,402,180,408],'#5C3B26',2.5)}
+    jnE(x,170,350,4,4,'#FFE08A',2.5);if(!f.cab)jnE(x,190,350,4,4,'#FFE08A',2.5);
+    if(!f.cab){x.beginPath();x.arc(180,348,8,Math.PI,0);x.lineWidth=5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2.5;x.strokeStyle='#C9CFD8';x.stroke();jnR(x,170,348,20,18,4,'#FFD15C',2.5)}
+  },
+  cab(x,f,t){
+    if(!f.cab){
+      jnR(x,24,70,312,380,10,'#D69A62',4);jnL(x,[180,72,180,448],JEAN_O,3);
+      x.strokeStyle='rgba(120,70,30,.25)';x.lineWidth=2;for(let i=0;i<9;i++){x.beginPath();x.moveTo(40+i*34,80);x.bezierCurveTo(30+i*34,200,52+i*34,320,40+i*34,440);x.stroke()}
+      jnPadlock(x,4);jnT(x,'TURN THE WHEELS',180,372,12,'#7A4E14');
+    }else{
+      jnR(x,24,70,312,380,10,'#5C3B26',4);jnR(x,40,86,280,348,6,'#3E2718',3);jnR(x,40,290,280,12,2,'#8A5A38',3);
+      jnR(x,50,86,260,30,0,'rgba(255,255,255,.06)',0);
+      if(!f.sd){x.save();x.translate(124,238);x.rotate(-.18);jnR(x,-50,-12,48,24,10,'#FFC53D',3);jnL(x,[-44,-4,-10,-4],'rgba(255,255,255,.5)',3);jnR(x,-2,-4,52,8,2,'#C9CFD8',2.5);jnP(x,[50,-4,58,0,50,4],'#C9CFD8',2);x.restore()}
+      for(const [X,Y] of [[226,250],[270,250],[248,206]]){jnE(x,X,Y,22,22,'#FFFFFF',3);jnE(x,X,Y,7,7,'#D9C3A5',2)}
+      jnR(x,84,330,80,40,10,'#FFD447',3);x.fillStyle='rgba(0,0,0,.08)';for(let i=0;i<5;i++)x.fillRect(92+i*14,336,6,6);
+      jnR(x,190,316,60,54,12,'#FF9FB2',3);jnR(x,200,306,40,14,4,'#FFFFFF',2.5);
+    }
+  },
+  window(x,f,t){
+    jnR(x,112,78,136,124,6,'#FFFFFF',4);jnR(x,122,88,116,104,2,jnG(x,0,88,0,192,'#D8F1FF','#A9DBF7'),3);
+    x.fillStyle='rgba(255,255,255,.5)';for(let i=0;i<40;i++)x.fillRect(124+((i*37)%112),90+((i*23)%100),4,4);
+    jnL(x,[180,88,180,192],JEAN_O,3);jnL(x,[122,140,238,140],JEAN_O,3);
+    jnR(x,96,236,168,10,3,'#C98B57',3);
+    jnR(x,112,198,26,38,6,'#FF5D73',3);jnR(x,118,190,14,10,3,'#FFFFFF',2.5);
+    jnR(x,150,192,28,44,6,'#5FD8CC',3);jnR(x,156,184,16,10,3,'#FFFFFF',2.5);
+    jnR(x,192,202,62,34,8,'#B06CFF',3);jnR(x,214,194,18,10,3,'#FFFFFF',2.5);jnT(x,'MORE',223,220,12,'#FFFFFF');
+    jnShadow(x,306,410,34);
+    for(let i=0;i<7;i++){const a=-Math.PI/2+(i-3)*.32;x.save();x.translate(306,366);x.rotate(a+Math.PI/2);jnE(x,0,-60,11,52,i%2?'#3FAF6A':'#5CC982',2.5);x.restore()}
+    jnP(x,[282,360,330,360,324,410,288,410],'#FF8A3D',3);jnR(x,278,354,56,12,4,'#FF8A3D',3);
+    jnP(x,[18,322,92,322,86,410,24,410],'#E8C58E',3);x.strokeStyle='rgba(120,80,30,.35)';x.lineWidth=2;for(let y=334;y<410;y+=12){x.beginPath();x.moveTo(22,y);x.lineTo(89,y);x.stroke()}
+    jnE(x,40,320,18,10,'#FF9FB2',2.5);jnE(x,66,318,16,9,'#7FC8F8',2.5);
+    if(!f.vent){jnR(x,126,298,108,74,6,'#DDE2EA',3);for(let i=0;i<6;i++)jnR(x,138,308+i*10,84,5,2,'#7E8794',0);
+      for(const [X,Y] of [[133,305],[227,305],[133,365],[227,365]])jnE(x,X,Y,3.5,3.5,'#9AA3AE',2)}
+    else{jnR(x,126,298,108,74,6,'#2D2238',3);jnR(x,146,312,68,46,3,'#1B1424',0);
+      x.save();x.translate(250,388);x.rotate(.15);jnR(x,-24,-18,108*.45,74*.45,4,'#DDE2EA',2.5);x.restore()}
+  },
+  vent(x,f,t){
+    jnR(x,36,104,288,262,14,'#C9CFD8',4);
+    if(!f.vent){
+      jnR(x,56,124,248,222,6,'#2D2238',3);
+      const g=.5+.5*Math.sin(t*3);jnStar(x,250,236,10+g*5,`rgba(255,255,255,${.5+g*.4})`);
+      for(let i=0;i<10;i++)jnR(x,58,128+i*21.5,244,12,4,jnG(x,0,128+i*21.5,0,140+i*21.5,'#F1F4F8','#AEB7C3'),2);
+      for(const [X,Y] of [[52,120],[308,120],[52,350],[308,350]]){jnE(x,X,Y,8,8,'#9AA3AE',2.5);jnL(x,[X-5,Y-1,X+5,Y+1],JEAN_O,2.5)}
+    }else{
+      jnR(x,56,124,248,222,6,'#1B1424',3);
+      x.strokeStyle='rgba(255,255,255,.12)';x.lineWidth=2;x.beginPath();
+      for(const [a,b] of [[56,124],[304,124],[56,346],[304,346]]){x.moveTo(a,b);x.lineTo(180+(a-180)*.35,235+(b-235)*.35)}x.stroke();
+      jnR(x,180-248*.175,235-222*.175,248*.35,222*.35,2,'#120D1A',0);
+      if(!f.bar){x.save();x.translate(206,262);x.rotate(-.3);jnR(x,-22,-5,44,10,2,'#C9CFD8',2.5);x.restore();const g=.5+.5*Math.sin(t*3);jnStar(x,224,252,7+g*4,`rgba(255,255,255,${.6+g*.3})`)}
+      else for(const [X,Y,s] of [[150,300,1],[200,312,.8],[110,318,.7]]){jnE(x,X,Y,18*s,12*s,'#8C8396',0);jnE(x,X-5*s,Y-3*s,2.5,2.5,'#FFFFFF',0);jnE(x,X+5*s,Y-3*s,2.5,2.5,'#FFFFFF',0)}
+    }
+  }
+},
+/* ======================= office ======================= */
+office:{
+  door(x,f,t){
+    jnR(x,92,80,176,334,4,'#5E6B7E',3);
+    if(f._open>0)jnDoorOpen(x,100,88,160,322,f._open,'#97A9BE',jnG(x,0,88,0,410,'#F6F9FF','#C9D6EA'));
+    else{
+      jnR(x,100,88,160,322,3,jnG(x,100,0,260,0,'#A7B8CB','#8EA1B6'),3);
+      jnR(x,130,118,100,44,8,'#FFFFFF',3);jnT(x,'PLEASE WASH',180,132,11,'#2B2240');jnT(x,'YOUR HANDS 👀',180,148,11,'#2B2240');
+      jnR(x,196,298,52,12,6,'#DDE2EA',3);jnE(x,240,304,9,9,'#C9CFD8',3);
+      jnR(x,222,208,46,70,8,'#2E3440',3);jnR(x,228,214,34,16,3,f.power?'#8CF2A5':'#4A5363',2);
+      for(let r=0;r<3;r++)for(let c=0;c<3;c++)jnR(x,229+c*11,236+r*12,8,8,2,f.power?'#DDE2EA':'#7E8794',0);
+      if(f.power){x.fillStyle='#2E3440';jnT(x,'----',245,222,9,'#1E5A2E')}
+    }
+    jnR(x,286,224,30,44,6,'#FFFFFF',3);jnR(x,295,234,12,24,3,f.dark?'#C9CFD8':'#F2F4F7',2.5);
+    jnE(x,54,166,6,6,'#C9CFD8',3);
+    jnP(x,[46,172,62,172,70,186,38,186],'#C7354A',2.5);jnP(x,[40,186,68,186,78,280,54,296,30,280],'#C7354A',3);
+    x.save();x.beginPath();x.moveTo(40,186);x.lineTo(68,186);x.lineTo(78,280);x.lineTo(54,296);x.lineTo(30,280);x.closePath();x.clip();
+    for(let i=0;i<8;i++)jnL(x,[20,180+i*18,90,220+i*18],'#1E1F5C',5);x.restore();
+  },
+  toilet(x,f,t){
+    jnShadow(x,180,410,70);
+    jnR(x,150,234,60,52,6,'#F2F4F7',3);jnR(x,158,242,44,20,4,'#DDE2EA',2);jnE(x,180,274,5,5,'#FF5D73',2);jnE(x,180,274,9+Math.sin(t*3)*1.5,9+Math.sin(t*3)*1.5,null,0);
+    jnR(x,170,290,20,24,0,'#DDE2EA',2.5);
+    x.beginPath();x.moveTo(118,320);x.bezierCurveTo(118,380,150,386,196,384);x.lineTo(236,380);x.bezierCurveTo(244,360,244,340,242,320);x.closePath();x.fillStyle=jnG(x,118,0,242,0,'#FFFFFF','#E3ECF2');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,318,64,17,'#FFFFFF',3);jnE(x,180,318,46,9,'#BFE3F2',2.5);
+    if(!f.coin){jnE(x,190,320,7,3,'#FFC53D',1.5);const g=.5+.5*Math.sin(t*3.3);jnStar(x,196,316,4+g*4,`rgba(255,255,255,${.5+g*.5})`)}
+    jnR(x,262,226,66,80,30,'#C9CFD8',3);jnE(x,295,266,24,24,'#FFFFFF',3);jnE(x,295,266,9,9,'#9AA3AE',2);jnR(x,282,298,26,16,0,'#FFFFFF',0);jnL(x,[282,300,282,314,308,314,308,300],JEAN_O,2.5);
+    x.font='900 52px Nunito, sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillStyle='rgba(255,255,255,.1)';x.fillText('8 3',150,140);
+  },
+  sink(x,f,t){
+    jnR(x,106,80,148,128,4,'#9AA3AE',3);jnR(x,112,86,136,116,2,jnG(x,112,86,248,202,'#EEF8FF','#C6E2F4'),2.5);
+    x.save();x.beginPath();x.rect(112,86,136,116);x.clip();jnL(x,[126,190,186,92],'rgba(255,255,255,.75)',8);jnL(x,[146,200,206,96],'rgba(255,255,255,.5)',4);x.restore();
+    jnR(x,114,212,34,30,6,'#FFFFFF',3);jnR(x,126,240,10,8,2,'#9AA3AE',2);x.fillStyle='#B06CFF';x.fillRect(118,218,26,6);
+    jnR(x,96,244,168,18,4,'#B7C2CF',3);jnE(x,180,250,54,5,'#8C97A6',2);
+    jnR(x,174,224,12,22,3,'#DDE2EA',3);jnR(x,174,222,30,8,4,'#DDE2EA',3);
+    jnR(x,170,262,20,90,4,'#C9CFD8',3);jnL(x,[180,352,180,380,150,380],'#9AA3AE',8);
+    jnR(x,256,150,70,92,8,jnG(x,256,0,326,0,'#E6EAF0','#BCC5D1'),3);jnR(x,268,236,46,16,2,'#FFFFFF',2.5);jnR(x,276,170,30,6,3,'#7E8794',0);
+    if(!f.gloves){jnR(x,300,240,8,18,4,'#FFC53D',2);jnR(x,290,240,8,14,4,'#FFC53D',2)}
+    jnR(x,26,176,66,64,10,'#FFFFFF',3);jnR(x,46,238,26,14,4,'#DDE2EA',3);jnE(x,59,198,10,10,'#2EC4B6',2.5);jnT(x,'HOT AIR',59,224,8,'#2B2240');
+    jnShadow(x,294,410,36);jnP(x,[262,330,326,330,320,410,268,410],jnG(x,262,0,326,0,'#DDE2EA','#9AA3AE'),3);jnR(x,258,318,72,14,6,'#C9CFD8',3);
+    x.strokeStyle='rgba(43,34,64,.25)';x.lineWidth=2;for(let i=0;i<4;i++){x.beginPath();x.moveTo(276+i*12,340);x.lineTo(278+i*11,402);x.stroke()}
+  },
+  trash(x,f,t){
+    jnE(x,180,250,160,150,jnG(x,0,100,0,400,'#9AA3AE','#5E6B7E'),4);jnE(x,180,250,140,130,'#2E3440',3);
+    for(const [X,Y,r,c] of [[96,210,34,'#F2F4F7'],[250,190,30,'#FFFFFF'],[230,300,36,'#E6EAF0'],[110,300,28,'#FFFFFF'],[170,330,26,'#F7F2E2']]){jnE(x,X,Y,r,r*.85,c,3);jnL(x,[X-r*.5,Y-r*.2,X,Y+r*.1,X+r*.4,Y-r*.3],'rgba(43,34,64,.25)',2)}
+    x.save();x.translate(270,250);x.rotate(.5);jnP(x,[0,0,18,-34,30,-30,14,4,26,30,14,34,0,8],'#FFD447',3);x.restore();
+    if(!f.memo){x.save();x.translate(180,232);x.rotate(-.12);jnP(x,[-54,-36,50,-40,56,34,-48,40],'#FFF3B0',3);for(let i=0;i<4;i++)jnL(x,[-38,-18+i*14,36,-20+i*14],'rgba(43,34,64,.35)',2);jnT(x,'MEMO',-6,-28,11,'#C7354A');x.restore()}
+  },
+  window(x,f,t){
+    jnR(x,130,76,116,88,6,'#FFFFFF',4);jnR(x,138,84,100,72,2,jnG(x,0,84,0,156,'#E6F2FB','#C3DDF0'),3);
+    x.fillStyle='rgba(255,255,255,.55)';for(let i=0;i<30;i++)x.fillRect(140+((i*41)%96),86+((i*29)%68),4,4);
+    if(!f.clock){jnE(x,79,133,36,36,'#FFFFFF',4);jnE(x,79,133,30,30,null,1.5);for(let i=0;i<12;i++){const a=i*Math.PI/6;jnL(x,[79+Math.cos(a)*24,133+Math.sin(a)*24,79+Math.cos(a)*28,133+Math.sin(a)*28],JEAN_O,2)}
+      const m=t*.4,h=m/12;jnL(x,[79,133,79+Math.cos(h-1.6)*14,133+Math.sin(h-1.6)*14],JEAN_O,4);jnL(x,[79,133,79+Math.cos(m)*22,133+Math.sin(m)*22],'#FF5D73',2.5);jnE(x,79,133,3,3,JEAN_O,0)}
+    else{jnE(x,79,133,36,36,'rgba(255,255,255,.35)',0);jnE(x,79,104,3,3,'#9AA3AE',1.5)}
+    jnR(x,30,206,92,60,6,'#FFC53D',3);jnT(x,'TEAMWORK',76,226,12,'#2B2240');jnT(x,'makes the dream work',76,246,8,'#2B2240',undefined,800);
+    jnR(x,140,180,96,128,4,'#FFFFFF',3);jnR(x,146,186,84,18,2,'#5B6CFF',0);jnT(x,'EMPLOYEE',188,195,9,'#FFFFFF');
+    jnGary(x,188,252,.42);jnR(x,152,288,72,14,3,'#FFC53D',2);jnT(x,'GARY',188,295,9,'#2B2240');
+    jnShadow(x,304,410,38);
+    for(let i=0;i<6;i++){x.save();x.translate(304,350);x.rotate((i-2.5)*.42);jnE(x,0,-58,16,46,i%2?'#2E9E5B':'#46BE77',2.5);jnL(x,[0,-20,0,-96],'rgba(0,0,0,.18)',2);x.restore()}
+    jnP(x,[276,346,332,346,324,410,284,410],'#5B6CFF',3);jnE(x,296,374,3,3,'#FFFFFF',0);jnE(x,312,374,3,3,'#FFFFFF',0);x.beginPath();x.arc(304,380,6,.3,Math.PI-.3);x.strokeStyle='#FFFFFF';x.lineWidth=2;x.stroke();
+  },
+
+  poster(x,f,t){
+    jnR(x,46,74,268,356,8,'#FFFFFF',4);jnR(x,58,86,244,46,4,'#5B6CFF',0);jnT(x,'EMPLOYEE OF',180,100,15,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'THE MONTH',180,120,15,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');
+    jnR(x,82,144,196,190,6,'#DFF3FF',3);x.save();x.beginPath();x.rect(82,144,196,190);x.clip();jnGary(x,180,244,1.05);x.restore();jnR(x,82,144,196,190,6,null,3);
+    for(const [X,Y] of [[70,160],[290,180],[76,300],[288,320]])jnStar(x,X,Y,10,'#FFC53D');
+    jnR(x,80,346,200,62,8,'#FFC53D',3);jnT(x,'GARY',180,366,18,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'DESK 61',180,392,16,'#2B2240');
+  },
+  keypad(x,f,t){
+    jnR(x,70,74,220,372,22,jnG(x,70,0,290,0,'#3B4252','#2A303C'),4);
+    jnR(x,92,96,176,62,10,f.power?'#8CF2A5':'#1E232C',3);
+    if(!f.power)jnT(x,'NO POWER',180,127,14,'#4A5363',undefined,400,'Bungee, Impact, sans-serif');
+    jnR(x,140,402,80,26,6,'#1E232C',3);jnR(x,148,408,64,14,3,f.power?'#FFC53D':'#2A303C',f.power?2:0);
+    if(!f.power){jnT(x,'+   −',180,415,12,'#4A5363')}
+  }
+},
+/* ======================= plane ======================= */
+plane:{
+  door(x,f,t){
+    jnR(x,96,80,168,334,12,'#C9C2B4',3);
+    if(f._open>0)jnDoorOpen(x,104,88,152,322,f._open,'#E8E2D6',jnG(x,0,88,0,410,'#DCE6F5','#9FB0CC'));
+    else{
+      jnR(x,104,88,152,322,10,jnG(x,104,0,256,0,'#F4EFE6','#DDD5C7'),3);jnL(x,[180,92,180,406],'#BDB2A0',3);
+      for(let i=0;i<5;i++){jnL(x,[124,180+i*44,164,180+i*44],'rgba(43,34,64,.12)',3);jnL(x,[196,180+i*44,236,180+i*44],'rgba(43,34,64,.12)',3)}
+      jnR(x,132,108,96,40,8,'#2E3440',3);jnT(x,'LAVATORY',180,121,12,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');jnR(x,150,132,60,10,3,'#FF5D73',0);jnT(x,'OCCUPIED',180,137,8,'#FFFFFF');
+      jnR(x,198,220,66,54,8,'#C9CFD8',3);jnR(x,206,236,50,20,4,'#2E3440',2);jnR(x,208+(f.hook&&f.peanut?26:0),238,22,16,3,'#FF5D73',2);
+    }
+    jnR(x,272,300,56,44,6,'#C9CFD8',3);jnR(x,280,308,40,10,3,'#9AA3AE',2);jnE(x,300,330,12,6,'#2E3440',2);
+    jnR(x,60,190,18,110,9,'#C9CFD8',3);
+  },
+  toilet(x,f,t){
+    jnR(x,100,96,160,60,8,'#FFFFFF',3);jnT(x,'PLEASE DO NOT FLUSH:',180,112,10,'#2B2240');jnT(x,'towels · diapers · regrets',180,132,10,'#C7354A');
+    jnE(x,249,223,26,26,'#C9CFD8',3);jnE(x,249,223,19,19,'#5B9BFF',3);jnT(x,'FLUSH',249,224,8,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');
+    jnShadow(x,180,410,76);
+    jnR(x,124,214,112,80,14,'#E9E4DA',3);jnR(x,134,224,92,60,10,'#F6F2EA',2);
+    x.beginPath();x.moveTo(112,300);x.bezierCurveTo(112,380,140,408,180,408);x.bezierCurveTo(220,408,248,380,248,300);x.closePath();x.fillStyle=jnG(x,112,0,248,0,'#E3E7EC','#AEB6C1');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,300,70,18,'#D5DAE0',3);jnE(x,180,300,40,8,'#5E6B7E',2.5);jnL(x,[136,330,150,380],'rgba(255,255,255,.5)',5);
+  },
+  sink(x,f,t){
+    jnR(x,106,76,148,138,18,'#C9CFD8',3);jnR(x,114,84,132,122,12,jnG(x,114,84,246,206,'#EEF8FF','#C6E2F4'),2.5);
+    x.save();x.beginPath();x.rect(114,84,132,122);x.clip();jnL(x,[126,196,186,90],'rgba(255,255,255,.75)',8);x.restore();
+    jnR(x,262,96,56,56,12,'#FFFFFF',3);jnE(x,290,124,18,18,'#FFC53D',3);jnE(x,290,116,5,5,JEAN_O,0);jnP(x,[281,132,299,132,295,124,285,124],JEAN_O,0);jnT(x,'CALL',290,160,9,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');
+    jnR(x,174,214,12,22,3,'#DDE2EA',3);jnR(x,170,208,36,10,5,'#DDE2EA',3);
+    jnR(x,96,232,168,12,4,'#D9D0C0',3);
+    x.beginPath();x.moveTo(110,244);x.lineTo(250,244);x.bezierCurveTo(250,290,220,296,180,296);x.bezierCurveTo(140,296,110,290,110,244);x.closePath();x.fillStyle=jnG(x,0,244,0,296,'#E3E7EC','#AEB6C1');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,270,10,5,'#2E3440',2.5);
+    if(!f.pin){const g=.5+.5*Math.sin(t*3.1);jnStar(x,184,268,3+g*4,`rgba(255,255,255,${.4+g*.5})`)}
+    jnR(x,108,302,144,98,10,'#E2D9CA',3);jnR(x,120,314,120,30,6,'#EEE7DB',2.5);jnT(x,'CREW ONLY',180,329,11,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');
+    jnR(x,166,356,28,28,6,f.drawer?'#C9CFD8':'#FFD15C',2.5);
+    if(f.drawer)jnP(x,[108,396,252,396,262,410,98,410],'#5E6B7E',2);
+  },
+  drawer(x,f,t){
+    if(!f.drawer){
+      jnR(x,24,70,312,380,16,'#E2D9CA',4);jnR(x,44,90,272,36,8,'#EEE7DB',3);jnT(x,'CREW ONLY',180,108,16,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');
+      jnPadlock(x,3,'#C9CFD8');jnT(x,'3-DIGIT LOCK',180,372,12,'#5E6B7E');
+      x.save();x.translate(270,410);x.rotate(.08);jnR(x,-42,-24,80,44,3,'#FFE27A',2.5);jnT(x,'Kevin,',-2,-12,10,'#2B2240');jnT(x,'see note!!',-2,6,10,'#C7354A');x.restore();
+    }else{
+      jnR(x,24,70,312,380,16,'#5E6B7E',4);jnR(x,42,90,276,340,10,'#3B4252',3);
+      if(!f.kit){jnR(x,74,206,124,80,22,'#5B6CFF',3);jnL(x,[86,222,186,222],'#FFC53D',4);jnE(x,190,222,6,6,'#FFC53D',2);jnStar(x,120,256,8,'rgba(255,255,255,.8)')}
+      for(let i=0;i<3;i++)jnR(x,210,196+i*36,104,34,8,['#FF8A99','#9FA9FF','#FFD166'][i],3);
+    }
+  },
+  window(x,f,t){
+    jnE(x,180,136,48,58,'#D9D0C0',4);jnE(x,180,136,38,48,'#7FC8F8',3);
+    x.save();x.beginPath();x.ellipse(180,136,38,48,0,0,Math.PI*2);x.clip();x.fillStyle=jnG(x,0,90,0,184,'#7FC8F8','#CBEBFF');x.fillRect(130,80,100,110);
+    for(let i=0;i<4;i++){const cx=((i*60-t*14)%240+240)%240+80;jnE(x,cx,110+i*22,22,9,'#FFFFFF',0);jnE(x,cx+14,104+i*22,14,9,'#FFFFFF',0)}x.restore();
+    jnE(x,180,136,38,48,null,3);
+    jnR(x,268,92,50,32,14,'#FFFFFF',3);jnE(x,293,108,5,5,'#FF5D73',0);
+    if(!f.table){jnR(x,100,220,180,110,12,'#E9E4DA',3);jnR(x,112,232,156,86,8,'#F4EFE6',2.5);
+      x.save();x.translate(190,276);jnE(x,0,-14,14,13,'#9FA9FF',2.5);jnE(x,0,12,18,16,'#9FA9FF',2.5);x.restore();jnT(x,'↓ PULL',230,300,10,'#5E6B7E');jnR(x,170,322,40,10,4,'#C9CFD8',2.5)}
+    else{jnR(x,100,220,180,110,12,'#CFC5B4',3);jnR(x,112,232,156,86,8,'#BDB2A0',0);
+      x.save();x.translate(190,266);x.rotate(-.06);jnR(x,-36,-28,72,58,2,'#FFE27A',2.5);jnT(x,'KEVIN!!',0,-12,11,'#C7354A');jnL(x,[-26,4,26,4],'rgba(43,34,64,.4)',2);jnL(x,[-26,14,20,14],'rgba(43,34,64,.4)',2);x.restore();
+      jnP(x,[96,330,284,330,300,372,80,372],'#E9E4DA',3);jnL(x,[110,352,270,352],'rgba(43,34,64,.15)',3)}
+  },
+  latch(x,f,t){
+    jnR(x,30,90,300,320,24,jnG(x,0,90,0,410,'#F4EFE6','#DDD5C7'),4);
+    jnR(x,52,140,256,200,18,jnG(x,0,140,0,340,'#DDE2EA','#AEB6C1'),4);
+    jnR(x,76,206,208,72,12,'#2E3440',3);
+    jnT(x,'VACANT',124,170,16,'#2EC4B6',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'OCCUPIED',236,170,14,'#FF5D73',undefined,400,'Bungee, Impact, sans-serif');
+    const sl=f.won?0:1;jnR(x,sl?168:84,214,108,56,10,jnG(x,0,214,0,270,'#FF8A99','#E04760'),3);jnL(x,[(sl?168:84)+30,226,(sl?168:84)+30,258],'rgba(255,255,255,.5)',4);jnL(x,[(sl?168:84)+54,226,(sl?168:84)+54,258],'rgba(255,255,255,.5)',4);
+    if(!f.peanut){x.save();x.translate(140,244);x.rotate(.3);jnE(x,-9,0,13,11,'#E2B26B',2.5);jnE(x,9,0,13,11,'#E2B26B',2.5);jnL(x,[-12,-3,-6,3],'rgba(120,70,20,.4)',2);x.restore()}
+    if(f.hook){x.beginPath();x.moveTo(300,120);x.lineTo(272,236);x.arc(262,236,10,0,Math.PI);x.lineWidth=7;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=3;x.strokeStyle='#E6E8EE';x.stroke()}
+    jnT(x,'↔',180,310,22,'#5E6B7E');
+  }
+}
+};
+function jnGary(x,X,Y,s){
+    x.save();x.translate(X,Y);x.scale(s,s);
+    jnP(x,[-70,90,-60,40,60,40,70,90],'#5B6CFF',3);jnP(x,[-12,40,12,40,8,88,0,96,-8,88],'#FF5D73',3);
+    jnE(x,0,-10,52,58,'#F7C8A0',3);jnE(x,-52,-6,10,14,'#F7C8A0',3);jnE(x,52,-6,10,14,'#F7C8A0',3);
+    jnP(x,[-48,-34,-30,-64,30,-70,50,-40,10,-56],'#6B4A2E',3);
+    jnE(x,-20,-12,14,12,'#FFFFFF',3);jnE(x,20,-12,14,12,'#FFFFFF',3);jnL(x,[-6,-12,6,-12],JEAN_O,3);jnE(x,-20,-10,4,4,JEAN_O,0);jnE(x,20,-10,4,4,JEAN_O,0);
+    x.beginPath();x.arc(0,16,22,.15,Math.PI-.15);x.fillStyle='#FFFFFF';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();jnL(x,[-20,22,20,22],'rgba(43,34,64,.4)',1.5);
+    x.restore();
+}
+/* scenes drawn while the lights are off (office): the room is dark, only glowing things show */
+function jnDark(x,set,v,f,t){
+  x.fillStyle='rgba(6,8,24,.9)';x.fillRect(-900,-900,2160,2000);
+  if(v==='door'){x.shadowColor='#FFE08A';x.shadowBlur=14;jnR(x,286,224,30,44,6,null,0);x.lineWidth=3;x.strokeStyle='#FFE08A';x.stroke();jnR(x,295,234,12,24,3,'rgba(255,224,138,.5)',0);x.shadowBlur=0}
+  if(v==='toilet'){x.font='900 52px Nunito, sans-serif';x.textAlign='center';x.textBaseline='middle';x.shadowColor='#7CFFB2';x.shadowBlur=22;x.fillStyle='#A8FFCD';x.fillText('8 3 _ _',180,140);x.shadowBlur=0;x.strokeStyle='rgba(168,255,205,.12)';x.lineWidth=2;jnE(x,180,330,64,40,null,0);x.stroke()}
+}
+
+/* ---------- Jean ---------- */
+function jeanHead(x,X,Y,r,mood,o={}){
+  const k=r/46;x.save();x.translate(X,Y);x.scale(k,k);
+  jnE(x,-44,6,10,13,'#FFC9A3',3);jnE(x,44,6,10,13,'#FFC9A3',3);
+  jnE(x,0,0,46,46,'#FFD2AE',3);
+  jnE(x,-24,18,9,6,'rgba(255,120,130,.35)',0);jnE(x,24,18,9,6,'rgba(255,120,130,.35)',0);
+  jnE(x,6,-38,44,15,'#D7354D',3,-.12);jnR(x,2,-60,8,10,3,'#D7354D',2.5);
+  const blink=o.blink,shock=mood==='shock',lid=mood==='meh'||mood==='smug';
+  for(const s of [-1,1]){
+    if(blink){jnL(x,[s*16-9,-6,s*16+9,-6],JEAN_O,3);continue}
+    jnE(x,s*16,-6,10,shock?14:12,'#FFFFFF',2.5);
+    const lx=(o.lx||0)*4,ly=(mood==='think'?-5:0)+(o.ly||0)*3;jnE(x,s*16+lx,-4+ly,shock?3.5:5,shock?3.5:5.5,JEAN_O,0);jnE(x,s*16+lx+1.5,-6+ly,1.5,1.5,'#FFFFFF',0);
+    if(lid){x.save();x.beginPath();x.ellipse(s*16,-6,10,12,0,0,Math.PI*2);x.clip();x.fillStyle='#FFC9A3';x.fillRect(s*16-12,-20,24,mood==='smug'?12:10);x.restore();jnL(x,[s*16-10,mood==='smug'?-8:-10,s*16+10,mood==='smug'?-8:-10],JEAN_O,2.5)}
+  }
+  const B={talk:[0,0],happy:[-3,-2],shock:[-8,4],worried:[3,-5],smug:[-2,2],think:[-6,-3],meh:[0,0]}[mood]||[0,0];
+  jnL(x,[-26,-24+B[0]*.5-(mood==='worried'?-3:0),-8,-24-B[1]],JEAN_O,3.5);jnL(x,[26,-24+B[0]*.5-(mood==='worried'?-3:0),8,-24-B[1]],JEAN_O,3.5);
+  jnE(x,0,10,9,8,'#F59C80',2.5);
+  const m=o.talk&&mood==='talk'?(Math.sin(o.talk*18)>0):false;
+  if(mood==='happy'){x.beginPath();x.moveTo(-14,26);x.quadraticCurveTo(0,44,14,26);x.closePath();x.fillStyle='#8E2B3A';x.fill();x.lineWidth=2.5;x.strokeStyle=JEAN_O;x.stroke()}
+  else if(mood==='shock')jnE(x,0,31,7,9,'#8E2B3A',2.5);
+  else if(mood==='worried')jnL(x,[-12,32,-6,28,0,32,6,28,12,32],JEAN_O,2.5);
+  else if(mood==='smug')jnL(x,[-10,30,4,31,13,25],JEAN_O,2.5);
+  else if(mood==='think')jnL(x,[-6,31,10,29],JEAN_O,2.5);
+  else if(mood==='meh')jnL(x,[-10,31,10,31],JEAN_O,2.5);
+  else if(m)jnE(x,0,30,8,6,'#8E2B3A',2.5);else jnL(x,[-9,29,0,32,9,29],JEAN_O,2.5);
+  x.beginPath();x.moveTo(0,17);x.bezierCurveTo(-8,14,-20,16,-24,24);x.bezierCurveTo(-18,20,-10,22,0,22);x.bezierCurveTo(10,22,18,20,24,24);x.bezierCurveTo(20,16,8,14,0,17);x.fillStyle='#5A3A28';x.fill();x.lineWidth=2;x.strokeStyle=JEAN_O;x.stroke();
+  x.restore();
+}
+/* full figure, feet at (X,Y). o: mood, walk (phase), arm:'down'|'reach'|'up'|'lock'|'hold', talk, blink, back */
+function jeanFig(x,X,Y,sc,o={}){
+  x.save();x.translate(X,Y);x.scale(sc,sc);
+  jnE(x,0,0,46,8,'rgba(30,20,50,.2)',0);
+  const w=o.walk||0,sw=Math.sin(w)*9,bob=Math.abs(Math.cos(w))*(o.walk?4:0);
+  x.translate(0,-bob);
+  for(const s of [-1,1]){const lift=o.walk?Math.max(0,s*Math.sin(w))*8:0;
+    jnL(x,[s*14,-70,s*14+s*sw*.4,-10-lift],JEAN_O,22);jnL(x,[s*14,-70,s*14+s*sw*.4,-10-lift],'#3D5A99',16);
+    jnE(x,s*14+s*sw*.4+s*6,-6-lift,16,8,'#6B3F22',3)}
+  const arm=(s,mode)=>{const sx=s*38,sy=-140;let ex,ey;
+    if(mode==='reach'){ex=s*92;ey=-150}else if(mode==='up'){ex=s*62;ey=-210}else if(mode==='hold'){ex=s*70;ey=-176}else if(mode==='lock'){ex=s*76;ey=-120}else{ex=s*50;ey=-80+(o.walk?s*Math.sin(w)*-8:0)}
+    jnL(x,[sx,sy,ex,ey],JEAN_O,18);jnL(x,[sx,sy,ex,ey],'#FF8A3D',12);jnE(x,ex,ey,9,9,'#FFD2AE',3);return[ex,ey]};
+  const L=arm(-1,o.armL||'down');
+  jnE(x,0,-112,44,50,'#FF8A3D',3);x.save();x.beginPath();x.ellipse(0,-112,44,50,0,0,Math.PI*2);x.clip();x.fillStyle='#FFB070';for(let i=-3;i<4;i++)x.fillRect(i*16-3,-170,7,120);
+  x.fillStyle='#3D5A99';x.fillRect(-50,-82,100,30);x.restore();jnE(x,0,-112,44,50,null,3);jnR(x,-8,-80,16,10,3,'#FFC53D',2);
+  const R=arm(1,o.armR||'down');
+  if(o.hold){x.save();x.translate(R[0],R[1]-4);x.rotate(-.5);jnItem(x,'handle',0,0,34);x.restore()}
+  jeanHead(x,0,-186,46,o.mood||'talk',o);
+  x.restore();
+}
+/* item icons: custom drawn for things without a good emoji */
+function jnItem(x,id,X,Y,sz){
+  const k=sz/40;x.save();x.translate(X,Y);x.scale(k,k);
+  const D={
+    handle(){jnR(x,-14,-6,26,12,4,'#D9A33A',2.5);jnE(x,14,0,12,12,jnG(x,0,-12,0,12,'#FFE08A','#D9A33A'),2.5);jnE(x,10,-4,3,3,'rgba(255,255,255,.7)',0);jnR(x,-18,-4,6,8,1,'#9AA3AE',2)},
+    bar(){x.rotate(-.6);jnR(x,-18,-4,36,8,1,jnG(x,0,-4,0,4,'#F1F4F8','#8C97A6'),2.5)},
+    fixed(){jnR(x,-20,-3,16,6,1,'#C9CFD8',2);jnR(x,-8,-6,22,12,4,'#D9A33A',2.5);jnE(x,16,0,12,12,jnG(x,0,-12,0,12,'#FFE08A','#D9A33A'),2.5);jnStar(x,-14,-10,6,'#FFFFFF')},
+    tweezers(){x.rotate(-.7);jnP(x,[-18,-4,16,-10,19,-5,-16,0],'#E3E7EE',2.5);jnP(x,[-18,4,16,10,19,5,-16,0],'#E3E7EE',2.5);jnR(x,-20,-3,8,6,2,'#FF5D73',2)},
+    hairpin(){x.rotate(-.6);x.beginPath();x.moveTo(-18,-3);x.lineTo(16,-3);x.arc(16,0,3,-Math.PI/2,Math.PI/2);x.lineTo(-14,3);x.lineWidth=4.5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2;x.strokeStyle='#6B4A2E';x.stroke()},
+    hook(){x.beginPath();x.moveTo(-6,-18);x.lineTo(-6,8);x.arc(2,8,8,Math.PI,0,true);x.lineTo(10,2);x.lineWidth=5.5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2.5;x.strokeStyle='#8A5A38';x.stroke()}
+  };
+  if(D[id])D[id]();
+  x.restore();
+}
+
+const JEAN_DARKLINES=['Too dark. I just high-fived the wall.','I can\'t see a thing. Is that my foot? Oh, it\'s the bin.','Darkness. Only the glowing stuff is visible.'];
+const JEAN_SNAP={home:'SNAP!',office:'BZZT!',plane:'CLUNK!'};
+function jeanEscape(root,S){
+  const lv=clamp(S.level||1,1,JEAN_CH.length),ch=JEAN_CH[lv-1],E=JEAN_E,KEY='jean:ch'+lv,ART=JEAN_ART[ch.set];
+  status(root,'Help Jean escape the toilet! Inspect everything, collect items and use them in the room.');
+  function load(){const s=store.get(KEY);if(E.valid(ch,s)&&!s.won){s.n=s.n||{};s.d=s.d||{};s.hint=s.hint||[-1,0];return s}const n=E.fresh(ch);if(s&&s.intro)n.intro=1;return n}
+  let st=load();const save=()=>store.set(KEY,st);
+  const wrap=el('div','jn-wrap',root),c=el('canvas','jn-cv',wrap),x=c.getContext('2d');
+  const btn=(cls,html,label)=>{const b=el('button',cls,wrap,html);b.setAttribute('aria-label',label);return b};
+  const bL=btn('jn-nav jn-l','◀','Turn left'),bR=btn('jn-nav jn-r','▶','Turn right'),bB=btn('jn-back','▼ Back','Back'),bReset=btn('jn-reset','↺','Reset chapter'),bSkip=btn('jn-skip','Skip ▸▸','Skip intro');
+  const bar=el('div','jn-bar',root),slots=[];
+  for(let i=0;i<6;i++){const b=el('button','jn-slot',bar,`<canvas width="96" height="96"></canvas><i>${i+1}</i>`);b.setAttribute('aria-label','Inventory slot '+(i+1));slots.push(b);S.on(b,'click',()=>slotTap(i))}
+  const bHint=el('button','jn-hint',bar,'💡<small>Hint</small>');bHint.setAttribute('aria-label','Hint');
+  let W=360,H=520,R=1,T=0,mode=st.intro?'play':'intro',introT=0,outT=0,sel=null,bub=null,insp=null,tr=null,flash=null,nexted=false,armed=0;
+  const P=sparks(),rip=[];
+  /* ---------- layout: portrait phones get a tall scene, everything else a wide one ---------- */
+  function layout(){
+    const portrait=COMPACT.matches&&innerHeight>innerWidth;
+    W=portrait?360:540;H=portrait?tall(360,520,860,bar.offsetHeight+12):420;
+    wrap.dataset.ar=(W/H).toFixed(4);wrap.style.aspectRatio=W+' / '+H;wrap.dataset.max=portrait?720:980;
+    R=Math.min((window.devicePixelRatio||1)*1.6,3.2);const bw=Math.round(W*R),bh=Math.round(H*R);if(c.width!==bw||c.height!==bh){c.width=bw;c.height=bh}
+    if(typeof fit==='function')fit();
+  }
+  let rz=0;S.on(window,'resize',()=>{const k=++rz;S.after(90,()=>{if(k===rz)layout()})});
+  const tf=()=>{const s=Math.min(W/JEAN_DW,H/JEAN_DH);return{s,ox:(W-JEAN_DW*s)/2,oy:(H-JEAN_DH*s)*.8}};
+  const toCanvas=e=>{const b=c.getBoundingClientRect();return{x:(e.clientX-b.left)*W/b.width,y:(e.clientY-b.top)*H/b.height}};
+  const toDesign=p=>{const{s,ox,oy}=tf();return{x:(p.x-ox)/s,y:(p.y-oy)/s}};
+  const isWall=v=>ch.walls.includes(v);
+  /* ---------- sound ---------- */
+  function sfx(n){
+    const q=(ms,f,d,ty)=>S.after(ms,()=>beep(f,d,ty));
+    ({pick:()=>{beep(660,70);q(70,990,110)},click:()=>beep(1500,30,'square'),unlock:()=>{beep(523,90);q(90,784,90);q(180,1047,160)},
+      flush:()=>{for(let i=0;i<22;i++)q(i*32,150+Math.random()*520,70,i%3?'sawtooth':'triangle');for(let i=0;i<8;i++)q(300+i*60,700-i*70,90,'sine')},
+      water:()=>{for(let i=0;i<8;i++)q(i*45,1200+Math.random()*900,40,'sine')},pop:()=>{beep(260,60,'square');q(60,900,90)},
+      unscrew:()=>{for(let i=0;i<4;i++){q(i*130,1300,25,'square');q(i*130+50,950,25,'square')}},splash:()=>{for(let i=0;i<7;i++)q(i*40,400+Math.random()*900,60,'sine')},
+      dryer:()=>{for(let i=0;i<26;i++)q(i*30,90+Math.random()*60,60,'sawtooth')},power:()=>{beep(440,60,'square');q(80,660,60,'square');q(160,880,120,'square')},
+      ding:()=>{beep(1319,400,'sine');q(260,988,500,'sine')},crunch:()=>{for(let i=0;i<3;i++)q(i*90,120+Math.random()*80,50,'square')},
+      snap:()=>{beep(160,140,'square');q(80,90,220,'sawtooth')},nope:()=>{beep(240,90);q(90,180,140)},buzz:()=>beep(110,280,'sawtooth'),
+      turn:()=>beep(520,30),hint:()=>{beep(880,70,'sine');q(80,1175,110,'sine')},key:()=>beep(1046,40,'square'),dial:()=>beep(1250,22,'square'),
+      bwomp:()=>{beep(110,200,'sawtooth');q(200,82,300,'sawtooth')},whistle:()=>{for(let i=0;i<6;i++)q(i*45,900+i*80,60,'sine')}}[n]||(()=>{}))();
+  }
+  /* ---------- speech ---------- */
+  function say(text,mood,kind){bub={text,mood:mood||'talk',t0:T,dur:Math.max(3.2,text.length*.065),kind}}
+  function wrapText(t,w,font){x.font=font;const out=[];let line='';for(const word of t.split(' ')){const tryL=line?line+' '+word:word;if(x.measureText(tryL).width>w&&line){out.push(line);line=word}else line=tryL}if(line)out.push(line);return out}
+  /* ---------- actions ---------- */
+  function run(a,pt){
+    const prev=st.v,ev=E.act(ch,st,a);let nope=false;
+    for(const e of ev){
+      if(e.say&&a.t!=='look')say(e.say,e.m);
+      if(e.give){const b=slots[st.inv.indexOf(e.give)];if(b)restartAnim(b,'got');if(pt)P.add(pt.x,pt.y,'#FFC53D',16,150)}
+      if(e.sfx)sfx(e.sfx);
+      if(e.nope){nope=true;sfx('nope')}
+      if(e.go){trans(prev,e.go,e.turn?'turn':e.zoom?'zoom':'back',e.turn||0);if(e.turn)sfx('turn');else beep(e.zoom?700:500,40)}
+      if(e.win){mode='won';S.after(1100,startOutro)}
+    }
+    if(a.it&&!nope)sel=null;
+    paint();save();return ev;
+  }
+  function trans(from,to,kind,d){tr={from,to,kind,d,t:0}}
+  function slotTap(i){
+    if(mode!=='play')return;const it=st.inv[i];insp=null;
+    if(!it){sel=null;paint();return}
+    if(sel===it){const ev=run({t:'look',it});const s=ev.find(e=>e.say);insp={id:it,text:s?s.say:'',t0:T};sel=null;beep(800,50);paint();return}
+    if(sel&&st.inv.includes(sel)){run({t:'comb',a:sel,b:it});sel=null;paint();return}
+    sel=it;bub=null;beep(900,40);paint();
+  }
+  function hint(){
+    if(mode!=='play')return;const s=E.step(ch,st),L=ch.steps[s].h;
+    if(st.hint[0]!==s)st.hint=[s,0];else st.hint[1]=Math.min(st.hint[1]+1,L.length-1);
+    say(`Hint ${st.hint[1]+1}/${L.length}: ${L[st.hint[1]]}`,'think','hint');sfx('hint');restartAnim(bHint,'got');save();
+  }
+  /* ---------- lock wheels / keypad (design space) ---------- */
+  function lockGeo(L){
+    if(L.kind==='dials'){const n=L.len,tot=n*50+(n-1)*12,X0=180-tot/2;return Array.from({length:n},(_,i)=>({x:X0+i*62,w:50}))}
+    const K=['1','2','3','4','5','6','7','8','9','C','0','⌫'];return K.map((k,i)=>({k,x:88+(i%3)*64,y:172+Math.floor(i/3)*55,w:56,h:46}));
+  }
+  function dials(L){const v=st.v;if(!Array.isArray(st.d[v])||st.d[v].length!==L.len)st.d[v]=Array(L.len).fill(0);return st.d[v]}
+  function lockTap(p){
+    const V=ch.views[st.v],L=V.lock;if(!L||L.done(st.f))return false;const on=!!E.lockOn(ch,st);
+    if(L.kind==='dials'){
+      const g=lockGeo(L);const i=g.findIndex(d=>p.x>=d.x-6&&p.x<=d.x+d.w+6);if(i<0||p.y<192||p.y>346)return false;
+      const D=dials(L);D[i]=(D[i]+(p.y<268?1:9))%10;sfx('dial');
+      run({t:'code',arg:D.join('')});return true;
+    }
+    const k=lockGeo(L).find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h);if(!k)return false;
+    if(!on){return false}
+    padKey(k.k);return true;
+  }
+  function padKey(k){
+    const L=ch.views[st.v].lock;if(!L||!E.lockOn(ch,st)||flash)return;let s=typeof st.d[st.v]==='string'?st.d[st.v]:'';
+    if(k==='C')s='';else if(k==='⌫')s=s.slice(0,-1);else if(s.length<L.len)s+=k;
+    st.d[st.v]=s;sfx('key');
+    if(s.length===L.len){const ev=run({t:'code',arg:s});if(ev.some(e=>e.wrong)){flash={t:T,ok:false};sfx('buzz');say(['ACCESS DENIED. The keypad sounds disappointed in me.','Wrong code. Think, Jean, think!'][rand(2)],'worried');S.after(800,()=>{flash=null;st.d[st.v]='';save()})}else flash=null}
+    save();
+  }
+  /* ---------- tapping the scene ---------- */
+  function tapAt(e){
+    const p=toCanvas(e);rip.push({x:p.x,y:p.y,t:0});
+    if(mode==='intro'){if(introT>8.4)startPlay();return}
+    if(mode!=='play')return;
+    if(insp){insp=null;return}
+    if(bub&&p.y<bubRect.y+bubRect.h&&p.y>=bubRect.y&&p.x>=bubRect.x){bub=null;return}
+    const d=toDesign(p);
+    if(!sel&&lockTap(d))return;
+    const h=E.hots(ch,st).find(h=>d.x>=h.r[0]&&d.x<=h.r[0]+h.r[2]&&d.y>=h.r[1]&&d.y<=h.r[1]+h.r[3]);
+    if(h){run({t:'tap',h:h.id,it:sel||undefined},p);return}
+    if(sel){sel=null;paint();return}
+    if(st.f.dark)say(JEAN_DARKLINES[rand(JEAN_DARKLINES.length)],'worried');
+  }
+  S.on(c,'click',tapAt);
+  S.on(bL,'click',()=>{if(mode==='play'&&!tr)run({t:'turn',d:-1})});
+  S.on(bR,'click',()=>{if(mode==='play'&&!tr)run({t:'turn',d:1})});
+  S.on(bB,'click',()=>{if(mode==='play'&&!tr)run({t:'back'})});
+  S.on(bHint,'click',hint);
+  S.on(bSkip,'click',()=>startPlay());
+  S.on(bReset,'click',()=>{
+    if(mode!=='play')return;
+    if(armed&&T-armed<3){store.set(KEY,{intro:1});S.restart();return}
+    armed=T;bReset.classList.add('armed');bReset.textContent='Reset?';say('Reset this chapter? Tap Reset? again and everything goes back to the start.','worried');
+    S.after(3000,()=>{armed=0;bReset.classList.remove('armed');bReset.textContent='↺'});
+  });
+  S.on(window,'keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
+    if(mode==='intro'){if(k==='Enter'||k===' '||k==='Escape'){e.preventDefault();startPlay()}return}
+    if(mode!=='play')return;
+    const L=E.lockOn(ch,st);
+    if(L&&L.kind==='pad'&&/^[0-9]$/.test(k)){padKey(k);return}
+    if(L&&L.kind==='pad'&&k==='Backspace'){e.preventDefault();padKey('⌫');return}
+    if(k==='ArrowLeft'){e.preventDefault();bL.click()}
+    else if(k==='ArrowRight'){e.preventDefault();bR.click()}
+    else if(k==='ArrowDown'||k==='Escape'||k==='Backspace'){e.preventDefault();if(insp)insp=null;else if(sel){sel=null;paint()}else if(!isWall(st.v))bB.click()}
+    else if(/^[1-6]$/.test(k))slotTap(+k-1);
+    else if(k==='h'||k==='H')hint();
+  });
+  /* ---------- mode changes ---------- */
+  function startPlay(){
+    if(mode!=='intro')return;mode='play';st.intro=1;save();paint();
+    say(st.inv.length&&Object.keys(st.f).length===0?'Tap around to look. ◀ ▶ turns me around. Tap an item below to select it, tap it again to inspect it.':'Where was I? Oh right. Stuck.','worried');
+  }
+  function startOutro(){mode='outro';outT=0;tr=null;insp=null;sel=null;bub=null;st.v=ch.walls[0];paint();say(ch.outro,'happy');sfx('unlock')}
+  /* ---------- inventory bar ---------- */
+  function icon(cx,id,X,Y,sz){const D=ch.items[id];if(!D)return;if(D.e){cx.font=`${sz*.86}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(D.e,X,Y+sz*.04)}else jnItem(cx,id,X,Y,sz)}
+  function paint(){
+    slots.forEach((b,i)=>{const it=st.inv[i],cx=b.firstChild.getContext('2d');cx.setTransform(1,0,0,1,0,0);cx.clearRect(0,0,96,96);
+      b.classList.toggle('full',!!it);b.classList.toggle('on',!!it&&sel===it);b.setAttribute('aria-label',it?ch.items[it].n+(sel===it?' (selected)':''):'Empty slot');
+      if(it)icon(cx,it,48,48,60)});
+    const wall=isWall(st.v)&&mode==='play';bL.hidden=bR.hidden=!wall;bB.hidden=mode!=='play'||isWall(st.v);bReset.hidden=mode!=='play';bSkip.hidden=mode!=='intro';
+    bar.classList.toggle('dim',mode!=='play');
+  }
+  /* ---------- drawing ---------- */
+  function drawView(v,dx,alpha,scale){
+    const V=ch.views[v],{s,ox,oy}=tf();x.save();x.globalAlpha=alpha==null?1:alpha;x.translate(dx||0,0);
+    if(scale&&scale!==1){x.translate(W/2,H/2);x.scale(scale,scale);x.translate(-W/2,-H/2)}
+    x.translate(ox,oy);x.scale(s,s);
+    const close=!isWall(v);JEAN_BG[ch.set](x,close);if(close)jnVignette(x);else jnCorners(x);
+    ART[v](x,Object.assign({won:st.won},st.f,mode==='outro'&&v===ch.walls[0]?{_open:clamp(outT/.8,0,1)}:{}),T);
+    if(V.lock&&!V.lock.done(st.f))drawLock(V.lock,v);
+    if(mode==='play')for(const h of E.hots(ch,st))if(h.glint&&h.glint(st.f)){const ph=(T*1.3+h.r[0]*.013)%2.2;if(ph<1){const a=Math.sin(ph*Math.PI);x.save();x.shadowColor='#FFF6C0';x.shadowBlur=8;jnStar(x,h.r[0]+h.r[2]*.78,h.r[1]+h.r[3]*.22,4+a*7,`rgba(255,255,255,${a})`);x.restore()}}
+    if(st.f.dark&&mode==='play')jnDark(x,ch.set,v,st.f,T);
+    x.restore();
+  }
+  function drawLock(L,v){
+    const on=!!E.lockOn(ch,st),g=lockGeo(L);
+    if(L.kind==='dials'){const D=dials(L);g.forEach((d,i)=>{
+      jnR(x,d.x,198,d.w,24,8,'#FFFFFF',2.5);jnP(x,[d.x+d.w/2,203,d.x+d.w/2+8,216,d.x+d.w/2-8,216],JEAN_O,0);
+      jnR(x,d.x,228,d.w,80,10,jnG(x,0,228,0,308,'#B8BEC8','#FFFFFF','#B8BEC8'),3);
+      x.save();x.beginPath();x.rect(d.x,228,d.w,80);x.clip();jnT(x,String((D[i]+9)%10),d.x+d.w/2,238,16,'rgba(43,34,64,.25)',undefined,400,'Bungee, Impact, sans-serif');jnT(x,String((D[i]+1)%10),d.x+d.w/2,298,16,'rgba(43,34,64,.25)',undefined,400,'Bungee, Impact, sans-serif');x.restore();
+      jnT(x,String(D[i]),d.x+d.w/2,269,34,JEAN_O,undefined,400,'Bungee, Impact, sans-serif');
+      jnR(x,d.x,314,d.w,24,8,'#FFFFFF',2.5);jnP(x,[d.x+d.w/2,333,d.x+d.w/2+8,320,d.x+d.w/2-8,320],JEAN_O,0)});return}
+    for(const b of g){jnR(x,b.x,b.y+3,b.w,b.h,10,'#11141A',0);jnR(x,b.x,b.y,b.w,b.h,10,on?jnG(x,0,b.y,0,b.y+b.h,'#F4F6FA','#C9CFD8'):'#4A5363',2.5);jnT(x,b.k,b.x+b.w/2,b.y+b.h/2+1,b.k.length>1?18:22,on?JEAN_O:'#6C768A',undefined,400,'Bungee, Impact, sans-serif')}
+    if(on){const s=typeof st.d[v]==='string'?st.d[v]:'';const txt=flash?'DENIED':Array.from({length:L.len},(_,i)=>s[i]||'•').join(' ');jnT(x,txt,180,128,flash?22:30,flash?'#C7354A':'#1E5A2E',undefined,400,'Bungee, Impact, sans-serif')}
+  }
+  let bubRect={x:0,y:-99,w:0,h:0};
+  function drawBubble(){
+    if(!bub){bubRect={x:0,y:-99,w:0,h:0};return}const age=T-bub.t0;
+    if(age>bub.dur+(bub.kind==='hint'?4:0)){bub=null;return}
+    const hint=bub.kind==='hint',fs=W>400?16:15,font=`800 ${fs}px Nunito, system-ui, sans-serif`,bx=70,bw=W-bx-10,lines=wrapText(bub.text,bw-26,font),lh=fs*1.28,bh=Math.max(58,lines.length*lh+22),by=10;
+    const k=clamp(age/.18,0,1),sc=.85+.15*(k<1?1-Math.pow(1-k,3)*(1-Math.sin(k*5)*.2):1);
+    x.save();x.globalAlpha=Math.min(1,k*1.6,(bub.dur+(hint?4:0)-age)*3);x.translate(bx,by);x.scale(sc,sc);
+    jnR(x,0,4,bw,bh,16,'rgba(20,15,40,.25)',0);jnR(x,0,0,bw,bh,16,hint?'#FFF3C4':'#FFFFFF',3);jnP(x,[2,24,-12,30,2,36],hint?'#FFF3C4':'#FFFFFF',0);jnL(x,[1,22,-12,30,1,38],JEAN_O,3);
+    x.font=font;x.fillStyle=JEAN_O;x.textAlign='left';x.textBaseline='middle';lines.forEach((l,i)=>x.fillText(l,13,11+lh/2+i*lh));
+    x.restore();
+    x.save();x.globalAlpha=Math.min(1,k*1.6);jnE(x,38,40,30,30,hint?'#FFC53D':'#7FC8F8',3);x.save();x.beginPath();x.arc(38,40,28.5,0,Math.PI*2);x.clip();jeanHead(x,38,46,24,bub.mood,{talk:age<bub.text.length*.03?age:0,blink:(T%3.7)<.12});x.restore();x.restore();
+    bubRect={x:0,y:by,w:W,h:bh+by};
+  }
+  function drawPill(){
+    if(mode!=='play')return;
+    const fs=13;x.font=`800 ${fs}px Nunito, system-ui, sans-serif`;
+    if(sel){const t=`Using ${ch.items[sel].n}: tap where`;const w=x.measureText(t).width+54,X=W/2-w/2,Y=H-(isWall(st.v)?66:72);jnR(x,X,Y,w,30,15,'#FFC53D',2.5);icon(x,sel,X+18,Y+15,20);jnT(x,t,X+32,Y+15,fs,JEAN_O,'left')}
+    if(isWall(st.v)){const V=ch.views[st.v],t=V.name,w=x.measureText(t).width+70,X=W/2-w/2,Y=H-34;jnR(x,X,Y,w,26,13,'rgba(255,255,255,.88)',2.5);jnT(x,t,X+14,Y+13,fs,JEAN_O,'left');
+      ch.walls.forEach((v,i)=>jnE(x,X+w-46+i*10,Y+13,3.5,3.5,v===st.v?'#FF5D73':'rgba(43,34,64,.25)',0))}
+  }
+  function drawInspect(){
+    if(!insp)return;const k=clamp((T-insp.t0)/.22,0,1);x.save();x.fillStyle=`rgba(20,15,40,${.55*k})`;x.fillRect(0,0,W,H);
+    const cw=Math.min(W-36,340),font='800 15px Nunito, system-ui, sans-serif',lines=wrapText(insp.text,cw-36,font),ch2=170+lines.length*20,X=(W-cw)/2,Y=(H-ch2)/2;
+    x.translate(W/2,H/2);x.scale(.8+.2*k,.8+.2*k);x.translate(-W/2,-H/2);
+    jnR(x,X,Y+5,cw,ch2,20,'rgba(20,15,40,.4)',0);jnR(x,X,Y,cw,ch2,20,'#FFFFFF',3);
+    jnE(x,W/2,Y+62,46,46,'#FFF3C4',3);icon(x,insp.id,W/2,Y+62,62);
+    jnT(x,ch.items[insp.id]?ch.items[insp.id].n:'',W/2,Y+128,16,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');
+    x.font=font;x.fillStyle=JEAN_O;x.textAlign='center';x.textBaseline='middle';lines.forEach((l,i)=>x.fillText(l,W/2,Y+156+i*20));
+    jnT(x,'Tap to close',W/2,Y+ch2-14,11,'#8B84A8');x.restore();
+  }
+  function drawIntro(){
+    const t=introT,{s,ox,oy}=tf(),door=ch.walls[0],e=v=>clamp(v,0,1);
+    let open=t<2?1:t<2.7?1-e((t-2)/.6):0;
+    x.save();x.translate(ox,oy);x.scale(s,s);JEAN_BG[ch.set](x,false);jnCorners(x);ART[door](x,{_open:open},T);
+    if(t<3.4){const k=e(t/2),wk=t<2;jeanFig(x,180-30*k,410+18*k,.62+.4*k,{walk:wk?t*9:0,mood:t<2.2?'happy':'smug',armR:t>2.1&&t<2.9?'lock':'down',talk:t>.3&&t<2?t:0})}
+    else if(t>5.4){const snap=t>6.4,dur=t-6.4;jeanFig(x,272,424,.98,{mood:snap?'shock':'talk',armL:snap?'up':'reach',armR:snap&&ch.set==='home'?'hold':snap?'up':'down',hold:snap&&ch.set==='home',blink:(T%3)<.1})}
+    if(t>2.65&&t<3.3){jnT(x,'CLICK!',250,200,20,'#FF5D73',undefined,400,'Bungee, Impact, sans-serif')}
+    if(t>6.4&&t<7.6){const k2=e((t-6.4)/.3);x.save();x.translate(220,210);x.rotate(-.15);x.scale(.6+.6*k2,.6+.6*k2);jnStar(x,0,0,46,'#FFC53D');jnT(x,JEAN_SNAP[ch.set],0,2,18,JEAN_O,undefined,400,'Bungee, Impact, sans-serif');x.restore()}
+    x.restore();
+    const blk=t<3.1?0:t<3.6?(t-3.1)/.5:t<5.4?1:t<5.9?1-(t-5.4)/.5:0;
+    if(blk>0){x.fillStyle=`rgba(14,10,28,${blk})`;x.fillRect(0,0,W,H);
+      if(t>3.6&&t<5.4){const n=1+Math.floor((t-3.6)*3)%3;jnT(x,'.'.repeat(n),W/2,H/2-20,48,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');
+        if(t>4.8){const k3=e((t-4.8)/.25);x.save();x.translate(W/2,H/2+50);x.scale(k3,k3);jnT(x,'FLUSH!',0,0,34,'#7FC8F8',undefined,400,'Bungee, Impact, sans-serif');x.restore()}}}
+    if(t>8.4){const k4=e((t-8.4)/.3);x.save();x.globalAlpha=k4;const cw=Math.min(W-40,320),X=(W-cw)/2,Y=H*.56;jnR(x,X,Y+5,cw,104,18,'rgba(20,15,40,.35)',0);jnR(x,X,Y,cw,104,18,'#FFFFFF',3);
+      jnT(x,'Chapter '+lv,W/2,Y+22,13,'#8B84A8');jnT(x,ch.name,W/2,Y+48,cw<300?17:20,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'Tap to help Jean escape!',W/2,Y+80,15,JEAN_O);x.restore()}
+  }
+  function drawOutro(){
+    const t=outT,{s,ox,oy}=tf();drawView(ch.walls[0]);
+    x.save();x.translate(ox,oy);x.scale(s,s);
+    if(t<2.6){const k=clamp((t-.5)/1.6,0,1);x.globalAlpha=1-clamp((t-1.8)/.6,0,1);jeanFig(x,180+(1-k)*60,428-k*24,1-k*.4,{walk:t*10,mood:'happy',armL:'up',armR:'up'})}
+    x.restore();
+    if(t>2.4){const k=clamp((t-2.4)/.3,0,1);x.save();x.globalAlpha=k;const cw=Math.min(W-40,320),X=(W-cw)/2,Y=H*.5;jnR(x,X,Y+5,cw,96,18,'rgba(20,15,40,.35)',0);jnR(x,X,Y,cw,96,18,'#FFFFFF',3);
+      jnT(x,'Jean escaped!',W/2,Y+34,20,'#2EC4B6',undefined,400,'Bungee, Impact, sans-serif');jnT(x,lv<JEAN_CH.length?'Next: '+JEAN_CH[lv].name:'Every toilet conquered!',W/2,Y+66,14,JEAN_O);x.restore()}
+  }
+  function frame(dt){
+    T+=dt;x.setTransform(R,0,0,R,0,0);x.clearRect(0,0,W,H);
+    if(mode==='intro'){const p=introT;introT+=dt;
+      const cue=(at,f)=>{if(p<at&&introT>=at)f()};
+      cue(.3,()=>say(ch.intro[0],'happy'));cue(2.7,()=>sfx('click'));cue(3.8,()=>say(ch.intro[1],'happy'));cue(4.1,()=>sfx('bwomp'));cue(4.5,()=>sfx('whistle'));cue(4.8,()=>sfx('flush'));
+      cue(6.4,()=>{sfx('snap');S.shake()});cue(6.7,()=>say(ch.intro[2],'shock'));if(introT>13)startPlay();
+      drawIntro();
+    }else if(mode==='outro'){outT+=dt;drawOutro();if(outT>3.2&&!nexted){nexted=true;st.won=true;save();S.next()}}
+    else if(tr){tr.t+=dt;const e=clamp(tr.t/.3,0,1),ez=1-Math.pow(1-e,3);
+      if(tr.kind==='turn'){drawView(tr.from,-tr.d*W*ez);drawView(tr.to,tr.d*W*(1-ez))}
+      else if(tr.kind==='zoom'){drawView(tr.from,0,1,1+ez*.25);drawView(tr.to,0,ez,.8+.2*ez)}
+      else{drawView(tr.to,0,1,1.2-.2*ez);drawView(tr.from,0,1-ez,1-ez*.2)}
+      if(e>=1)tr=null;
+    }else drawView(st.v);
+    for(let i=rip.length-1;i>=0;i--){const r=rip[i];r.t+=dt;if(r.t>.4){rip.splice(i,1);continue}x.beginPath();x.arc(r.x,r.y,6+r.t*60,0,Math.PI*2);x.strokeStyle=`rgba(255,255,255,${.8-r.t*2})`;x.lineWidth=3;x.stroke()}
+    P.draw(x,dt);drawPill();drawBubble();drawInspect();
+  }
+  /* test/debug hooks: positions of hotspots and lock wheels in page coordinates */
+  wrap.jean={ch,lv,get st(){return st},get mode(){return mode},get sel(){return sel},get bub(){return bub&&bub.text},get insp(){return insp&&insp.text},
+    page(dx,dy){const{s,ox,oy}=tf(),b=c.getBoundingClientRect();return{x:b.left+(ox+dx*s)*b.width/W,y:b.top+(oy+dy*s)*b.height/H}},
+    hot(id){const h=E.hots(ch,st).find(h=>h.id===id);return h?this.page(h.r[0]+h.r[2]/2,h.r[1]+h.r[3]/2):null},
+    dial(i,up){const L=ch.views[st.v].lock,g=lockGeo(L);return this.page(g[i].x+g[i].w/2,up?250:290)},
+    key(k){const g=lockGeo(ch.views[st.v].lock).find(b=>b.k===k);return this.page(g.x+g.w/2,g.y+g.h/2)},
+    size:()=>({W,H})};
+  layout();paint();S.loop(frame);
+  S.after(60,layout);
+}
+
 const GAMES=[
   {id:'tictactoe',name:'Tic-Tac-Toe',icon:'⭕',blurb:'Three in a row against the computer or a friend.',help:'Tap a square to place your mark. Use the arrows at the top to pick Easy, Medium, Hard, or 2 Players.',mount:tictactoe,levels:4,open:true,names:['Easy','Medium','Hard','2 Players']},
   {id:'memory',name:'Memory Match',icon:'🃏',blurb:'Flip cards and find every pair.',help:'Tap two cards. Matching pairs stay face up. Pick how many pairs at the top.',mount:memory,levels:5,open:true,names:['6 pairs','8 pairs','10 pairs','12 pairs','15 pairs']},
@@ -11856,11 +12779,12 @@ const GAMES=[
   {id:'gates',name:'Logic Gates',icon:'⚡',blurb:'Wire AND, OR, NOT and XOR gates to light the lamp just right.',help:'Pick a gate below and tap an empty slot to place it. To wire, tap a dot on the right of a switch or gate, then a dot on the left of a gate or lamp. Tap a gate or wire to remove it. Tap the switches (or keys 1 to 4) to test; the truth table checks every combination.',mount:gates,levels:20,open:true,names:['AND','OR','NOT','XOR','NOT AND','Build NOR','A not B','Three-way','Alarm','Just NAND','Majority','Make XOR','Half adder','Equal?','Selector','4 NANDs','Compare','Full adder','2-bit equal','Sandbox'],isNew:true},
   {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true},
   {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true},
-  {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per map), 🔀 deals a new map. Pick Easy to Expert at the top.',mount:arrowsEscape,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'in a row',isNew:true}
+  {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per map), 🔀 deals a new map. Pick Easy to Expert at the top.',mount:arrowsEscape,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'in a row',isNew:true},
+  {id:'jean',name:'Jean Escapes the Toilet',icon:'🚽',blurb:'Jean is locked in the bathroom! Find clues and items to escape.',help:'Tap things to inspect them and pick up items. Tap an item to select it, then tap where to use it, or tap a second item to combine them. Tap a selected item again to inspect it. ◀ ▶ turn around, ▼ goes back, 💡 gives a hint, ↺ resets the chapter. Keys: arrows turn, 1-6 pick items, H hint.',mount:jeanEscape,levels:3,open:true,names:['1. The Stuck Door','2. The Office Bathroom','3. The Airplane Toilet'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
-const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game',jumpquest:'super mario style game, platformer, mario like game online, jump and run, retro platform game, side scroller, super mario bros, mario game, platform jumper, run and jump',arrows:'arrows game, arrows puzzle, arrow escape, tap arrows puzzle, arrows out, unblock arrows, logic puzzle, arrows puzzle escape, snake arrows'};
+const TAGS={tictactoe:'board strategy classic x o two',memory:'cards pairs brain puzzle concentration',whack:'reflex action tap quick',simon:'memory pattern colors music sound',hangman:'word letters spelling puzzle',snake:'classic arcade action retro',pong:'classic arcade sports tennis paddle retro',flappy:'arcade action tap bird reflex',tower:'stack arcade tap timing building',crane:'stack arcade tap timing building',blobmaze:'maze arcade pacman pac-man action',breakout:'arcade classic bricks paddle ball arkanoid',2048:'numbers puzzle tiles brain merge',mines:'puzzle classic logic brain mines bomb',sudoku:'puzzle numbers logic brain classic',blast:'ball blast cannon shooter rocks arcade upgrade',pinball:'pinball flipper arcade table classic retro',fuse:'bomb jack bombjack platform jump retro arcade bombs',bbtan:'bbtan balls bricks aim shoot arcade',paper:'paper.io paper io territory land snake io',taxi:'crazy taxi car driving racing cab',solitaire:'klondike cards patience card game',helix:'helix jump helo jump ball tower',bubbles:'bubble trouble pang balloons shooter arcade',chess:'board strategy classic two',backgammon:'backgammon tavla tawla nardy table game dice board strategy classic race checkers two player',blockfill:'one line one stroke fill puzzle hamiltonian path snake tiles draw one line logic brain',checkers:'checkers draughts english draughts american checkers board strategy classic two players jump king',connect:'flow free flow connect dots pipes numberlink arukone line puzzle logic brain colors',dots:'dots and boxes dot game boxes squares pigs in a pen paper pencil strategy board two players chains',four:'connect four connect 4 four in a row 4 in a row drop discs board strategy classic two players',hanoi:'tower of hanoi towers of hanoi brahma lucas tower disc puzzle pegs rings logic brain classic recursion',pool:'8 ball pool billiards snooker cue eight ball pool table solids stripes break rack pocket 2 player',slide:'sliding puzzle 15 puzzle fifteen puzzle 8 puzzle slide tiles numbers gem puzzle boss puzzle n-puzzle brain classic',water:'water sort puzzle color sort ball sort liquid tubes bottles pour colour sorting brain logic',woodblocks:'wood block puzzle woodoku block blast block puzzle 9x9 sudoku blocks tetris pieces wooden boxes',wordfind:'word search wordsearch find a word puzzle letters hidden words vocabulary themes',wordguess:'wordle word game guess five letters daily puzzle lingo mastermind vocabulary',clash:'uno uno flip crazy eights card game color matching shedding game wild draw four skip reverse draw two last card computer opponents',clashflip:'uno flip uno card game flip card game light side dark side color matching shedding game draw five skip everyone wild draw color last card',rugs:'marrakech, marrakech online, gigamic, carpet board game, rug game, assam, rug market, carpet game, bazaar, souk, board game vs computer, 2 player board game',quad:'quarto, quarto online, quarto board game, gigamic, four traits game, strategy game',cubes:'quixo, quixo online, gigamic, push tic tac toe, five in a row cube game',pyramid:'pylos, pylos online, gigamic, pyramid ball game, stacking strategy game',squadro:'squadro, squadro online, gigamic, race board game, strategy game',quantik:'quantik, quantik online, gigamic, shapes strategy game, 4x4 board game',qawale:'qawale, qawale online, gigamic, stone stacking strategy game, mancala alignment game',walls:'quoridor, quoridor online, wall maze board game, gigamic, corridor game, blocking strategy game',pento:'katamino, pentomino puzzle, pentominoes, gigamic, polyomino puzzle, block puzzle',wahoo:'wahoo, wahoo board game, aggravation, marble game, dice marble race, sorry style board game, ludo',jackaroo:'jackaroo, jakaroo, jackaroo game, جاكارو, tock, dog card game, marble card game, saudi board game, kings, team card game, multiplayer, pass and play, 2 players, 4 players',poker:'texas holdem, texas hold\'em poker, poker online free, no limit holdem, poker vs computer, card game, play money poker, heads up poker, pass and play, 2 players, multiplayer',mafia:'mafia game, mafia party game, werewolf game, pass and play, social deduction, narrator app, mafia online free, party game, group game, 4 to 12 players, multiplayer',codewords:'codenames, codenames online, code names game, word association game, spymaster game, team word game, party game',thirty:'30 seconds game, 30 seconds board game online, describe the word game, taboo style party game, team party game, charades words, pass and play',mathsprint:'math game, mental math, arithmetic practice, times tables game, math speed test, kids math game, addition subtraction multiplication division drill, quick maths',make24:'24 game, make 24, math card game, 24 puzzle, arithmetic puzzle, 24 solver, twenty four, number puzzle, maths 24 cards',cagesums:'kenken, calcudoku, math puzzle, killer sudoku style, arithmetic logic puzzle, mathdoku, calcudoku online, ken ken, latin square puzzle',binary:'binary game, binary numbers practice, learn binary, cisco binary game, computer science game, hex game, hexadecimal, bits and bytes, place value, number systems, base 2, base 16, math',robocode:'coding game for kids, lightbot style, light bot, programming puzzle, learn to code game, algorithm game, computer science game, robot programming, functions, recursion, loops, hour of code, logic puzzle',gates:'logic gates game, boolean logic puzzle, circuit game, digital logic, learn computer science, and or not gates, xor, nand, nor, truth table, half adder, full adder, multiplexer, electronics, circuit simulator',sling:'angry birds style game, slingshot game, physics destruction game, angry birds online free, catapult game',jumpquest:'super mario style game, platformer, mario like game online, jump and run, retro platform game, side scroller, super mario bros, mario game, platform jumper, run and jump',arrows:'arrows game, arrows puzzle, arrow escape, tap arrows puzzle, arrows out, unblock arrows, logic puzzle, arrows puzzle escape, snake arrows',jean:'escape room game, escape the bathroom, point and click puzzle, room escape online, toilet escape game, jean escapes the toilet, funny puzzle game'};
 const CATS={'jean':'Puzzle','arrows':'Puzzle','jumpquest':'Arcade','sling':'Arcade','mathsprint':'Math','make24':'Math','cagesums':'Math','binary':'Coding','robocode':'Coding','gates':'Coding','mafia':'Party','thirty':'Party','codewords':'Party','poker':'Cards','wahoo':'Board','jackaroo':'Board','snake':'Arcade','pong':'Arcade','flappy':'Arcade','tower':'Arcade','crane':'Arcade','blobmaze':'Arcade','breakout':'Arcade','bbtan':'Arcade','paper':'Arcade','taxi':'Arcade','helix':'Arcade','bubbles':'Arcade','blast':'Arcade','pinball':'Arcade','fuse':'Arcade','whack':'Arcade','pool':'Arcade','2048':'Puzzle','mines':'Puzzle','sudoku':'Puzzle','slide':'Puzzle','hanoi':'Puzzle','water':'Puzzle','blockfill':'Puzzle','connect':'Puzzle','woodblocks':'Puzzle','pento':'Puzzle','simon':'Puzzle','tictactoe':'Board','chess':'Board','checkers':'Board','backgammon':'Board','four':'Board','dots':'Board','walls':'Board','quad':'Board','cubes':'Board','pyramid':'Board','squadro':'Board','quantik':'Board','qawale':'Board','rugs':'Board','solitaire':'Cards','memory':'Cards','clash':'Cards','clashflip':'Cards','hangman':'Word','wordfind':'Word','wordguess':'Word'};
 const CAT_LIST=[['all','All','✨'],['Arcade','Arcade','🕹️'],['Puzzle','Puzzle','🧩'],['Board','Board','♟️'],['Cards','Cards','🃏'],['Word','Word','🔤'],['Party','Party','🎉'],['Math','Math','🔢'],['Coding','Coding','💻'],['2p','2 Players','👥']];
 const favs=()=>store.get('favs')||[];
