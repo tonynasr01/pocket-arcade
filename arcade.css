@@ -2097,11 +2097,12 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .jn-wrap button{position:absolute;font:800 1rem/1 var(--body);border:3px solid var(--edge);color:#1E1F5C;cursor:pointer;box-shadow:0 3px 0 var(--edge);transition:transform .08s,box-shadow .08s}
 .jn-wrap button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--edge)}
 .jn-wrap button[hidden]{display:none}
-.jn-nav{top:50%;width:44px;height:58px;margin-top:-29px;border-radius:14px;background:rgba(255,255,255,.88);font-size:1.25rem!important;display:grid;place-items:center;padding:0}
-.jn-l{left:6px}.jn-r{right:6px}
+/* turn arrows sit in the bottom corners (floor area), so they never cover objects near the side walls */
+.jn-nav{bottom:8px;width:52px;height:44px;border-radius:14px;background:rgba(255,255,255,.9);font-size:1.2rem!important;display:grid;place-items:center;padding:0}
+.jn-l{left:8px}.jn-r{right:8px}
 .jn-back{left:50%;bottom:10px;transform:translateX(-50%);height:40px;padding:0 18px;border-radius:999px;background:#FFC53D}
 .jn-back:active{transform:translate(-50%,2px)!important}
-.jn-reset{left:8px;bottom:8px;width:36px;height:36px;border-radius:999px;background:rgba(255,255,255,.88);padding:0;font-size:1.1rem!important}
+.jn-reset{left:68px;bottom:12px;width:36px;height:36px;border-radius:999px;background:rgba(255,255,255,.88);padding:0;font-size:1.1rem!important}
 .jn-reset.armed{width:auto;padding:0 12px;background:#FF5D73;color:#fff;font-size:.9rem!important}
 .jn-skip{right:8px;bottom:8px;height:36px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.9);font-size:.9rem!important}
 .jn-bar{flex:none;display:flex;align-items:stretch;gap:6px;width:min(100%,560px);padding:0 4px;box-sizing:border-box;transition:opacity .3s}

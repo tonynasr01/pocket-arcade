@@ -11823,7 +11823,15 @@ const JEAN_E=(()=>{
     else if(a.t==='code'){const L=lockOn(ch,st);if(L&&a.arg===L.code)L.ok(st.f,A);else if(L)ev.push({wrong:1})}
     else if(a.t==='tap'){
       const h=hots(ch,st).find(h=>h.id===a.h);if(!h)return ev;const it=a.it&&st.inv.includes(a.it)?a.it:null;
-      if(it){if(!(h.fn&&h.fn(st.f,it,A))){A.say(fill(line(JEAN_NOPE,st,'nope',st.f),{s:I[it].n.toLowerCase()}),'meh');ev.push({nope:1})}}
+      if(it){
+        /* an item used on a wall object that has a close-up (vent, keypad, latch...) works as if used in the close-up */
+        const fwd=v=>{const back=st.v,n=ev.length;st.v=v;for(const c of hots(ch,st)){
+          if(c.fn&&c.fn(st.f,it,A)){if(v!==back)ev.splice(n,0,{go:v,zoom:1});return true}
+          if(c.uses&&c.uses[it]){if(v!==back)ev.push({go:v,zoom:1});A.say(c.uses[it],'meh');return true}}st.v=back;return false};
+        if(h.fn&&h.fn(st.f,it,A)){}
+        else if(h.uses&&h.uses[it])A.say(h.uses[it],'meh');
+        else if((h.fwd||h.to)&&fwd(h.fwd||h.to)){}
+        else{A.say(fill(line(JEAN_NOPE,st,'nope',st.f),{s:I[it].n.toLowerCase()}),'meh');ev.push({nope:1})}}
       else if(h.fn&&h.fn(st.f,null,A)){}
       else if(h.to){st.v=h.to;ev.push({go:h.to,zoom:1})}
       else if(h.say)A.say(line(h.say,st,h.id,st.f),h.m);
@@ -11877,33 +11885,33 @@ const JEAN_CH=[
         if(it==='handle'){A.set('knowbar');A.say('I jam the handle in. It spins like a fidget spinner. The square bar inside is missing!','worried');return true}
         if(it==='screwdriver'){A.say('Too thin. That hole wants something square. Like my geometry grades.','meh');return true}
         if(!it){A.say(f.knowbar?'Square hole, no bar. I need that spare bar Dad mentioned.':'The hole where the handle used to be. Square, empty and judging me.','worried');return true}}},
-      {id:'switch',r:[283,226,30,42],say:['The light works. The door doesn\'t. Priorities, house.','Click. Click. Still a bathroom.']},
+      {id:'switch',r:[283,226,30,42],uses:{screwdriver:'Taking the switch apart won\'t open the door. Probably electrocute me though.'},say:['The light works. The door doesn\'t. Priorities, house.','Click. Click. Still a bathroom.']},
       {id:'towel',r:[22,176,62,126],say:['A towel with ducks on it. Very brave ducks.','It is soft. Unlike my situation.']},
       {id:'mat',r:[100,412,160,40],say:'The bath mat says WELCOME. Liar.'},
-      {id:'door',r:[100,88,160,322],say:['Solid oak. Dad built it to survive anything. Including me.','I knocked. The door did not knock back.','I tried the classic shoulder barge. My shoulder lost.']}]},
+      {id:'door',r:[100,88,160,322],fwd:'door',uses:{screwdriver:'Unscrew the hinges? They\'re on the OUTSIDE. Dad thought of everything.',plunger:'I plunge the door. Thwop! The door is unimpressed.',note:'I slide the note under the door. Nobody is out there to read it.',bar:'The bar goes in the square hole, not just anywhere on the door.'},say:['Solid oak. Dad built it to survive anything. Including me.','I knocked. The door did not knock back.','I tried the classic shoulder barge. My shoulder lost.']}]},
     toilet:{name:'Toilet',hot:[
-      {id:'tp',r:[258,258,58,52],glint:f=>!f.note,fn(f,it,A){if(it||f.note)return false;A.set('note');A.give('note');A.sfx('pick');A.say('A note taped inside the roll! Dad, is that you?','shock');return true},say:['Just toilet paper now. Soft. Reliable. Unlike that door.','Two-ply. We are not animals.']},
+      {id:'tp',r:[258,258,58,52],uses:{screwdriver:'I unscrew the paper holder. Nope, just more paper behind it. I screw it back.',plunger:'Plunging the toilet paper. Why did I do that.'},glint:f=>!f.note,fn(f,it,A){if(it||f.note)return false;A.set('note');A.give('note');A.sfx('pick');A.say('A note taped inside the roll! Dad, is that you?','shock');return true},say:['Just toilet paper now. Soft. Reliable. Unlike that door.','Two-ply. We are not animals.']},
       {id:'plunger',r:[42,296,56,116],vis:f=>!f.plunger,glint:()=>true,fn(f,it,A){if(it)return false;A.set('plunger');A.give('plunger');A.sfx('pick');A.say('The mighty plunger! Every hero needs a sword.','happy');return true}},
-      {id:'lid',r:[124,214,112,38],to:'tank'},
+      {id:'lid',r:[124,214,112,38],to:'tank',uses:{screwdriver:'There are no screws on the tank lid. It just lifts off. Tap it.',plunger:'The plunger is for the bowl, not the tank. I have SOME standards.'}},
       {id:'pic',r:[136,92,88,86],say:'A painting of a duck. Dad calls it Sir Quacks-a-Lot.'},
-      {id:'toilet',r:[116,252,128,160],say:['My throne. We had a good run.','I am NOT escaping through there.','Flushing myself away is plan Z.']}]},
+      {id:'toilet',r:[116,252,128,160],uses:{plunger:'The toilet is fine. It\'s the DOOR that\'s clogged.',screwdriver:'Dismantling the toilet is not a good escape plan.',handle:'The toilet has its own handle. It works. Unlike this one.',note:'Not flushing Dad\'s note. I might need it.',bar:'The bar belongs in the door, not the toilet.',fixed:'Wrong door. Well, wrong everything. The handle goes on the door.'},say:['My throne. We had a good run.','I am NOT escaping through there.','Flushing myself away is plan Z.']}]},
     tank:{name:'Toilet tank',back:'toilet',hot:[
       {id:'duck',r:[200,250,80,70],say:['A rubber duck in the tank? Dad says it saves water. It looks guilty.','Quack. (I said it for him.)']},
       {id:'chain',r:[120,150,50,170],fn(f,it,A){if(it)return false;A.sfx('flush');A.say('FLUSH! Pointless, but very satisfying.','happy');return true}},
       {id:'water',r:[50,200,260,170],say:'Cold, clear water. Nothing hidden here. Except the duck.'}]},
     sink:{name:'Sink',hot:[
-      {id:'hot',r:[130,232,40,32],fn(f,it,A){if(it)return false;A.sfx('water');if(!f.steam){A.set('steam');A.say('Hot water on! It is getting steamy in here. Sauna for one.','happy')}else A.say('Still running. My water bill is crying.','meh');return true}},
-      {id:'cold',r:[190,232,40,32],say:'Cold water. Refreshing, but not very helpful.'},
+      {id:'hot',r:[130,232,40,32],uses:{screwdriver:'No need to take the tap apart. Just turn it on.'},fn(f,it,A){if(it)return false;A.sfx('water');if(!f.steam){A.set('steam');A.say('Hot water on! It is getting steamy in here. Sauna for one.','happy')}else A.say('Still running. My water bill is crying.','meh');return true}},
+      {id:'cold',r:[190,232,40,32],uses:{screwdriver:'The tap is fine. I\'m the one who\'s broken.'},say:'Cold water. Refreshing, but not very helpful.'},
       {id:'cup',r:[258,200,40,56],say:'My toothbrush. It has seen things.'},
-      {id:'mirror',r:[108,86,144,138],say:f=>f.steam?['Numbers in the fog: 4 2 9 7. Dad drew a smiley too. Classic Dad.','4 2 9 7. I should remember that.']:['Looking good, Jean. Looking trapped, but good.','Just my face. A very handsome, very stuck face.'],m:'smug'},
+      {id:'mirror',r:[108,86,144,138],uses:{note:'I hold the note up to the mirror. The writing is backwards now. Not helping.',screwdriver:'Unscrewing the mirror means seven years of bad luck. No thanks.'},say:f=>f.steam?['Numbers in the fog: 4 2 9 7. Dad drew a smiley too. Classic Dad.','4 2 9 7. I should remember that.']:['Looking good, Jean. Looking trapped, but good.','Just my face. A very handsome, very stuck face.'],m:'smug'},
       {id:'cabinet',r:[112,296,136,112],to:'cab'}]},
     cab:{name:'Cabinet',back:'sink',lock:{kind:'dials',len:4,code:'4297',done:f=>f.cab,ok(f,A){A.set('cab');A.sfx('unlock');A.say('Click! The padlock pops open. Nice one, Dad.','happy')}},hot:[
       {id:'sd',r:[70,200,110,70],vis:f=>f.cab&&!f.sd,glint:()=>true,fn(f,it,A){if(it)return false;A.set('sd');A.give('screwdriver');A.sfx('pick');A.say('A screwdriver! I feel like a real handyman.','happy');return true}},
       {id:'rolls',r:[200,180,110,100],vis:f=>f.cab,say:'Spare toilet paper. At least I won\'t run out.'},
       {id:'sponge',r:[70,300,220,80],vis:f=>f.cab,say:'A sponge and some soap. They seem happy together.'},
-      {id:'lock',r:[60,120,240,280],vis:f=>!f.cab,fn(f,it,A){if(it==='screwdriver'){A.say('Pry it open? Dad would never let me hear the end of it.','meh');return true}return false},say:'A 4-digit padlock. Dad loves padlocks. And riddles. And me, probably.'}]},
+      {id:'lock',r:[60,120,240,280],vis:f=>!f.cab,uses:{plunger:'Plunging a padlock. A new low, even for me.',handle:'The handle doesn\'t fit a padlock. Turn the number wheels instead.',note:'The note says the code is on the mirror. Hot water first!'},fn(f,it,A){if(it==='screwdriver'){A.say('Pry it open? Dad would never let me hear the end of it.','meh');return true}return false},say:'A 4-digit padlock. Dad loves padlocks. And riddles. And me, probably.'}]},
     window:{name:'Window',hot:[
-      {id:'win',r:[118,84,124,112],say:['A tiny window. Too small, even for my ambitions.','I could fit an arm through. Just an arm. Not useful.']},
+      {id:'win',r:[118,84,124,112],uses:{screwdriver:'The window screws are painted over. And it is still too small for me.',plunger:'I stick the plunger on the glass. It stays there. That\'s it.'},say:['A tiny window. Too small, even for my ambitions.','I could fit an arm through. Just an arm. Not useful.']},
       {id:'shelf',r:[96,200,168,46],say:'Shampoo, conditioner and a third bottle labeled MORE.'},
       {id:'plant',r:[272,236,70,174],say:'A plastic fern. I water it anyway. We are close.'},
       {id:'basket',r:[14,316,78,94],say:'The laundry basket. Some mysteries should stay mysteries.'},
@@ -11912,10 +11920,13 @@ const JEAN_CH=[
       {id:'deep',r:[70,150,220,170],vis:f=>f.vent&&!f.bar,glint:()=>true,fn(f,it,A){
         if(it==='plunger'){A.use('plunger');A.give('bar');A.set('bar');A.sfx('pop');A.say('Plunger in, pull... POP! The spare handle bar! Dad, you genius.','happy');return true}
         if(it==='screwdriver'){A.say('Too short. I can only poke it further away.','worried');return true}
+        if(it==='handle'||it==='note'){A.say('That won\'t reach the bar. I need something that sticks to it.','think');return true}
         if(!it){A.say('A metal bar, way in the back. My arm is too short. My arm has always been too short.','worried');return true}}},
       {id:'dust',r:[70,150,220,170],vis:f=>f.bar,say:'Just dust bunnies now. Hi, bunnies.'},
       {id:'cover',r:[50,120,260,230],vis:f=>!f.vent,fn(f,it,A){
         if(it==='screwdriver'){A.use('screwdriver');A.set('vent');A.sfx('unscrew');A.say('Four screws out and the cover is off! The screwdriver deserves a vacation.','happy');return true}
+        if(it==='plunger'){A.say('The grille is in the way. I need to get those screws out first.','think');return true}
+        if(it==='handle'||it==='note'){A.say('The vent grille is screwed shut. Four screws.','think');return true}
         if(!it){A.say('An air vent held by four screws. Something shiny is glinting behind the grille!','think');return true}}}]}
   },
   steps:[
@@ -11943,40 +11954,43 @@ const JEAN_CH=[
   combos:[['coin','clock',(f,A)=>{A.use('coin');A.use('clock');A.give('battery');A.set('batt');A.sfx('unscrew');A.say('The coin turns the screw like a tiny screwdriver. One battery, liberated!','happy');return true}]],
   views:{
     door:{name:'Door',hot:[
-      {id:'switch',r:[284,222,34,48],fn(f,it,A){if(it)return false;A.sfx('click');if(f.dark){A.set('dark',0);A.say('Let there be light!','happy')}else{A.set('dark');A.say('Lights off. Spooky. Is something... glowing over there?','shock')}return true}},
+      {id:'switch',r:[284,222,34,48],uses:{battery:'The light switch doesn\'t take batteries. The keypad does.',coin:'No coin slot on the switch. Just flip it.'},fn(f,it,A){if(it)return false;A.sfx('click');if(f.dark){A.set('dark',0);A.say('Let there be light!','happy')}else{A.set('dark');A.say('Lights off. Spooky. Is something... glowing over there?','shock')}return true}},
       {id:'pad',r:[220,206,50,74],vis:f=>!f.dark,to:'keypad'},
       {id:'tie',r:[22,170,64,120],vis:f=>!f.dark,say:'Someone\'s tie on the hook. Business casual, bathroom edition.'},
-      {id:'door',r:[100,88,160,322],vis:f=>!f.dark,say:['Steel door with a keypad. Fancy. Annoying, but fancy.','I knocked. Somewhere, a meeting started without me.']}]},
+      {id:'door',r:[100,88,160,322],vis:f=>!f.dark,fwd:'keypad',uses:{coin:'I tap the door with the coin. Tink. Tink. Nobody comes.',gloves:'Gloves on, push hard... nope. It\'s locked, not just shy.',clock:'I show the door the time. It does not care that I\'m late.'},say:['Steel door with a keypad. Fancy. Annoying, but fancy.','I knocked. Somewhere, a meeting started without me.']}]},
     toilet:{name:'Toilet',hot:[
       {id:'glow',r:[106,100,148,80],vis:f=>f.dark,fn(f,it,A){if(it)return false;A.set('glow');A.say('Glowing numbers on the wall: 8 3 _ _. The rest is missing.','think');return true}},
       {id:'bowl',r:[120,300,120,110],vis:f=>!f.dark,fn(f,it,A){
         if(f.coin)return it?false:(A.say('Clean-ish. Let\'s leave it at that.','meh'),true);
         if(it==='gloves'){A.set('coin');A.give('coin');A.sfx('splash');A.say('Gloves on. Deep breath... got it! A coin! I will now wash my hands for 3 to 5 business days.','happy');return true}
+        if(it==='coin'){A.say('Putting the coin back? No way. That was hard-earned.','meh');return true}
         if(!it){A.say('Something shiny at the bottom of the bowl. Not with my bare hands. Not today. Not ever.','worried');return true}}},
-      {id:'sensor',r:[150,238,60,50],vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('flush');A.say('The auto-flush sensor flushes whenever I blink. We don\'t trust each other.','meh');return true}},
+      {id:'sensor',r:[150,238,60,50],uses:{battery:'The flush sensor works fine. Too fine.',coin:'Paying the toilet? It\'s free. I checked.'},vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('flush');A.say('The auto-flush sensor flushes whenever I blink. We don\'t trust each other.','meh');return true}},
       {id:'roll',r:[262,226,66,80],vis:f=>!f.dark,say:'A jumbo roll dispenser. It gives one square at a time, like my boss gives compliments.'},
       {id:'wall',r:[90,90,180,120],vis:f=>!f.dark,say:'Plain office tiles. They look like they are hiding something. Tiles always do.'}]},
     sink:{name:'Sink',hot:[
-      {id:'towels',r:[256,150,70,92],vis:f=>!f.dark,glint:f=>!f.gloves,fn(f,it,A){if(it)return false;if(!f.gloves){A.set('gloves');A.give('gloves');A.sfx('pick');A.say('I pull a towel... and rubber gloves fall out! Thanks, mysterious janitor.','shock')}else A.say('Paper towels. One comes out. Then three. Then none.','meh');return true}},
-      {id:'dryer',r:[26,176,66,70],vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('dryer');A.say('WHOOOOSH! My hair is now executive style.','happy');return true}},
+      {id:'towels',r:[256,150,70,92],uses:{coin:'No coin slot. The towels are free. Barely.'},vis:f=>!f.dark,glint:f=>!f.gloves,fn(f,it,A){if(it)return false;if(!f.gloves){A.set('gloves');A.give('gloves');A.sfx('pick');A.say('I pull a towel... and rubber gloves fall out! Thanks, mysterious janitor.','shock')}else A.say('Paper towels. One comes out. Then three. Then none.','meh');return true}},
+      {id:'dryer',r:[26,176,66,70],uses:{gloves:'Drying the gloves. Very hygienic. Still locked in.',battery:'The dryer runs on mains power. Lots of it.'},vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('dryer');A.say('WHOOOOSH! My hair is now executive style.','happy');return true}},
       {id:'trash',r:[262,318,64,92],vis:f=>!f.dark,to:'trash'},
       {id:'soap',r:[110,214,40,42],vis:f=>!f.dark,say:'Foam soap. It smells like Corporate Lavender.'},
       {id:'mirror',r:[110,84,140,120],vis:f=>!f.dark,say:['My interview face. Nailed it.','The mirror shows a man with a meeting in five minutes.'],m:'smug'},
-      {id:'basin',r:[106,240,148,70],vis:f=>!f.dark,say:'A motion-sensor tap. I wave at it. It ignores me. Like the elevator.'}]},
+      {id:'basin',r:[106,240,148,70],vis:f=>!f.dark,uses:{gloves:'Washing the gloves. Good idea, but later.',coin:'I make a wish in the sink. I wish for a working door.'},say:'A motion-sensor tap. I wave at it. It ignores me. Like the elevator.'}]},
     trash:{name:'Trash bin',back:'sink',hot:[
       {id:'memo',r:[120,190,120,90],vis:f=>!f.memo,glint:()=>true,fn(f,it,A){if(it)return false;A.set('memo');A.give('memo');A.sfx('pick');A.say('A crumpled memo from Facilities! Somebody did not read it. Classic.','happy');return true}},
-      {id:'junk',r:[40,140,280,260],say:['Paper towels, a banana peel and someone\'s diet plan. Day 2. Abandoned.','I am not digging deeper. I have standards.']}]},
+      {id:'junk',r:[40,140,280,260],uses:{gloves:'Even with gloves, I\'m not digging deeper. I have limits.'},say:['Paper towels, a banana peel and someone\'s diet plan. Day 2. Abandoned.','I am not digging deeper. I have standards.']}]},
     window:{name:'Window',hot:[
-      {id:'clock',r:[42,96,74,74],vis:f=>!f.dark&&!f.clock,glint:()=>true,fn(f,it,A){if(it)return false;A.set('clock');A.give('clock');A.sfx('pick');A.say('I\'ll borrow the clock. Time flies when you\'re stuck in a bathroom.','smug');return true}},
+      {id:'clock',r:[42,96,74,74],uses:{coin:'Let me take the clock down first. Then I can open it.'},vis:f=>!f.dark&&!f.clock,glint:()=>true,fn(f,it,A){if(it)return false;A.set('clock');A.give('clock');A.sfx('pick');A.say('I\'ll borrow the clock. Time flies when you\'re stuck in a bathroom.','smug');return true}},
       {id:'poster',r:[140,180,96,128],vis:f=>!f.dark,to:'poster'},
       {id:'win',r:[134,80,108,80],vis:f=>!f.dark,say:'A frosted window, painted shut. Frosted AND painted. Double fail.'},
       {id:'plant',r:[268,250,74,160],vis:f=>!f.dark,say:'An office plant named Kevin. Kevin has seen my worst meetings.'},
       {id:'sign',r:[30,206,92,60],vis:f=>!f.dark,say:'“TEAMWORK MAKES THE DREAM WORK.” I am a team of one. The dream is the door.'}]},
     poster:{name:'Poster',back:'window',hot:[
-      {id:'gary',r:[60,90,240,320],fn(f,it,A){if(it)return false;A.set('desk');A.say('Gary. Employee of the Month. Desk 61. His smile says he has never been locked in anywhere.','think');return true}}]},
+      {id:'gary',r:[60,90,240,320],fn(f,it,A){if(it){A.say('Gary doesn\'t need that. Gary has everything. Gary is perfect.','meh');return true}A.set('desk');A.say('Gary. Employee of the Month. Desk 61. His smile says he has never been locked in anywhere.','think');return true}}]},
     keypad:{name:'Keypad',back:'door',lock:{kind:'pad',len:4,code:'8361',need:f=>f.power,done:f=>false,ok(f,A){A.sfx('unlock');A.say('Beep-boop... ACCESS GRANTED!','happy');A.win()}},hot:[
       {id:'slot',r:[80,90,200,330],vis:f=>!f.power,fn(f,it,A){
         if(it==='battery'){A.use('battery');A.set('power');A.sfx('power');A.say('Battery in! The keypad beeps to life. Hello, beautiful.','happy');return true}
+        if(it==='coin'){A.say('The battery hatch is already open. It\'s the battery that\'s missing.','think');return true}
+        if(it==='clock'){A.say('The battery is INSIDE the clock. I need to open the clock first. A coin might turn its screw.','think');return true}
         if(it==='phone'){A.say('My phone is just as dead. We are a dead team.','meh');return true}
         if(!it){A.say('The keypad is dead. There\'s an empty battery slot at the bottom. Very cutting-edge.','worried');return true}}}]}
   },
@@ -12010,35 +12024,39 @@ const JEAN_CH=[
       {id:'latch',r:[196,212,72,70],to:'latch'},
       {id:'sign',r:[132,108,96,40],say:'LAVATORY OCCUPIED. Yes. Very occupied. Possibly forever.'},
       {id:'ashtray',r:[272,300,56,44],say:'An ashtray, on a plane where smoking is banned. Planes are weird.'},
-      {id:'door',r:[104,88,152,322],say:['A folding door. It folds. Just not open.','I knock. Someone outside knocks back: “Are you done yet?” Not by choice!']}]},
+      {id:'door',r:[104,88,152,322],fwd:'latch',say:['A folding door. It folds. Just not open.','I knock. Someone outside knocks back: “Are you done yet?” Not by choice!']}]},
     toilet:{name:'Toilet',hot:[
-      {id:'flush',r:[226,200,46,46],fn(f,it,A){if(it)return false;A.sfx('flush');
+      {id:'flush',r:[226,200,46,46],fn(f,it,A){if(it){A.say('It\'s a button. I just press it. With my finger. Like a pro.','meh');return true}A.sfx('flush');
         if(f.hook&&f.peanut){A.say('WHOOOOSH! The whole plane shakes... and the latch slides open!','shock');A.win()}
         else if(f.hook)A.say('WHOOSH! The latch rattles, but something is still jamming its track.','worried');
         else A.say('WHOOOOSH! So loud my soul left my body for a second.','shock');return true}},
       {id:'signs',r:[100,96,160,60],say:'“Please do not flush: towels, diapers, regrets.”'},
-      {id:'toilet',r:[110,250,140,160],say:['The vacuum toilet. It sounds like a jet engine eating spaghetti.','I will not be sucked out at 35,000 feet. Not today.']}]},
+      {id:'toilet',r:[110,250,140,160],uses:{tweezers:'Fishing in an airplane toilet? Even I have limits.',hairpin:'If I drop this in there, it\'s gone forever. Into the sky.',hook:'Hooking the toilet won\'t open the door. The latch needs it.',peanut:'Not flushing my dinner.'},say:['The vacuum toilet. It sounds like a jet engine eating spaghetti.','I will not be sucked out at 35,000 feet. Not today.']}]},
     sink:{name:'Sink',hot:[
-      {id:'call',r:[262,96,56,56],fn(f,it,A){if(it)return false;A.set('call');A.sfx('ding');A.say('Ding! Speaker: “Sir, that latch sticks. Hook it with something thin, then flush. The shaking frees it. Peanuts?”','think');return true}},
+      {id:'call',r:[262,96,56,56],fn(f,it,A){if(it){A.say('It\'s a button. A finger works best.','meh');return true}A.set('call');A.sfx('ding');A.say('Ding! Speaker: “Sir, that latch sticks. Hook it with something thin, then flush. The shaking frees it. Peanuts?”','think');return true}},
       {id:'basin',r:[110,232,140,58],fn(f,it,A){
         if(it==='tweezers'&&!f.pin){A.set('pin');A.give('hairpin');A.sfx('pick');A.say('Tweezers into the drain... a hairpin! Not mine. I am proudly bald.','smug');return true}
+        if(it==='hook'||it==='hairpin')return A.say('I\'m not putting it back down the drain!','meh'),true;
         if(it)return false;A.say(f.pin?'A tiny sink for tiny hands.':'Something thin is glinting deep in the drain. My fingers are way too big.',f.pin?'meh':'think');return true},glint:f=>!f.pin},
       {id:'drawer',r:[112,306,136,90],to:'drawer'},
-      {id:'mirror',r:[110,80,140,130],say:['The mirror says: you are on vacation. My face says: help.','Even my reflection wants to get out of here.'],m:'smug'}]},
+      {id:'mirror',r:[110,80,140,130],uses:{tweezers:'Tempting to tidy the eyebrows, but focus, Jean.'},say:['The mirror says: you are on vacation. My face says: help.','Even my reflection wants to get out of here.'],m:'smug'}]},
     drawer:{name:'Crew drawer',back:'sink',lock:{kind:'dials',len:3,code:'814',done:f=>f.drawer,ok(f,A){A.set('drawer');A.sfx('unlock');A.say('Click! The crew drawer slides open. Sorry, Kevin.','happy')}},hot:[
       {id:'kit',r:[70,200,130,90],vis:f=>f.drawer&&!f.kit,glint:()=>true,fn(f,it,A){if(it)return false;A.set('kit');A.give('kit');A.sfx('pick');A.say('A travel amenity kit! Fancy airplane goodies. (Tap it twice to open.)','happy');return true}},
       {id:'blank',r:[210,190,100,110],vis:f=>f.drawer,say:'Spare blankets. Scratchy, but spare.'},
-      {id:'lock',r:[60,110,240,290],vis:f=>!f.drawer,fn(f,it,A){if(it==='pass'){A.say('My boarding pass doesn\'t open drawers. It barely opened the gate.','meh');return true}return false},say:'“CREW ONLY.” A 3-digit lock. I am crew now. Crew of one.'}]},
+      {id:'lock',r:[60,110,240,290],vis:f=>!f.drawer,uses:{tweezers:'Picking a number lock with tweezers? I need the numbers, not a heist.',hairpin:'It\'s a combination lock. Hairpins work in movies, not here.'},fn(f,it,A){if(it==='pass'){A.say('My boarding pass doesn\'t open drawers. It barely opened the gate.','meh');return true}return false},say:'“CREW ONLY.” A 3-digit lock. I am crew now. Crew of one.'}]},
     window:{name:'Window',hot:[
       {id:'note',r:[150,236,80,62],vis:f=>f.table,fn(f,it,A){if(it)return false;A.set('note');A.say('Sticky note: “Kevin!! The crew drawer code is our flight number BACKWARDS. Stop forgetting!! — Crew”','think');return true}},
-      {id:'table',r:[100,220,180,110],fn(f,it,A){if(it)return false;if(!f.table){A.set('table');A.sfx('click');A.say('I fold down the changing table... a sticky note was hiding behind it!','shock')}else A.say('A changing table. Thankfully not needed today.','meh');return true}},
+      {id:'table',r:[100,220,180,110],fn(f,it,A){if(it){A.say(f.table?'I don\'t need to change anything. Except my location.':'Just pull the table down. No tools needed.','meh');return true}if(!f.table){A.set('table');A.sfx('click');A.say('I fold down the changing table... a sticky note was hiding behind it!','shock')}else A.say('A changing table. Thankfully not needed today.','meh');return true}},
       {id:'win',r:[136,84,88,104],say:['Clouds! We are 35,000 feet up. The window is not an option.','Hello, clouds. Tell my family I said hi.']},
-      {id:'smoke',r:[268,90,50,36],say:'The smoke detector. It\'s watching me. I\'m watching it back.'}]},
+      {id:'smoke',r:[262,84,62,48],uses:{tweezers:'Messing with the smoke detector on a plane? That\'s how you meet the air marshal.',hairpin:'Messing with the smoke detector on a plane? That\'s how you meet the air marshal.'},say:'The smoke detector. It\'s watching me. I\'m watching it back.'}]},
     latch:{name:'Latch',back:'door',hot:[
       {id:'track',r:[50,120,260,260],fn(f,it,A){
         if(it==='tweezers'){if(f.peanut){A.say('The track is already clear.','meh');return true}A.set('peanut');A.give('peanut');A.sfx('pop');A.say('Tweezers in... out comes a PEANUT! Airline peanuts get everywhere.','shock');return true}
         if(it==='hook'){if(f.hook)return false;A.use('hook');A.set('hook');A.sfx('click');A.say('The hook grabs the latch. Now it just needs a really good shake...','think');return true}
         if(it==='hairpin'){A.say('Too straight, it slips right off. If only I could bend it into a hook...','worried');return true}
+        if(it==='pass'){A.say('Sliding the boarding pass in the gap... too floppy to move the latch.','worried');return true}
+        if(it==='peanut'){A.say('Putting the peanut back would be pure evil.','meh');return true}
+        if(it==='kit'){A.say('The kit is closed. Maybe something inside could help. (Tap it twice to open it.)','think');return true}
         if(it)return false;
         A.say(f.hook?(f.peanut?'Hooked and clear. How do I shake the whole plane?':'Hooked, but the track is still jammed.'):f.peanut?'The track is clear, but the latch is too stiff for my fingers.':'The latch is jammed. Something small and round is stuck in the track!','worried');return true}}]}
   },
@@ -12466,7 +12484,7 @@ const JEAN_SNAP={home:'SNAP!',office:'BZZT!',plane:'CLUNK!'};
 function jeanEscape(root,S){
   const lv=clamp(S.level||1,1,JEAN_CH.length),ch=JEAN_CH[lv-1],E=JEAN_E,KEY='jean:ch'+lv,ART=JEAN_ART[ch.set];
   status(root,'Help Jean escape the toilet! Inspect everything, collect items and use them in the room.');
-  function load(){const s=store.get(KEY);if(E.valid(ch,s)&&!s.won){s.n=s.n||{};s.d=s.d||{};s.hint=s.hint||[-1,0];return s}const n=E.fresh(ch);if(s&&s.intro)n.intro=1;return n}
+  function load(){const s=store.get(KEY);if(E.valid(ch,s)){s.n=s.n||{};s.d=s.d||{};s.hint=s.hint||[-1,0];return s}const n=E.fresh(ch);if(s&&s.intro)n.intro=1;return n}
   let st=load();const save=()=>store.set(KEY,st);
   const wrap=el('div','jn-wrap',root),c=el('canvas','jn-cv',wrap),x=c.getContext('2d');
   const btn=(cls,html,label)=>{const b=el('button',cls,wrap,html);b.setAttribute('aria-label',label);return b};
@@ -12474,7 +12492,7 @@ function jeanEscape(root,S){
   const bar=el('div','jn-bar',root),slots=[];
   for(let i=0;i<6;i++){const b=el('button','jn-slot',bar,`<canvas width="96" height="96"></canvas><i>${i+1}</i>`);b.setAttribute('aria-label','Inventory slot '+(i+1));slots.push(b);S.on(b,'click',()=>slotTap(i))}
   const bHint=el('button','jn-hint',bar,'💡<small>Hint</small>');bHint.setAttribute('aria-label','Hint');
-  let W=360,H=520,R=1,T=0,mode=st.intro?'play':'intro',introT=0,outT=0,sel=null,bub=null,insp=null,tr=null,flash=null,nexted=false,armed=0;
+  let W=360,H=520,R=1,T=0,mode=st.won?'outro':st.intro?'play':'intro',introT=0,outT=0,sel=null,bub=null,insp=null,tr=null,flash=null,nexted=false,armed=0;
   const P=sparks(),rip=[];
   /* ---------- layout: portrait phones get a tall scene, everything else a wide one ---------- */
   function layout(){
@@ -12528,7 +12546,7 @@ function jeanEscape(root,S){
     sel=it;bub=null;beep(900,40);paint();
   }
   function hint(){
-    if(mode!=='play')return;const s=E.step(ch,st),L=ch.steps[s].h;
+    if(mode!=='play')return;insp=null;const s=E.step(ch,st),L=ch.steps[s].h;
     if(st.hint[0]!==s)st.hint=[s,0];else st.hint[1]=Math.min(st.hint[1]+1,L.length-1);
     say(`Hint ${st.hint[1]+1}/${L.length}: ${L[st.hint[1]]}`,'think','hint');sfx('hint');restartAnim(bHint,'got');save();
   }
@@ -12559,21 +12577,25 @@ function jeanEscape(root,S){
   /* ---------- tapping the scene ---------- */
   function tapAt(e){
     const p=toCanvas(e);rip.push({x:p.x,y:p.y,t:0});
-    if(mode==='intro'){if(introT>8.4)startPlay();return}
+    if(mode==='intro'){if(introT>8.4)startPlay();else if(introT<6.2&&introT>.5){introT=6.2;bub=null}return}
     if(mode!=='play')return;
     if(insp){insp=null;return}
-    if(bub&&p.y<bubRect.y+bubRect.h&&p.y>=bubRect.y&&p.x>=bubRect.x){bub=null;return}
+    if(bub&&p.y<bubRect.y+bubRect.h&&p.y>=bubRect.y)bub=null; /* the bubble never blocks a tap: it closes and the tap goes on */
     const d=toDesign(p);
     if(!sel&&lockTap(d))return;
-    const h=E.hots(ch,st).find(h=>d.x>=h.r[0]&&d.x<=h.r[0]+h.r[2]&&d.y>=h.r[1]&&d.y<=h.r[1]+h.r[3]);
+    /* exact hit first; then small targets count as at least ~46 css px so they are easy to hit on a phone */
+    const HS=E.hots(ch,st),mn=46/((c.getBoundingClientRect().width/W)*tf().s);
+    let h=HS.find(h=>d.x>=h.r[0]&&d.x<=h.r[0]+h.r[2]&&d.y>=h.r[1]&&d.y<=h.r[1]+h.r[3]);
+    if(!h){let bd=1e9;for(const q of HS){const cx=q.r[0]+q.r[2]/2,cy=q.r[1]+q.r[3]/2;if(Math.abs(d.x-cx)<=Math.max(q.r[2],mn)/2&&Math.abs(d.y-cy)<=Math.max(q.r[3],mn)/2){const dd=Math.hypot(d.x-cx,d.y-cy);if(dd<bd){bd=dd;h=q}}}}
     if(h){run({t:'tap',h:h.id,it:sel||undefined},p);return}
     if(sel){sel=null;paint();return}
     if(st.f.dark)say(JEAN_DARKLINES[rand(JEAN_DARKLINES.length)],'worried');
   }
   S.on(c,'click',tapAt);
-  S.on(bL,'click',()=>{if(mode==='play'&&!tr)run({t:'turn',d:-1})});
-  S.on(bR,'click',()=>{if(mode==='play'&&!tr)run({t:'turn',d:1})});
-  S.on(bB,'click',()=>{if(mode==='play'&&!tr)run({t:'back'})});
+  const card=()=>{if(!insp)return false;insp=null;return true}; /* an open item card closes first: buttons under it never act behind it */
+  S.on(bL,'click',()=>{if(mode==='play'&&!card())run({t:'turn',d:-1})});
+  S.on(bR,'click',()=>{if(mode==='play'&&!card())run({t:'turn',d:1})});
+  S.on(bB,'click',()=>{if(mode==='play'&&!card())run({t:'back'})});
   S.on(bHint,'click',hint);
   S.on(bSkip,'click',()=>startPlay());
   S.on(bReset,'click',()=>{
@@ -12649,7 +12671,7 @@ function jeanEscape(root,S){
   function drawPill(){
     if(mode!=='play')return;
     const fs=13;x.font=`800 ${fs}px Nunito, system-ui, sans-serif`;
-    if(sel){const t=`Using ${ch.items[sel].n}: tap where`;const w=x.measureText(t).width+54,X=W/2-w/2,Y=H-(isWall(st.v)?66:72);jnR(x,X,Y,w,30,15,'#FFC53D',2.5);icon(x,sel,X+18,Y+15,20);jnT(x,t,X+32,Y+15,fs,JEAN_O,'left')}
+    if(sel){const t=`Using ${ch.items[sel].n}: tap where`;const w=x.measureText(t).width+54,X=W/2-w/2,Y=H-(64+44*W/Math.max(1,c.getBoundingClientRect().width));jnR(x,X,Y,w,30,15,'#FFC53D',2.5);icon(x,sel,X+18,Y+15,20);jnT(x,t,X+32,Y+15,fs,JEAN_O,'left')}
     if(isWall(st.v)){const V=ch.views[st.v],t=V.name,w=x.measureText(t).width+70,X=W/2-w/2,Y=H-34;jnR(x,X,Y,w,26,13,'rgba(255,255,255,.88)',2.5);jnT(x,t,X+14,Y+13,fs,JEAN_O,'left');
       ch.walls.forEach((v,i)=>jnE(x,X+w-46+i*10,Y+13,3.5,3.5,v===st.v?'#FF5D73':'rgba(43,34,64,.25)',0))}
   }
@@ -12694,7 +12716,9 @@ function jeanEscape(root,S){
       cue(.3,()=>say(ch.intro[0],'happy'));cue(2.7,()=>sfx('click'));cue(3.8,()=>say(ch.intro[1],'happy'));cue(4.1,()=>sfx('bwomp'));cue(4.5,()=>sfx('whistle'));cue(4.8,()=>sfx('flush'));
       cue(6.4,()=>{sfx('snap');S.shake()});cue(6.7,()=>say(ch.intro[2],'shock'));if(introT>13)startPlay();
       drawIntro();
-    }else if(mode==='outro'){outT+=dt;drawOutro();if(outT>3.2&&!nexted){nexted=true;st.won=true;save();S.next()}}
+    }else if(mode==='outro'){outT+=dt;drawOutro();if(outT>3.2&&!nexted){nexted=true;store.set(KEY,{intro:1});S.next();
+      /* works whether the registry lists the chapters as open modes (S.next only celebrates) or as levels (the engine moves on itself) */
+      if(lv<JEAN_CH.length)S.after(2300,()=>{store.set('cur:jean',lv+1);S.restart()})}}
     else if(tr){tr.t+=dt;const e=clamp(tr.t/.3,0,1),ez=1-Math.pow(1-e,3);
       if(tr.kind==='turn'){drawView(tr.from,-tr.d*W*ez);drawView(tr.to,tr.d*W*(1-ez))}
       else if(tr.kind==='zoom'){drawView(tr.from,0,1,1+ez*.25);drawView(tr.to,0,ez,.8+.2*ez)}
@@ -12705,13 +12729,13 @@ function jeanEscape(root,S){
     P.draw(x,dt);drawPill();drawBubble();drawInspect();
   }
   /* test/debug hooks: positions of hotspots and lock wheels in page coordinates */
-  wrap.jean={ch,lv,get st(){return st},get mode(){return mode},get sel(){return sel},get bub(){return bub&&bub.text},get insp(){return insp&&insp.text},
+  wrap.jean={ch,lv,get st(){return st},get mode(){return mode},get sel(){return sel},get bub(){return bub&&bub.text},get bubT(){return bub?bub.t0:-1},get insp(){return insp&&insp.text},
     page(dx,dy){const{s,ox,oy}=tf(),b=c.getBoundingClientRect();return{x:b.left+(ox+dx*s)*b.width/W,y:b.top+(oy+dy*s)*b.height/H}},
     hot(id){const h=E.hots(ch,st).find(h=>h.id===id);return h?this.page(h.r[0]+h.r[2]/2,h.r[1]+h.r[3]/2):null},
     dial(i,up){const L=ch.views[st.v].lock,g=lockGeo(L);return this.page(g[i].x+g[i].w/2,up?250:290)},
     key(k){const g=lockGeo(ch.views[st.v].lock).find(b=>b.k===k);return this.page(g.x+g.w/2,g.y+g.h/2)},
     size:()=>({W,H})};
-  layout();paint();S.loop(frame);
+  layout();paint();S.loop(frame);if(mode==='outro')startOutro();
   S.after(60,layout);
 }
 
