@@ -2116,7 +2116,10 @@ h1.gp-title{font-size:clamp(1.9rem,8vw,3rem);margin:0;text-shadow:0 4px 0 var(--
 .jn-slot.got{animation:jn-got .5s var(--spring)}
 @keyframes jn-got{0%{transform:scale(1)}40%{transform:scale(1.22) rotate(-6deg)}100%{transform:scale(1)}}
 .jn-hint{flex:none;width:58px;border:3px solid var(--edge);border-radius:14px;background:var(--c2);color:#1E1F5C;box-shadow:0 3px 0 var(--edge);font-size:1.35rem;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;cursor:pointer}
-.jn-hint small{font:800 .62rem/1 var(--body)}
+.jn-hint small{font:800 .62rem/1 var(--body);font-variant-numeric:tabular-nums}
+.jn-hint span{display:flex;align-items:center;gap:1px;font-size:1.15rem}
+.jn-hint b{font:400 .95rem/1 var(--display)}
+.jn-hint.none{background:var(--board);color:var(--ink)}
 .jn-hint:active,.jn-slot:active{transform:translateY(2px);box-shadow:0 1px 0 var(--edge)}
 .jn-hint.got{animation:jn-got .5s var(--spring)}
 @media (max-width:400px){.jn-bar{gap:5px;padding:0 2px}.jn-hint{width:50px}.jn-slot{border-radius:12px}}

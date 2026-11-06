@@ -11800,7 +11800,7 @@ const JEAN_DW=360,JEAN_DH=520,JEAN_FL=410;
 const JEAN_NOPE=['Hmm, %s does nothing there.','I wave the %s at it. Nothing. Rude.','That is not how %s works. I think.','The %s and that thing are not friends.','Nope. The %s refuses to cooperate.','I tried. The %s tried. Nobody won.'];
 const JEAN_NOCOMB=['%a and %b? That is just a pile of stuff.','I squish %a against %b. Still two things.','%a + %b = confusion.'];
 const JEAN_E=(()=>{
-  function fresh(ch){return{v:ch.walls[0],inv:ch.start.slice(),f:{},n:{},d:{},hint:[-1,0],won:false}}
+  function fresh(ch){return{v:ch.walls[0],inv:ch.start.slice(),f:{},n:{},d:{},hint:[-1,0],hints:3,won:false}}
   function hots(ch,st){const V=ch.views[st.v];return V?(V.hot||[]).filter(h=>!h.vis||h.vis(st.f,st)):[]}
   function lockOn(ch,st){const L=ch.views[st.v]&&ch.views[st.v].lock;return L&&!L.done(st.f)&&(!L.need||L.need(st.f))?L:null}
   function line(L,st,key,f){if(typeof L==='function')L=L(f);if(!Array.isArray(L))return L;const k=st.n[key]||0;st.n[key]=k+1;return L[k%L.length]}
@@ -11813,12 +11813,14 @@ const JEAN_E=(()=>{
       has:id=>st.inv.includes(id),
       set(k,v=1){st.f[k]=v},
       sfx(n){ev.push({sfx:n})},
+      shake(){ev.push({shake:1})},
       win(){st.won=true;ev.push({win:1})}};
   }
   /* a = {t:'turn',d} | {t:'back'} | {t:'tap',h,it} | {t:'code',arg} | {t:'look',it} | {t:'comb',a,b}; returns events */
   function act(ch,st,a){
     const ev=[];if(st.won)return ev;const A=api(ch,st,ev),V=ch.views[st.v],I=ch.items;
-    if(a.t==='turn'){const W=ch.walls,i=W.indexOf(st.v);if(i<0)return ev;st.v=W[(i+a.d+W.length)%W.length];ev.push({go:st.v,turn:a.d})}
+    if(a.t==='tick'){if(ch.tick)ch.tick(st.f,A,st)}
+    else if(a.t==='turn'){const W=ch.walls,i=W.indexOf(st.v);if(i<0)return ev;st.v=W[(i+a.d+W.length)%W.length];ev.push({go:st.v,turn:a.d})}
     else if(a.t==='back'){if(V.back){st.v=V.back;ev.push({go:st.v,back:1})}}
     else if(a.t==='code'){const L=lockOn(ch,st);if(L&&a.arg===L.code)L.ok(st.f,A);else if(L)ev.push({wrong:1})}
     else if(a.t==='tap'){
@@ -11850,6 +11852,7 @@ const JEAN_E=(()=>{
     const out=[],V=ch.views[st.v];
     if(ch.walls.includes(st.v))out.push({t:'turn',d:1},{t:'turn',d:-1});
     if(V.back)out.push({t:'back'});
+    if(ch.tick)out.push({t:'tick'});
     const L=lockOn(ch,st);if(L)out.push({t:'code',arg:L.code});
     for(const h of hots(ch,st)){out.push({t:'tap',h:h.id});for(const it of st.inv)out.push({t:'tap',h:h.id,it})}
     for(const it of st.inv)out.push({t:'look',it});
@@ -11863,6 +11866,10 @@ const JEAN_E=(()=>{
   return{fresh,act,step,actions,key,clone,valid,hots,lockOn};
 })();
 
+/* zero-gravity floaters for the space chapter: the wrench and the log drift to the next wall on every tick */
+function jeanFloaters(v){const i=['door','toilet','window'].indexOf(v);return[
+  {id:'wfloat',r:[50,112,100,80],vis:f=>!f.wrench&&(f.t||0)%3===i,glint:()=>true,fn(f,it,A){if(it&&it!=='funnel')return false;A.set('wrench');A.give('wrench');A.sfx('pick');A.say(it?'SHLURP! The funnel catches the wrench. Space vacuum fishing!':'Gotcha! I snatch the wrench right out of the air. Zero-gravity reflexes!','happy');return true}},
+  {id:'lfloat',r:[210,92,100,84],vis:f=>!f.log&&((f.t||0)+1)%3===i,glint:()=>true,fn(f,it,A){if(it&&it!=='funnel')return false;A.set('log');A.give('log');A.sfx('pick');A.say('Caught the captain\'s log mid-float! Tap it twice to read it.','happy');return true}}]}
 /* ---------- chapters ---------- */
 const JEAN_CH=[
 { /* 1 ------------------------------------------------------------------ home */
@@ -12072,7 +12079,606 @@ const JEAN_CH=[
     {done:f=>f.hookmade,h:['A straight pin slips off. Can you bend it?','Select the hairpin, then tap the tweezers in your inventory.']},
     {done:f=>f.hook,h:['The hook needs to grab the latch.','Select the hairpin hook and tap the latch close-up on the door.']},
     {done:(f,st)=>st.won,h:['The flight attendant knows a trick (try the call button).','Press the flush button on the toilet wall. The shaking frees the latch!']}]
-}];
+},
+{ /* 4 ---------------------------------------------------------------- school */
+  name:'The School Bathroom',set:'school',walls:['door','stalls','sink','window'],start:['eraser'],
+  intro:['Substitute teacher Jean, reporting for... bathroom duty.','*whistles the school song*','The janitor locked the door! And the bell rings in ten minutes!'],
+  outro:'Free! And I still made it to class. Pop quiz, everyone!',
+  items:{
+    eraser:{n:'Eraser',d:['My trusty blackboard eraser. Teachers never leave home without one.','A clean felt eraser. Soft, fluffy and full of potential.']},
+    ruler:{n:'Ruler',e:'📏',d:'A long wooden ruler. Thin enough to slide under things. Sneaky.'},
+    chalkwet:{n:'Wet chalk',d:'A stick of chalk, soaking wet. It just smears. Useless. Like wet chalk.'},
+    chalk:{n:'Chalk',d:'A dry stick of chalk. Dusty and ready for action.'},
+    dusty:{n:'Chalky eraser',d:'An eraser packed with chalk dust. One pat and everything gets dusty.'}
+  },
+  combos:[['eraser','chalk',(f,A)=>{A.use('eraser');A.use('chalk');A.give('dusty');A.set('dusty');A.sfx('pick');A.say('I rub the chalk all over the eraser. Maximum dust!','happy');return true}],
+    ['eraser','chalkwet',(f,A)=>{A.say('Wet chalk on the eraser just makes mud. Dry it first.','meh');return true}],
+    ['ruler','chalkwet',(f,A)=>{A.say('I measure the wet chalk. 8 cm of disappointment.','meh');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'pad',r:[268,206,56,80],to:'keypad'},
+      {id:'clock',r:[22,92,66,66],say:['The school clock. Nine minutes to the bell. It ticks louder when I panic.','Tick. Tock. Tick. Panic.']},
+      {id:'poster',r:[18,176,76,110],say:'A poster: “NO RUNNING IN THE HALLS.” Running is exactly what I plan to do.'},
+      {id:'door',r:[96,84,168,326],fwd:'keypad',uses:{ruler:'The ruler slides under the door... and does nothing. This lock is electronic.',eraser:'Erasing the door won\'t make it go away. I tried.'},say:['The door. Locked from the outside by a keypad. Very high-tech for a school that still uses chalk.','I knock. A student outside yells “Mr. Jean is stuck in the bathroom!” Great.']}]},
+    keypad:{name:'Keypad',back:'door',lock:{kind:'pad',len:4,code:'2579',done:()=>false,ok(f,A){A.sfx('unlock');A.say('Beep... ACCESS GRANTED. Chalk: 1, janitor: 0!','happy');A.win()}},hot:[
+      {id:'keys',r:[78,166,204,224],fn(f,it,A){
+        if(it==='dusty'){if(f.dust){A.say('Already dusted. Keys 2, 5, 7 and 9 are covered in fingerprints.','think');return true}A.set('dust');A.sfx('pop');A.say('Pat pat pat... the chalk dust sticks to greasy fingerprints on four keys: 2, 5, 7 and 9! But in which order?','shock');return true}
+        if(it==='eraser'){A.say('A clean eraser just polishes the keys. I need DUST on it.','think');return true}
+        if(it==='chalk'||it==='chalkwet'){A.say('Writing on the keys won\'t help. But chalk DUST would show the fingerprints...','think');return true}
+        if(it==='ruler'){A.say('I poke the keys with the ruler. Beep boop. Random numbers are not a strategy.','meh');return true}}}]},
+    stalls:{name:'Stalls',hot:[
+      {id:'stall2',r:[186,112,148,298],vis:f=>!f.stall,fn(f,it,A){
+        if(it==='ruler'){A.set('stall');A.sfx('click');A.say('I slide the ruler under the door and flip the latch up. Click! Teacher tricks.','smug');return true}
+        if(it==='eraser'){A.say('The eraser is too thick to fit under the door.','meh');return true}
+        if(!it){A.say('“OUT OF ORDER.” Locked from the inside. With nobody in it. HOW?','worried');return true}}},
+      {id:'stallin',r:[186,112,148,298],vis:f=>f.stall,to:'stall'},
+      {id:'stall1',r:[28,112,148,298],say:['Stall one. Seat up. Somebody\'s mom didn\'t raise them right.','Someone carved “J + toilet = 4ever” in the door. Not me. Probably.']}]},
+    stall:{name:'Stall',back:'stalls',hot:[
+      {id:'chalk',r:[100,330,100,50],vis:f=>!f.chalk,glint:()=>true,fn(f,it,A){if(it)return false;A.set('chalk');A.give('chalkwet');A.sfx('splash');A.say('A stick of chalk... lying in a puddle. Wet chalk. Very useless chalk.','meh');return true}},
+      {id:'graf',r:[40,90,280,110],fn(f,it,A){if(it){A.say('I\'m not adding to the graffiti. I\'m a role model. Mostly.','smug');return true}A.set('graf');A.say('Graffiti: “THE DOOR CODE GOES UP, UP, UP! Like my grades ↑ — class of 2009”','think');return true}},
+      {id:'toilet',r:[110,200,140,130],uses:{chalkwet:'It\'s wet enough already, thank you.',eraser:'I am NOT erasing in there.'},say:'The OUT OF ORDER toilet. It looks fine to me. Suspiciously fine.'}]},
+    sink:{name:'Sinks',hot:[
+      {id:'dryer',r:[262,170,72,70],fn(f,it,A){
+        if(it==='chalkwet'){A.use('chalkwet');A.give('chalk');A.set('dry');A.sfx('dryer');A.say('WHOOOSH! Hot air for thirty seconds... one dry, dusty stick of chalk!','happy');return true}
+        if(it==='eraser'||it==='dusty'){A.say('Blowing the eraser around just makes a cloud. Save the dust!','meh');return true}
+        if(it)return false;A.sfx('dryer');A.say('WHOOOSH! Even my eyebrows are dry now.','happy');return true}},
+      {id:'mirror',r:[56,84,190,116],say:['Someone drew a mustache on the mirror. Wait, that\'s my mustache.','A doodle on the mirror: “Mr. Jean is cool.” I\'m not crying, YOU\'RE crying.'],m:'smug'},
+      {id:'basin',r:[56,214,190,60],uses:{chalkwet:'Making it wetter is the opposite of the plan.',chalk:'NO! I just dried it!'},say:'Two sinks. One works. The other just gurgles at me.'},
+      {id:'soap',r:[24,206,30,46],say:'Pink school soap. Smells like 1995.'}]},
+    window:{name:'Window',hot:[
+      {id:'ruler',r:[214,70,52,80],vis:f=>!f.ruler,glint:()=>true,fn(f,it,A){if(it)return false;if(!f.can){A.say('A ruler jammed in the window up there, holding it open. Too high, even on tiptoes.','worried');return true}A.set('ruler');A.give('ruler');A.sfx('pick');A.say('I climb on the trash can and grab the ruler. The window slams shut. Oops.','happy');return true}},
+      {id:'win',r:[110,60,160,96],say:'A tiny window way up high. Not even the school hamster could fit through.'},
+      {id:'can1',r:[22,316,72,94],vis:f=>!f.can,fn(f,it,A){if(it)return false;A.set('can');A.sfx('click');A.say('I push the trash can under the window. It squeaks like a choir of mice.','happy');return true}},
+      {id:'can2',r:[176,316,72,94],vis:f=>f.can,say:'My trusty trash-can stepladder.'},
+      {id:'wet',r:[272,300,64,110],say:'A WET FLOOR sign. The floor is dry. The sign is lying.'},
+      {id:'radiator',r:[100,250,160,60],say:'An old radiator, painted 14 times. It clanks during tests.'}]}
+  },
+  steps:[
+    {done:f=>f.can,h:['The ruler up in the window is out of reach. Something here could be a step.','Tap the trash can on the window wall to push it under the window.']},
+    {done:f=>f.ruler,h:['Now you can reach the window.','Tap the ruler stuck in the window.']},
+    {done:f=>f.stall,h:['The OUT OF ORDER stall is latched from inside. Something thin and flat could flip the latch.','Select the ruler and tap the locked stall door.']},
+    {done:f=>f.chalk,h:['Look inside the stall.','Tap the open stall, then pick up the chalk.']},
+    {done:f=>f.dry,h:['Wet chalk won\'t make dust.','Select the wet chalk and tap the hand dryer on the sink wall.']},
+    {done:f=>f.dusty,h:['Chalk plus something that spreads dust.','Select the chalk and tap the eraser to combine them.']},
+    {done:f=>f.dust,h:['Fingerprints would show which keys get used.','Open the keypad by the door, select the chalky eraser and tap the keys.']},
+    {done:f=>f.graf,h:['Four keys, but which order? Someone left a clue in the stall.','Read the graffiti inside the stall: the code goes UP.']},
+    {done:(f,st)=>st.won,h:['Keys 2, 5, 7 and 9, going up.','Type 2 5 7 9 on the keypad.']}]
+},
+{ /* 5 ---------------------------------------------------------------- train */
+  name:'The Train Toilet',set:'train',walls:['door','toilet','window'],start:['ticket'],
+  intro:['A train toilet with a view of the countryside. Fancy!','*clickety-clack, clickety-clack*','The door won\'t budge?! Next stop: nowhere!'],
+  outro:'Out! And just in time for my stop. Wait... that WAS my stop?!',
+  /* every few seconds the train moves on: 0 open track, 1 tunnel (dark), 2 open track, 3 a curve (loose things slide) */
+  tick(f,A){
+    f.ph=((f.ph||0)+1)%4;f.dark=f.ph===1?1:0;
+    if(f.ph===1){A.sfx('tunnel');A.say(f.blinds?'Tunnel! Ooh, something is glowing in here!':'Tunnel! Pitch black. I can\'t see a thing.','shock')}
+    if(f.ph===3){A.sfx('lurch');A.shake();
+      if(f.keyout&&!f.key){f.kpos=f.kpos==='mid'?'rad':'mid';A.say(f.kpos==='mid'?'The train leans into a curve... the key slides out from under the radiator! Grab it!':'Another curve! The key slides back under the radiator. NOOO.','shock')}
+      else A.say('Whoa, a curve! Everything in here slides around. Including me.','worried')}},
+  items:{
+    ticket:{n:'Ticket',e:'🎟️',d:['My train ticket: Seat 14B, quiet carriage. Ironic.','The ticket says “No refunds for time spent in toilets.”']},
+    brush:{n:'Toilet brush',d:'The toilet brush. I am only borrowing it. With my eyes closed.'},
+    tkey:{n:'Triangle key',d:'A conductor\'s triangle key. It fits triangle-shaped locks. Obviously.'},
+    knob:{n:'Door knob',d:'A little metal knob from the soap dispenser. It looks like it belongs on a lock.'}
+  },
+  combos:[['brush','ticket',(f,A)=>{A.say('I am not cleaning my ticket with the toilet brush.','meh');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'glow',r:[96,30,170,56],vis:f=>f.dark&&f.blinds,fn(f,it,A){if(it)return false;A.set('glow');A.say('Glow paint above the door: ▲ = 5, ● = 2, ★ = 7. Spooky AND useful.','think');return true}},
+      {id:'panel',r:[18,170,80,100],vis:f=>!f.dark,to:'panel'},
+      {id:'lock',r:[226,196,56,48],vis:f=>!f.dark,fn(f,it,A){
+        if(it==='tkey'){A.use('tkey');A.set('unlocked');A.sfx('unlock');if(f.turn){A.say('Click! Both locks open... the door slides open!','happy');A.win()}else A.say('The triangle key turns. Click! One lock down. The thumb-turn lock is still missing its knob.','happy');return true}
+        if(it==='knob'){A.say('The knob is round. This lock is a triangle. Geometry says no.','meh');return true}
+        if(it==='brush'){A.say('Poking the lock with the toilet brush. The lock is disgusted.','meh');return true}
+        if(it)return false;A.say(f.unlocked?'The triangle lock is open.':'A triangle-shaped keyhole. Train staff carry special triangle keys.','think');return true}},
+      {id:'thumb',r:[226,256,56,48],vis:f=>!f.dark,fn(f,it,A){
+        if(it==='knob'){A.use('knob');A.set('turn');A.sfx('click');if(f.unlocked){A.say('The knob fits! Twist... both locks open, the door slides open!','happy');A.win()}else A.say('The knob fits the thumb-turn. Twist... clack! One lock down. Now the triangle lock.','happy');return true}
+        if(it==='tkey'){A.say('This one wants a knob, not a key.','think');return true}
+        if(it)return false;A.say(f.turn?'The thumb-turn lock is open.':'A thumb-turn lock with no knob. Just a sad little metal stub.','think');return true}},
+      {id:'door',r:[100,84,160,326],vis:f=>!f.dark,fwd:'door',uses:{ticket:'I show the door my ticket. It does not check it.'},say:['A sliding door with two locks. Trains love locks.','I knock. A voice says “Tickets please!” and walks away.']}]},
+    panel:{name:'Staff panel',back:'door',lock:{kind:'dials',len:3,code:'527',sym:['▲','●','★'],done:f=>f.panel,ok(f,A){A.set('panel');A.set('keyout');A.set('kpos','rad');A.sfx('unlock');A.say('The panel pops open... a triangle key falls out, hits the floor and slides away under the radiator! NOOO.','shock')}},hot:[
+      {id:'inside',r:[60,110,240,290],vis:f=>f.panel,say:'Empty now. The key escaped. Like I want to.'},
+      {id:'plate',r:[60,110,240,290],vis:f=>!f.panel,fn(f,it,A){if(it==='brush'){A.say('Scrubbing the panel won\'t open it. It does look cleaner.','meh');return true}return false},say:'STAFF ONLY. Three wheels, marked ▲ ● ★. No numbers anywhere. Sneaky.'}]},
+    toilet:{name:'Toilet',hot:[
+      {id:'keyfloor',r:[140,372,80,44],vis:f=>!f.dark&&f.keyout&&!f.key&&f.kpos==='mid',glint:()=>true,fn(f,it,A){if(it&&it!=='brush')return false;A.set('key');A.give('tkey');A.sfx('pick');A.say('Got it! Grabbed it mid-slide like a cat!','happy');return true}},
+      {id:'brush',r:[44,320,48,90],vis:f=>!f.dark&&!f.brush,fn(f,it,A){if(it)return false;A.set('brush');A.give('brush');A.sfx('pick');A.say('The toilet brush. I\'m only borrowing it. Please don\'t tell anyone.','meh');return true}},
+      {id:'rad',r:[232,320,110,90],vis:f=>!f.dark,fn(f,it,A){
+        if(it==='brush'){if(f.keyout&&!f.key){A.set('key');A.give('tkey');A.sfx('pick');A.say('I sweep under the radiator with the toilet brush... got the key! Let us never speak of this.','smug')}else A.say(f.key?'Nothing else under there. Just dust and regret.':'Just dust and a lost sock under there. Not mine. Hopefully.','meh');return true}
+        if(it)return false;
+        A.say(f.keyout&&!f.key&&f.kpos!=='mid'?'The key is under the radiator. My fingers can\'t reach. Something long could sweep it out... or wait for the train to tilt.':'A hot radiator. Toasty toes.','think');return true}},
+      {id:'pedal',r:[150,384,60,26],vis:f=>!f.dark,fn(f,it,A){if(it)return false;A.sfx('flush');A.say('Pedal flush! Through the hole I can see the tracks rushing by. WHOOSH.','shock');return true}},
+      {id:'toilet',r:[110,250,140,134],vis:f=>!f.dark,uses:{brush:'Cleaning the toilet. My mom would be proud. The door is still locked.'},say:['A steel train toilet. Do not flush in stations. Or near cows.','It rattles in rhythm with the train. Clickety-clack-flush.']}]},
+    window:{name:'Window',hot:[
+      {id:'soap',r:[262,206,52,74],vis:f=>!f.dark,fn(f,it,A){if(it)return false;const n=(f.sp||0)+1;
+        if(f.knob){A.say('Out of soap. And out of knobs.','meh');return true}
+        A.set('sp',n);A.sfx('pop');
+        if(n>=3){A.set('knob');A.give('knob');A.say('SQUIRT! CLUNK! A little metal knob shoots out! Who puts a knob in the soap?!','shock')}
+        else A.say(n===1?'Squirt. Soap.':'Squirt... clunk? Something is stuck inside.',n===1?'talk':'think');return true}},
+      {id:'blinds',r:[92,70,176,140],vis:f=>!f.dark,fn(f,it,A){if(it)return false;if(!f.blinds){A.set('blinds');A.sfx('click');A.say('Blinds up! Sunshine floods in. The walls are soaking it up.','happy')}else A.say(['Fields, cows and one very confused cow. Lovely view.','The countryside zooms by. I zoom nowhere.'][(f.sp||0)%2],'talk');return true}},
+      {id:'sink',r:[100,236,160,60],vis:f=>!f.dark,uses:{brush:'Washing the toilet brush in the sink. That\'s a crime in some countries.'},say:'A tiny steel sink. The water wobbles with every bump.'},
+      {id:'mirror',r:[284,100,56,90],vis:f=>!f.dark,say:'A little mirror. My hair is going clickety-clack too.'}]}
+  },
+  steps:[
+    {done:f=>f.blinds||f.glow,h:['Glow paint needs light to charge up.','Raise the window blinds on the window wall.']},
+    {done:f=>f.glow||f.panel,h:['Wait for a tunnel. Something might glow in the dark.','When the train enters a tunnel, tap the glowing paint above the door.']},
+    {done:f=>f.panel,h:['The glowing paint matches symbols to numbers.','Open the staff panel by the door and dial ▲=5, ●=2, ★=7.']},
+    {done:f=>f.key,h:['The key slid under the radiator. Wait for a curve to slide it out, or sweep it.','Take the toilet brush, select it and tap the radiator.']},
+    {done:f=>f.unlocked,h:['That key is triangle-shaped. So is a lock on the door.','Select the triangle key and tap the triangle lock on the door.']},
+    {done:f=>f.knob||f.turn,h:['The thumb-turn lock is missing its knob. The soap dispenser sounds funny...','Press the soap dispenser on the window wall three times.']},
+    {done:(f,st)=>st.won,h:['Put the knob where it belongs.','Select the knob and tap the thumb-turn lock on the door.']}]
+},
+{ /* 6 ---------------------------------------------------------------- camping */
+  name:'The Camping Toilet',set:'camp',walls:['door','toilet','window'],start:['flashlight','marshmallow'],
+  intro:['Ahh, nature. Fresh air, birds... and a plastic toilet.','*an owl hoots. Rudely.*','Somebody tied the door shut?! Very funny, guys!'],
+  outro:'Free! Now where are those pranksters... and my marshmallows?',
+  items:{
+    flashlight:{n:'Flashlight',e:'🔦',d:'My camping flashlight. Bright, sturdy and very shiny.'},
+    marshmallow:{n:'Marshmallow',d:['A fluffy marshmallow. I was saving it. For an emergency. This might be one.','I could eat it... but something tells me someone else wants it more.']},
+    knife:{n:'Pocket knife',d:'A little folding pocket knife. The raccoon\'s finest treasure.'},
+    card:{n:'Knot card',look(f,A){A.set('read');A.say('Knot guide: “To untie a trucker\'s hitch, pull the RED loop, then YELLOW, then BLUE. Never any other way!”','think');return true}}
+  },
+  combos:[['knife','marshmallow',(f,A)=>{A.say('I\'m not slicing the marshmallow. It\'s for a friend.','meh');return true}],
+    ['flashlight','card',(f,A)=>{A.set('read');A.say('In the flashlight beam the card reads: pull RED, then YELLOW, then BLUE.','think');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'gap',r:[104,360,152,50],to:'knot'},
+      {id:'latch',r:[226,214,48,40],say:'The latch slides open fine. Something OUTSIDE is holding the door shut. A rope?'},
+      {id:'sani',r:[20,196,54,80],say:'Hand sanitizer. Smells like a pine tree went to a hospital.'},
+      {id:'door',r:[100,84,160,276],fwd:'knot',uses:{flashlight:'I shine light through the crack. A rope is tied around the door outside! The knot pokes in under the door.',marshmallow:'I wave the marshmallow at the door. The door is not hungry.'},say:['A plastic door. I push. It pushes back. Rude.','I yell for help. An owl answers. Not helpful.']}]},
+    knot:{name:'Knot',back:'door',hot:[
+      {id:'tape',r:[90,170,180,110],vis:f=>!f.tape,fn(f,it,A){
+        if(it==='knife'){A.set('tape');A.sfx('unscrew');A.say('Snip snip! Duct tape cut. Now it\'s just the knot. Three colored loops.','happy');return true}
+        if(it==='marshmallow'){A.say('Sticky marshmallow plus duct tape = an even stickier problem.','meh');return true}
+        if(it==='flashlight'){A.say('In the light: three colored loops, all wrapped in duct tape. I need to cut that tape.','think');return true}
+        if(!it){A.say('The knot pokes in under the door, wrapped in duct tape. My friends are thorough pranksters.','worried');return true}}},
+      ...['R','Y','B'].map((c,i)=>({id:'loop'+c,r:[62+i*84,150,76,170],vis:f=>f.tape,fn(f,it,A){if(it)return false;const s=(f.seq||'')+c;A.sfx('pop');
+        if('RYB'.startsWith(s)){if(s==='RYB'){A.set('seq',s);A.say('The last loop slides free... the knot falls apart! The door swings open!','happy');A.win()}else{A.set('seq',s);A.say(c==='R'?'I pull the red loop. It slides a bit... good!':'Yellow loop pulled. Something loosened!','happy')}}
+        else{A.set('seq','');A.say('The knot pulls tight again! Wrong order. Back to the start.','worried')}return true}}))]},
+    toilet:{name:'Toilet',hot:[
+      {id:'card',r:[262,350,60,48],vis:f=>f.lit&&!f.card,glint:()=>true,fn(f,it,A){if(it)return false;A.set('card');A.give('card');A.sfx('pick');A.say('A laminated card! “Knots for Campers”. Tap it twice to read.','happy');return true}},
+      {id:'corner',r:[226,310,124,100],fn(f,it,A){
+        if(it==='flashlight'){if(f.lit)A.say('Still a spider down there. We have agreed to ignore each other.','meh');else{A.set('lit');A.sfx('click');A.say('Flashlight on the dark corner... a spider, two leaves and a laminated card!','shock')}return true}
+        if(it)return false;A.say(f.lit?'The spider waves. I wave back.':'Too dark down there. Something might be lurking. Something might be a card. Or a bear.','worried');return true}},
+      {id:'seat',r:[100,250,150,160],uses:{flashlight:'I am NOT looking down there. Some things are better left unseen.',marshmallow:'NO. Not the marshmallow.'},say:['A hole in a plastic box. Nature\'s throne.','The smell is... rustic.']},
+      {id:'tp',r:[22,250,60,60],say:'Camp toilet paper. 100% recycled sandpaper.'},
+      {id:'web',r:[260,90,80,80],say:'A spider web. With a tiny spider. Who is staring. Hi.'}]},
+    window:{name:'Vent',hot:[
+      {id:'raccoon',r:[112,40,136,100],vis:f=>f.vent&&f.stolen&&!f.fed,fn(f,it,A){
+        if(it==='marshmallow'){A.use('marshmallow');A.give('flashlight');A.give('knife');A.set('fed');A.sfx('pick');A.say('Marshmallow for the raccoon! It drops my flashlight... and a pocket knife! Fair trade, buddy.','happy');return true}
+        if(it){A.say('The raccoon sniffs it and looks deeply offended.','meh');return true}
+        A.say('The raccoon is wearing my flashlight like a crown. It looks hungry. And smug.','worried');return true}},
+      {id:'vent',r:[104,40,152,100],fn(f,it,A){if(it&&it!=='flashlight')return false;
+        if(!f.vent){A.set('vent');A.sfx('click');if(A.has('flashlight')){A.use('flashlight');A.set('stolen');A.say('I open the roof vent for fresh air... a RACCOON reaches in and snatches my flashlight! HEY!','shock')}else A.say('Fresh air! Ahh.','happy');return true}
+        A.say(f.fed?'The raccoon is gone. It left a review: five stars, would rob again.':'Fresh forest air through the vent.','talk');return true}},
+      {id:'sign',r:[110,200,140,70],say:'“PLEASE CLOSE LID. BEARS.” Wait, what about bears?!'},
+      {id:'hook',r:[270,180,60,120],say:'My jacket on the hook. Its pockets: one tissue, zero escape plans.'},
+      {id:'bin',r:[24,320,70,90],say:'A tiny trash bag. A squirrel is already inside it. We nod at each other.'}]}
+  },
+  steps:[
+    {done:f=>f.vent,h:['It\'s stuffy in here. How about some fresh air?','Tap the roof vent on the vent wall.']},
+    {done:f=>f.fed,h:['That raccoon looks hungry, and you have a snack.','Select the marshmallow and tap the raccoon.']},
+    {done:f=>f.lit,h:['Something is hiding in the dark corner.','Select the flashlight and tap the dark corner on the toilet wall.']},
+    {done:f=>f.card,h:['Pick up what the light revealed.','Tap the laminated card in the corner.']},
+    {done:f=>f.tape,h:['The knot pokes in under the door, wrapped in tape.','Tap the gap under the door, select the pocket knife and tap the tape.']},
+    {done:f=>f.read||f.seq==='RY',h:['The card explains how to untie this knot.','Tap the knot card twice in your inventory to read it.']},
+    {done:(f,st)=>st.won,h:['Pull the loops in the right order.','Pull the RED loop, then YELLOW, then BLUE.']}]
+},
+{ /* 7 ---------------------------------------------------------------- castle */
+  name:'The Castle Garderobe',set:'castle',walls:['door','seat','tapestry','window'],start:['flint'],
+  intro:['A real medieval toilet! Tourists aren\'t allowed in here. Shh.','*a ghostly “ooOOooo” echoes*','The door slammed shut and the torch went out! Classic castle.'],
+  outro:'I escaped the castle! The tour guide is going to be SO mad.',
+  items:{
+    flint:{n:'Flint',d:'A lump of flint from the souvenir shop. Makes sparks if you hit it with steel.'},
+    striker:{n:'Fire striker',d:'A C-shaped piece of steel. Strike it on flint for sparks. Medieval lighter!'},
+    firekit:{n:'Flint & steel',d:'Flint and steel, ready to spark. Fire: the original flashlight.'},
+    ikey:{n:'Iron key',e:'🗝️',d:'A heavy iron key, a gift from a ghost. Slightly cold. Slightly glowy.'}
+  },
+  combos:[['flint','striker',(f,A)=>{A.use('flint');A.use('striker');A.give('firekit');A.set('firekit');A.sfx('click');A.say('Clack! Sparks fly. Flint and steel, ready to light something.','happy');return true}]],
+  views:{
+    door:{name:'Door',hot:[
+      {id:'torch',r:[284,150,52,110],fn(f,it,A){
+        if(it==='firekit'){if(f.lit){A.say('Already burning bright.','meh');return true}A.set('lit');A.sfx('fire');A.say('Strike, strike... FWOOSH! Torchlight! Wait... is that a GHOST over by the seat?','shock');return true}
+        if(it==='flint'||it==='striker'){A.say('One alone makes no sparks. Flint needs steel. Like Jean needs snacks.','think');return true}
+        if(it)return false;A.say(f.lit?'Toasty. Medieval mood lighting.':'An unlit torch. I need a spark.','think');return true}},
+      {id:'lock',r:[212,226,40,52],fn(f,it,A){
+        if(it==='ikey'){A.use('ikey');A.set('unlocked');A.sfx('unlock');if(f.bar){A.say('The key turns, the bar is up... the door CREAKS open!','happy');A.win()}else A.say('The key turns! But a heavy iron bar still blocks the door. Something must lift it.','worried');return true}
+        if(it)return false;A.say(f.unlocked?'Unlocked. Just that bar now.':'A big old keyhole. The key must be big and old too.','think');return true}},
+      {id:'bar',r:[90,290,180,28],say:f=>f.bar?'The bar is lifted. Hooray for medieval engineering!':'A thick iron bar across the door, with chains going into the wall. Something must pull them.'},
+      {id:'door',r:[100,84,160,326],fwd:'door',uses:{flint:'Bonking the door with a rock. Very medieval. Very useless.'},say:['A huge oak door. It has seen sieges. It will survive me.','I knock. Something knocks back from INSIDE the wall. Nope.']}]},
+    seat:{name:'Seat',hot:[
+      {id:'ghost',r:[100,56,160,170],vis:f=>f.lit&&!f.ghost,to:'riddle'},
+      {id:'ghost2',r:[100,56,160,170],vis:f=>f.lit&&f.ghost,say:'Sir Flushalot hums a ghostly tune. Badly.'},
+      {id:'seat',r:[96,250,168,160],uses:{flint:'If I drop it down there, it falls all the way to the moat.',firekit:'Lighting the toilet on fire is NOT the escape plan.'},say:['A garderobe: a stone seat over a long drop to the moat. Medieval plumbing. Breezy.','The breeze from below is... refreshing. And terrifying.']},
+      {id:'dark',r:[96,56,168,170],vis:f=>!f.lit,say:'Something above the seat shimmers in the dark. Probably nothing. PROBABLY.'}]},
+    riddle:{name:'Ghost',back:'seat',hot:[
+      ...[['a1','A piano'],['a2','A jailer'],['a3','A castle'],['a4','A map']].map(([id,t],i)=>({id,r:[40+(i%2)*144,272+Math.floor(i/2)*66,136,56],fn(f,it,A){
+        if(it){A.say('“I am a GHOST. I don\'t need THINGS. I need ANSWERS!”','shock');return true}
+        if(f.ghost){A.say('“You already answered! Now shoo. I have haunting to do.”','meh');return true}
+        if(id==='a1'){A.set('ghost');A.give('ikey');A.sfx('unlock');A.say('“CORRECT! A piano has keys but opens no locks. Here, a key that DOES open one!” The ghost drops an iron key.','happy')}
+        else{A.sfx('nope');A.say(`“${t.toUpperCase()}?! WRONG! Boooo!” The ghost does a spooky twirl. Try again.`,'worried')}return true}})),
+      {id:'ghost',r:[90,60,180,180],say:'“OooOOooo! Answer my riddle: what has KEYS, but opens no LOCKS?”'}]},
+    tapestry:{name:'Tapestry',hot:[
+      {id:'tap',r:[96,62,168,250],fn(f,it,A){if(it==='firekit'){A.say('Burning a 600-year-old tapestry? The museum would ban me forever.','worried');return true}if(it)return false;
+        if(!f.lit){A.say('Too dark to make it out. Is that a knight? A horse? A horse knight?','worried');return true}
+        A.set('seen');A.say('In the torchlight: a knight holding three flags. The first is UP, the middle DOWN, the last UP.','think');return true}},
+      {id:'shield',r:[284,150,60,80],say:'A dented shield. Someone lost a fight. Probably to this toilet.'},
+      {id:'chest',r:[20,320,90,90],say:'An old chest, nailed shut. It says “SOCKS, 1347”. I\'ll pass.'}]},
+    window:{name:'Window',hot:[
+      {id:'striker',r:[48,190,62,56],vis:f=>!f.striker,glint:()=>true,fn(f,it,A){if(it)return false;A.set('striker');A.give('striker');A.sfx('pick');A.say('A steel fire striker on a nail! The medieval lighter.','happy');return true}},
+      {id:'levers',r:[150,236,180,140],to:'levers'},
+      {id:'slit',r:[160,60,40,140],say:'An arrow slit. Great for arrows. Terrible for Jeans.'}]},
+    levers:{name:'Levers',back:'window',hot:[
+      ...[1,2,3].map(i=>({id:'L'+i,r:[50+(i-1)*94,120,72,240],fn(f,it,A){
+        if(it){A.say('The levers want a firm hand, not tools.','meh');return true}
+        const k='l'+i;A.set(k,f[k]?0:1);A.sfx('lever');
+        if(f.l1&&!f.l2&&f.l3&&!f.bar){A.set('bar');A.say('CLANK! Chains rattle in the walls... the iron bar on the door lifts!','shock');if(f.unlocked)A.win();return true}
+        A.say(`Lever ${i} is now ${f[k]?'UP':'DOWN'}.`+(f.bar?' The bar stays up. Good.':''),'talk');return true}}))]}
+  },
+  steps:[
+    {done:f=>f.striker||f.firekit,h:['It\'s dark. A torch needs a spark: flint needs steel.','Take the fire striker from the nail on the window wall.']},
+    {done:f=>f.firekit,h:['Flint + steel = sparks.','Select the flint, then tap the fire striker in your inventory.']},
+    {done:f=>f.lit,h:['Light the torch.','Select the flint and steel and tap the torch by the door.']},
+    {done:f=>f.ghost,h:['Now that it\'s lit... is that a ghost? Ghosts love riddles.','Tap the ghost above the seat and answer: a piano.']},
+    {done:f=>f.seen||f.bar,h:['The tapestry looks important in the light.','Tap the tapestry: UP, DOWN, UP.']},
+    {done:f=>f.bar,h:['The levers lift the iron bar.','Open the levers on the window wall and set them UP, DOWN, UP.']},
+    {done:(f,st)=>st.won,h:['The ghost\'s key fits the door.','Select the iron key and tap the keyhole on the door.']}]
+},
+{ /* 8 ---------------------------------------------------------------- space */
+  name:'The Space Station Toilet',set:'space',walls:['door','toilet','window'],start:[],
+  intro:['Space toilet, at last. Hold on to the handles, Jean.','*floats gently, humming*','HATCH LOCKED?! In SPACE?! Houston, we have a problem.'],
+  outro:'Free! One small step for Jean, one giant flush for mankind.',
+  /* things float: the wrench and the log drift from wall to wall every few seconds */
+  tick(f,A){if(f.wrench&&f.log)return;f.t=((f.t||0)+1)%3},
+  items:{
+    wrench:{n:'Wrench',e:'🔧',d:'A space wrench. It weighs nothing up here, so it feels extra powerful.'},
+    log:{n:'Captain\'s log',e:'📓',look(f,A){A.set('logread');A.say('Captain\'s log: “Note to self: the hatch code is the number of days we\'ve been up here. Count the tallies, Jean.”','think');return true}},
+    funnel:{n:'Vacuum funnel',d:'The toilet\'s vacuum funnel. It slurps up anything. ANYTHING.'}
+  },
+  combos:[['funnel','wrench',(f,A)=>{A.say('I vacuum the wrench. It sticks to the funnel. Fun, but no.','meh');return true}]],
+  views:{
+    door:{name:'Hatch',hot:[
+      ...jeanFloaters('door'),
+      {id:'eq',r:[22,180,62,120],fn(f,it,A){
+        if(it==='wrench'){if(f.bolt)A.say('The bolt is already loose.','meh');else{A.set('bolt');A.sfx('unscrew');A.say('Ratchet, ratchet... the bolt is loose! The lever can move now.','happy')}return true}
+        if(it)return false;
+        if(!f.bolt){A.say('A PRESSURE EQUALIZE lever, bolted in place “for safety”. I need to loosen that bolt.','think');return true}
+        if(!f.eq){A.set('eq');A.sfx('hiss');A.say('PSSSSHHH! Pressure equalized. My ears popped. Twice.','shock');return true}
+        A.say('Equalized. Like my emotions. Mostly.','smug');return true}},
+      {id:'pad',r:[278,180,60,92],to:'keypad'},
+      {id:'hatch',r:[96,96,168,250],fwd:'keypad',say:['A round airlock hatch. Behind it: the rest of the station. And snacks.','I knock. It echoes into space. Space does not answer.']}]},
+    keypad:{name:'Keypad',back:'door',lock:{kind:'pad',len:2,code:'42',need:f=>f.dry&&f.eq,done:()=>false,ok(f,A){A.sfx('unlock');A.say('HATCH CYCLING... OPEN! Space toilet escape complete!','happy');A.win()}},hot:[
+      {id:'blobs',r:[78,90,204,300],vis:f=>!f.dry,fn(f,it,A){
+        if(it==='funnel'){A.set('dry');A.sfx('suck');A.say('SHHLUUURP! The vacuum funnel slurps up every water blob. The keypad is dry!','happy');return true}
+        if(it==='wrench'){A.say('Hitting water blobs with a wrench just makes MORE blobs.','worried');return true}
+        if(it)return false;A.say('Floating water blobs all over the keypad. Water + electronics = sad astronaut.','worried');return true}},
+      {id:'err',r:[78,90,204,300],vis:f=>f.dry&&!f.eq,fn(f,it,A){if(it)return false;A.sfx('buzz');A.say('“ERROR: PRESSURE NOT EQUALIZED.” Bossy keypad.','meh');return true}}]},
+    toilet:{name:'Toilet',hot:[
+      ...jeanFloaters('toilet'),
+      {id:'hose',r:[248,180,90,170],fn(f,it,A){
+        if(it==='wrench'){if(f.funnel)A.say('The hose is fine without its funnel. Mostly.','meh');else{A.set('funnel');A.give('funnel');A.sfx('unscrew');A.say('I unscrew the vacuum funnel from the hose. Suction on demand!','happy')}return true}
+        if(it)return false;A.say(f.funnel?'The hose without its funnel. It whistles sadly.':'The suction hose. Space toilets suck. Literally. The funnel is screwed on tight.','think');return true}},
+      {id:'flush',r:[130,200,50,40],fn(f,it,A){if(it)return false;A.sfx('suck');A.say('VRRRRRR! The vacuum roars. A floating crumb gets eaten.','shock');return true}},
+      {id:'toilet',r:[100,240,150,170],uses:{wrench:'Fixing the toilet? It works. Too well.',funnel:'The funnel goes back on later. Maybe.'},say:['The space toilet. Leg straps. Thigh bars. A seatbelt. For a TOILET.','Rule one of space toilets: never let go of the handles.']}]},
+    window:{name:'Window',hot:[
+      ...jeanFloaters('window'),
+      {id:'cal',r:[226,196,112,120],fn(f,it,A){if(it)return false;A.set('tally');A.say('A tally calendar of days in orbit: eight bundles of five, plus two. That makes 42 days!','think');return true}},
+      {id:'port',r:[96,70,168,120],say:['Earth! Hi Mom! Look, no hands! Wait, I need those.','It\'s so beautiful. And so far from any bathroom door that works.']},
+      {id:'plant',r:[22,240,80,100],say:'Space lettuce. It is floating in its own little bag. Living the dream.'}]}
+  },
+  steps:[
+    {done:f=>f.wrench,h:['Things float in zero gravity. One of them is a wrench.','Watch for the floating wrench and tap it as it drifts past one of the walls.']},
+    {done:f=>f.log,h:['A notebook is drifting around too.','Catch the floating captain\'s log.']},
+    {done:f=>f.logread,h:['Read the log.','Tap the captain\'s log twice in your inventory.']},
+    {done:f=>f.tally,h:['Days in orbit... someone kept count.','Tap the tally calendar on the window wall.']},
+    {done:f=>f.funnel,h:['The keypad is covered in water blobs. Something with suction?','Select the wrench and tap the toilet\'s suction hose to get the funnel.']},
+    {done:f=>f.dry,h:['Suck up the water.','Open the keypad by the hatch, select the funnel and tap the water blobs.']},
+    {done:f=>f.bolt,h:['The airlock needs equal pressure first.','Select the wrench and tap the bolted PRESSURE lever by the hatch.']},
+    {done:f=>f.eq,h:['The lever is free now.','Tap the PRESSURE EQUALIZE lever.']},
+    {done:(f,st)=>st.won,h:['Days in orbit.','Type 4 2 on the keypad.']}]
+}
+];
+
+/* ---------- art for chapters 4-8 (merged into JEAN_BG / JEAN_ART) ---------- */
+function jnKeypadBox(x,on,col){
+  jnR(x,70,74,220,372,22,jnG(x,70,0,290,0,col||'#3B4252','#2A303C'),4);
+  jnR(x,92,96,176,62,10,on?'#8CF2A5':'#1E232C',3);
+}
+function jnKey(x,X,Y,s,rot){x.save();x.translate(X,Y);x.rotate(rot||0);x.scale(s,s);jnE(x,-14,0,10,10,'#FFC53D',2.5);jnE(x,-14,0,4,4,'#B07A1A',0);jnR(x,-5,-3,26,6,2,'#FFC53D',2);jnR(x,14,0,4,7,1,'#FFC53D',1.5);x.restore()}
+function jnWave(x,X,Y,w,col){x.beginPath();x.moveTo(X,Y);for(let i=0;i<=w;i+=8)x.lineTo(X+i,Y+Math.sin(i*.5)*2);x.strokeStyle=col;x.lineWidth=2;x.stroke()}
+const JEAN_BG_NEW={
+  school(x,close){
+    x.fillStyle='#F6F1DE';x.fillRect(-900,-900,2160,3000);if(close)return;
+    jnR(x,-900,24,2160,10,0,'#D8CFAE',3);
+    x.fillStyle='#CDEBD5';x.fillRect(-900,200,2160,210);x.strokeStyle='#A8D8B5';x.lineWidth=2;x.beginPath();for(let y=200;y<410;y+=30){x.moveTo(-900,y);x.lineTo(1260,y)}for(let i=-30;i<44;i++){x.moveTo(i*30,200);x.lineTo(i*30,410)}x.stroke();
+    jnR(x,-900,194,2160,10,0,'#5FB37A',3);
+    x.fillStyle='#D6D2CA';x.fillRect(-900,410,2160,300);for(let i=0;i<500;i++){x.fillStyle=['#B9B3A8','#E8E4DC','#9FA7B5','#E0B9A0'][i%4];x.fillRect(((i*89)%2160)-900,412+((i*37)%200),4,3)}
+    jnR(x,-900,404,2160,10,0,'#7C8A80',3);
+  },
+  train(x,close){
+    x.fillStyle='#E1E7EF';x.fillRect(-900,-900,2160,3000);if(close)return;
+    x.fillStyle='#F2F5F9';x.fillRect(-900,-900,2160,940);jnR(x,-900,30,2160,14,6,'#C7D0DC',3);
+    x.strokeStyle='#C9D2DE';x.lineWidth=3;x.beginPath();for(let i=-10;i<14;i++){x.moveTo(i*120+60,44);x.lineTo(i*120+60,330)}x.stroke();
+    x.fillStyle='#3D4F7A';x.fillRect(-900,330,2160,80);jnL(x,[-900,330,1260,330],JEAN_O,3);x.fillStyle='rgba(255,255,255,.08)';for(let i=-30;i<44;i++)x.fillRect(i*30,340,14,62);
+    x.fillStyle='#7C8698';x.fillRect(-900,410,2160,300);x.fillStyle='rgba(255,255,255,.18)';for(let r=0;r<10;r++)for(let i=-40;i<60;i++)x.fillRect(i*24+(r%2)*12,416+r*14,6,4);
+    jnR(x,-900,404,2160,10,0,'#2B3550',3);
+  },
+  camp(x,close){
+    x.fillStyle='#A6DCC9';x.fillRect(-900,-900,2160,3000);if(close)return;
+    x.fillStyle='#E9F6F0';x.fillRect(-900,-900,2160,930);jnR(x,-900,22,2160,12,0,'#7FC4AA',3);
+    x.fillStyle='rgba(43,34,64,.07)';for(let i=-30;i<44;i++)x.fillRect(i*36+10,34,10,376);
+    x.fillStyle='#2F6B57';x.fillRect(-900,410,2160,300);x.fillStyle='rgba(255,255,255,.07)';for(let i=-30;i<44;i++)x.fillRect(i*30,416,16,200);
+    jnR(x,-900,404,2160,10,0,'#22503F',3);
+  },
+  castle(x,close){
+    x.fillStyle='#8E8A97';x.fillRect(-900,-900,2160,3000);
+    x.strokeStyle='#6E6A78';x.lineWidth=3;x.beginPath();for(let r=-30;r<26;r++){const y=r*28;x.moveTo(-900,y);x.lineTo(1260,y);for(let i=-20;i<30;i++){const X=i*56+(r%2?28:0);x.moveTo(X,y);x.lineTo(X,y+28)}}x.stroke();
+    x.fillStyle='rgba(255,255,255,.05)';for(let i=0;i<120;i++)x.fillRect(((i*71)%2160)-900,((i*53)%700)-200,10,6);
+    if(close)return;
+    x.fillStyle='#5C5866';x.fillRect(-900,410,2160,300);x.strokeStyle='#45424D';x.beginPath();for(let r=0;r<5;r++){x.moveTo(-900,410+r*30);x.lineTo(1260,410+r*30);for(let i=-20;i<30;i++){x.moveTo(i*70+(r%2)*35,410+r*30);x.lineTo(i*70+(r%2)*35,440+r*30)}}x.stroke();
+    jnL(x,[-900,410,1260,410],JEAN_O,3);
+  },
+  space(x,close){
+    x.fillStyle='#E9EEF5';x.fillRect(-900,-900,2160,3000);
+    x.strokeStyle='#CCD5E3';x.lineWidth=3;x.beginPath();for(let i=-12;i<16;i++){x.moveTo(i*90,-900);x.lineTo(i*90,1300)}for(let r=-10;r<16;r++){x.moveTo(-900,r*90+40);x.lineTo(1260,r*90+40)}x.stroke();
+    for(let i=-12;i<16;i++)for(let r=-4;r<8;r++)jnE(x,i*90+45,r*90+85,3,3,'#C2CCDB',0);
+    if(close)return;
+    jnR(x,-900,410,2160,300,0,'#B9C3D3',3);x.fillStyle='rgba(255,255,255,.3)';for(let i=-30;i<44;i++)x.fillRect(i*40+8,420,22,10);
+    jnR(x,-900,60,2160,10,5,'#FFC53D',2.5);
+  }
+};
+function jnTorchGlow(x,f,t,X,Y){
+  if(!f.lit){x.fillStyle='rgba(10,8,20,.62)';x.fillRect(-900,-900,2160,3000);return}
+  const fl=1+Math.sin(t*9)*.03+Math.sin(t*13)*.02,g=x.createRadialGradient(X,Y,20,X,Y,420*fl);g.addColorStop(0,'rgba(255,190,90,.22)');g.addColorStop(.5,'rgba(255,150,60,.06)');g.addColorStop(1,'rgba(20,10,30,.35)');x.fillStyle=g;x.fillRect(-900,-900,2160,3000);
+}
+function jnFloat(x,f,t,v){
+  const i=['door','toilet','window'].indexOf(v);
+  if(!f.wrench&&(f.t||0)%3===i){x.save();x.translate(100+Math.sin(t*1.3)*6,152+Math.cos(t*1.1)*6);x.rotate(t*.6);x.font='46px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('🔧',0,0);x.restore()}
+  if(!f.log&&((f.t||0)+1)%3===i){x.save();x.translate(260+Math.cos(t*1.2)*6,134+Math.sin(t*.9)*7);x.rotate(Math.sin(t*.7)*.5);jnR(x,-26,-32,52,64,5,'#5B6CFF',3);jnR(x,-20,-26,40,14,3,'#FFFFFF',0);jnT(x,'LOG',0,-19,9,'#2B2240');jnL(x,[-26,-32,-26,32],'#3F4DCC',6);x.restore()}
+}
+const JEAN_ART_NEW={
+/* ======================= school ======================= */
+school:{
+  door(x,f,t){
+    jnR(x,92,80,176,334,4,'#3E7D52',3);
+    if(f._open>0)jnDoorOpen(x,100,88,160,322,f._open,'#5FB37A',jnG(x,0,88,0,410,'#FFF6D8','#E9D9A8'));
+    else{jnR(x,100,88,160,322,3,jnG(x,100,0,260,0,'#6CC287','#58AE73'),3);
+      jnR(x,130,110,100,80,4,'#CFE8F5',3);x.save();x.beginPath();x.rect(130,110,100,80);x.clip();x.strokeStyle='rgba(43,34,64,.25)';x.lineWidth=1.5;for(let i=-10;i<14;i++){x.beginPath();x.moveTo(130+i*12,110);x.lineTo(130+i*12+80,190);x.stroke();x.beginPath();x.moveTo(130+i*12,190);x.lineTo(130+i*12+80,110);x.stroke()}x.restore();
+      jnR(x,204,240,46,70,4,'#C9CFD8',3);jnT(x,'PUSH',227,275,10,'#5E6B7E')}
+    jnR(x,268,206,56,80,8,'#2E3440',3);jnR(x,276,214,40,14,3,'#1E232C',2);for(let r=0;r<3;r++)for(let c=0;c<3;c++)jnR(x,277+c*13,236+r*14,10,10,2,'#DDE2EA',0);
+    if(f.dust)for(const [c,r] of [[1,0],[1,1],[0,2],[2,2]])jnE(x,282+c*13,241+r*14,4,4,'rgba(255,255,255,.9)',0);
+    jnE(x,55,125,32,32,'#FFFFFF',4);for(let i=0;i<12;i++){const a=i*Math.PI/6;jnL(x,[55+Math.cos(a)*22,125+Math.sin(a)*22,55+Math.cos(a)*27,125+Math.sin(a)*27],JEAN_O,2)}jnL(x,[55,125,55,106],JEAN_O,4);jnL(x,[55,125,55+Math.cos(t*.5)*24,125+Math.sin(t*.5)*24],'#FF5D73',2);
+    jnR(x,18,176,76,110,4,'#FF5D73',3);jnT(x,'NO',56,196,14,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'RUNNING',56,214,10,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');
+    jnE(x,56,240,6,6,'#FFFFFF',0);jnL(x,[56,246,52,262,44,276],'#FFFFFF',3);jnL(x,[52,262,62,276],'#FFFFFF',3);jnL(x,[54,252,66,246],'#FFFFFF',3);jnE(x,56,258,22,22,null,0);x.strokeStyle='#FFFFFF';x.lineWidth=3;x.beginPath();x.moveTo(38,236);x.lineTo(74,272);x.stroke();
+  },
+  keypad(x,f,t){jnKeypadBox(x,true,'#3E7D52');jnR(x,140,402,80,20,6,'#1E232C',2);jnT(x,'SCHOOL SECURE',180,412,9,'#9BD3AE')},
+  keypad_over(x,f,t){if(!f.dust)return;for(const [X0,Y0] of [[180,195],[180,250],[116,305],[244,305]]){const X=X0+13,Y=Y0+8;x.save();x.globalAlpha=.8;jnE(x,X,Y,10,12,'rgba(255,255,255,.7)',0);x.strokeStyle='rgba(170,170,180,.9)';x.lineWidth=1.3;for(let k=0;k<4;k++){x.beginPath();x.ellipse(X,Y,2+k*2.4,3+k*2.6,0,.4,Math.PI*2-.4);x.stroke()}x.restore()}},
+  stalls(x,f,t){
+    jnR(x,20,104,322,8,3,'#9AA3AE',3);
+    for(const [X,open] of [[28,true],[186,!!f.stall]]){
+      jnR(x,X,112,148,278,4,'#C9DCF2',3);
+      if(open){jnR(x,X+8,120,132,270,2,'#7FA3CF',2);if(X<100){jnE(x,X+74,330,34,12,'#FFFFFF',2.5);jnR(x,X+50,250,48,56,8,'#FFFFFF',2.5);jnR(x,X+58,330,32,50,6,'#FFFFFF',2.5);jnE(x,X+74,330,24,7,'#BFE3F2',2)}
+        jnP(x,[X,112,X+34,124,X+34,382,X,390],'#8FB8E8',3)}
+      else{jnR(x,X+8,118,132,266,3,jnG(x,X,0,X+148,0,'#9CC2EE','#86AEE0'),3);jnR(x,X+112,240,16,24,3,'#C9CFD8',2);jnR(x,X+38,170,72,50,2,'#FFFFFF',2.5);jnT(x,'OUT OF',X+74,186,11,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'ORDER',X+74,204,11,'#C7354A',undefined,400,'Bungee, Impact, sans-serif')}
+      jnR(x,X+4,384,140,8,3,'#9AA3AE',2)}
+    jnR(x,334,112,8,300,2,'#9AA3AE',2);
+  },
+  stall(x,f,t){
+    jnR(x,20,70,320,380,8,'#BFD5EF',4);jnR(x,40,84,280,120,6,'#D5E4F6',2.5);
+    x.save();x.translate(180,120);x.rotate(-.04);jnT(x,'THE DOOR CODE GOES',0,0,15,'#2B2240',undefined,800,'"Comic Sans MS", Nunito, sans-serif');jnT(x,'UP, UP, UP! ↑',0,24,22,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'like my grades — class of 2009',0,50,11,'#5E6B7E',undefined,800,'"Comic Sans MS", Nunito, sans-serif');x.restore();
+    jnT(x,'★',70,180,20,'#FF8A3D');jnT(x,'J ♥ toilets',266,182,11,'#5B6CFF',undefined,800,'"Comic Sans MS", Nunito, sans-serif');
+    jnR(x,138,212,84,62,10,'#FFFFFF',3);jnR(x,148,282,64,90,10,'#F2F6FA',3);jnE(x,180,290,60,18,'#FFFFFF',3);jnE(x,180,290,44,10,'#BFE3F2',2.5);
+    jnE(x,150,372,74,16,'rgba(110,190,240,.55)',2);
+    if(!f.chalk){x.save();x.translate(150,360);x.rotate(-.25);jnR(x,-24,-5,48,10,4,'#FFFFFF',2.5);x.restore()}
+  },
+  sink(x,f,t){
+    jnR(x,56,84,190,116,4,'#9AA3AE',3);jnR(x,62,90,178,104,2,jnG(x,62,90,240,194,'#EEF8FF','#C6E2F4'),2.5);
+    x.save();x.beginPath();x.rect(62,90,178,104);x.clip();jnL(x,[80,184,140,92],'rgba(255,255,255,.75)',8);
+    x.strokeStyle='#5A3A28';x.lineWidth=4;x.beginPath();x.moveTo(132,150);x.quadraticCurveTo(150,140,160,152);x.quadraticCurveTo(170,140,188,150);x.stroke();jnT(x,'Mr. Jean is cool',160,120,11,'#5B6CFF',undefined,800,'"Comic Sans MS", Nunito, sans-serif');x.restore();
+    jnR(x,46,214,210,20,4,'#E7E1D2',3);for(const X of [100,200]){jnE(x,X,226,34,7,'#C9D3DD',2.5);jnR(x,X-4,200,8,18,3,'#C9CFD8',2.5)}
+    jnR(x,60,234,182,40,6,'#D9D2C2',3);jnL(x,[100,274,100,330,90,340],'#9AA3AE',6);jnL(x,[200,274,200,330,210,340],'#9AA3AE',6);
+    jnR(x,24,206,30,46,6,'#FF9FB2',3);jnR(x,30,252,10,8,2,'#9AA3AE',2);
+    jnR(x,262,170,72,70,10,'#FFFFFF',3);jnR(x,282,238,32,14,4,'#DDE2EA',3);jnE(x,298,196,11,11,'#2EC4B6',2.5);jnT(x,'PRESS',298,222,8,'#2B2240');
+  },
+  window(x,f,t){
+    jnR(x,110,60,160,96,6,'#FFFFFF',4);jnR(x,118,68,144,80,2,jnG(x,0,68,0,148,'#D8F1FF','#A9DBF7'),3);jnL(x,[190,68,190,148],JEAN_O,3);
+    if(!f.ruler){x.save();x.translate(240,110);x.rotate(.2);jnR(x,-8,-40,16,80,2,'#F2C46B',2.5);for(let i=0;i<7;i++)jnL(x,[-8,-34+i*11,-2,-34+i*11],JEAN_O,1.5);x.restore()}
+    jnR(x,100,250,160,60,6,'#E7E1D2',3);for(let i=0;i<9;i++)jnR(x,108+i*17,256,10,48,4,'#F4EFE3',2);
+    const cx=f.can?212:58;jnShadow(x,cx,410,40);jnP(x,[cx-36,322,cx+36,322,cx+30,410,cx-30,410],jnG(x,cx-36,0,cx+36,0,'#7E8794','#5E6B7E'),3);jnR(x,cx-40,314,80,12,5,'#9AA3AE',3);
+    jnP(x,[286,300,322,300,336,410,272,410],'#FFC53D',3);jnT(x,'⚠',304,340,20,'#2B2240');jnT(x,'WET',304,370,10,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');
+  }
+},
+/* ======================= train ======================= */
+train:{
+  door(x,f,t){
+    jnR(x,92,80,176,334,8,'#8B98AE',3);
+    if(f._open>0)jnDoorOpen(x,100,88,160,322,f._open,'#C9D1DB',jnG(x,0,88,0,410,'#E8EEF6','#AEBBD0'));
+    else{jnR(x,100,88,160,322,6,jnG(x,100,0,260,0,'#D5DCE5','#BAC4D1'),3);jnE(x,150,150,32,36,'#BFE3F7',3);jnL(x,[136,136,160,124],'rgba(255,255,255,.8)',4);
+      jnR(x,112,240,34,90,10,'#9AA6B8',3);jnR(x,120,330,90,40,6,'#FFFFFF',2.5);jnT(x,'DO NOT FLUSH',165,344,8,'#2B2240');jnT(x,'IN STATIONS',165,358,8,'#2B2240');
+      jnE(x,254,220,22,22,'#9AA3AE',3);jnP(x,[254,208,265,228,243,228],f.unlocked?'#2EC4B6':'#2B2240',0);
+      jnE(x,254,280,22,22,'#9AA3AE',3);if(f.turn){jnR(x,246,266,16,28,6,'#FFC53D',2.5)}else jnR(x,250,274,8,12,2,'#5E6B7E',1.5)}
+    jnR(x,18,170,80,100,8,'#FFC53D',3);x.save();x.beginPath();x.rect(18,170,80,22);x.clip();for(let i=0;i<8;i++)jnL(x,[18+i*14,192,32+i*14,170],'#2B2240',6);x.restore();jnT(x,'STAFF',58,214,12,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');jnE(x,58,244,8,8,'#9AA3AE',2);
+  },
+  panel(x,f,t){
+    jnR(x,30,80,300,350,18,'#FFC53D',4);x.save();x.beginPath();x.rect(30,80,300,30);x.clip();for(let i=0;i<14;i++)jnL(x,[30+i*26,110,56+i*26,80],'#2B2240',10);x.restore();jnR(x,30,80,300,350,18,null,4);
+    if(!f.panel){jnR(x,64,150,232,230,12,'#5E6B7E',3);jnT(x,'STAFF ONLY',180,132,14,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');
+      [['▲',118],['●',180],['★',242]].forEach(([s,X])=>jnT(x,s,X,178,22,'#FFC53D'));jnT(x,'ROTATE TO OPEN',180,362,10,'#DDE2EA')}
+    else{jnR(x,64,150,232,230,12,'#2B2240',3);jnP(x,[64,150,30,170,30,400,64,380],'#5E6B7E',3);jnT(x,'(empty)',180,270,14,'#5E6B7E')}
+  },
+  toilet(x,f,t){
+    jnShadow(x,180,410,70);
+    jnR(x,120,236,120,40,10,'#C9CFD8',3);
+    x.beginPath();x.moveTo(114,290);x.bezierCurveTo(114,370,140,398,180,398);x.bezierCurveTo(220,398,246,370,246,290);x.closePath();x.fillStyle=jnG(x,114,0,246,0,'#E3E7EC','#AEB6C1');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,180,290,66,16,'#D5DAE0',3);jnE(x,180,290,38,8,'#5E6B7E',2.5);
+    jnR(x,152,386,56,18,6,'#7E8794',3);jnT(x,'FLUSH',180,395,8,'#FFFFFF');
+    if(!f.brush){jnR(x,48,370,40,40,6,'#5E6B7E',3);jnL(x,[68,370,66,320],JEAN_O,8);jnL(x,[68,370,66,320],'#FF8A3D',4)}
+    jnR(x,232,320,110,90,6,'#E7E1D2',3);for(let i=0;i<10;i++)jnL(x,[242+i*10,328,242+i*10,402],'#C9BFA8',4);
+    if(f.keyout&&!f.key){if(f.kpos==='mid')jnKey(x,180,402,1.1,.2);else{x.fillStyle='rgba(0,0,0,.35)';x.fillRect(232,398,110,12);jnKey(x,300,406,.7,-.1)}}
+  },
+  window(x,f,t){
+    jnR(x,88,66,184,148,14,'#8B98AE',4);
+    x.save();x.beginPath();x.rect(96,74,168,132);x.clip();x.fillStyle=jnG(x,0,74,0,206,'#9ED8FF','#DDF3FF');x.fillRect(96,74,168,132);
+    const sp=t*90;for(let i=0;i<4;i++){const X=((i*90-sp*.3)%360+360)%360+40;jnE(x,X,180,70,30,'#7CCB7C',0)}
+    for(let i=0;i<4;i++){const X=((i*70-sp)%280+280)%280+60;jnL(x,[X,120,X,206],'#6B4A2E',3)}
+    const cw=((200-sp*.5)%400+400)%400;jnE(x,cw,186,12,7,'#FFFFFF',2);jnE(x,cw+10,182,5,5,'#FFFFFF',2);jnE(x,cw-3,187,3,2,JEAN_O,0);
+    x.restore();
+    if(!f.blinds){jnR(x,96,74,168,124,2,'#EADFC6',2.5);for(let i=0;i<8;i++)jnL(x,[96,88+i*14,264,88+i*14],'rgba(120,100,60,.3)',2);jnR(x,96,196,168,8,3,'#C9B68C',2);jnL(x,[256,196,256,226],JEAN_O,2);jnE(x,256,230,4,4,'#C9B68C',2)}
+    else{jnR(x,96,74,168,16,2,'#EADFC6',2.5)}
+    jnR(x,92,232,176,14,4,'#C9CFD8',3);x.beginPath();x.moveTo(104,246);x.lineTo(256,246);x.bezierCurveTo(256,290,220,296,180,296);x.bezierCurveTo(140,296,104,290,104,246);x.closePath();x.fillStyle=jnG(x,0,246,0,296,'#E3E7EC','#AEB6C1');x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnR(x,262,206,52,74,10,'#FFFFFF',3);jnR(x,272,214,32,30,4,'#7FC8F8',2);jnR(x,280,280,16,10,3,'#9AA3AE',2);
+    jnR(x,284,100,56,90,8,'#C9CFD8',3);jnR(x,290,106,44,78,4,jnG(x,0,106,0,184,'#EEF8FF','#C6E2F4'),2);
+  }
+},
+/* ======================= camp ======================= */
+camp:{
+  door(x,f,t){
+    jnR(x,92,80,176,334,8,'#1F7A50',3);
+    if(f._open>0)jnDoorOpen(x,100,88,160,322,f._open,'#2E9E6B',jnG(x,0,88,0,410,'#3F6FA8','#1C3B5E'));
+    else{jnR(x,100,88,160,322,6,jnG(x,100,0,260,0,'#38B07A','#2A9464'),3);for(let i=0;i<5;i++)jnL(x,[118+i*28,104,118+i*28,350],'rgba(0,0,0,.12)',6);
+      jnR(x,226,214,48,40,6,'#E9F6F0',3);jnR(x,234,224,24,18,3,'#FF5D73',2);jnT(x,'OCCUPIED',250,262,7,'#2B2240');
+      jnR(x,104,360,152,48,0,'#14281F',2);
+      if(!f.seq||f.seq!=='RYB')[['#FF5D73',140],['#FFC53D',180],['#5B9BFF',220]].forEach(([c,X])=>{x.beginPath();x.moveTo(X-10,360);x.quadraticCurveTo(X,404,X+10,360);x.lineWidth=7;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=4;x.strokeStyle=c;x.stroke()});
+      if(!f.tape)jnR(x,124,362,112,12,2,'#B8BEC8',2)}
+    jnR(x,20,196,54,80,10,'#FFFFFF',3);jnR(x,28,204,38,40,4,'#7FC8F8',2);jnT(x,'GEL',47,258,9,'#2B2240');
+  },
+  knot(x,f,t){
+    x.fillStyle=jnG(x,0,0,0,450,'#1C3B5E','#2D5A3D');x.fillRect(-900,-900,2160,3000);
+    for(let i=0;i<7;i++){jnP(x,[i*60-20,140,i*60+10,40,i*60+40,140],'#1E4D35',0)}
+    jnR(x,-40,80,440,60,0,'#2A9464',3);jnT(x,'(the bottom of the door)',180,112,11,'#E9F6F0');
+    jnR(x,-40,420,440,40,0,'#5C4632',0);
+    const pulled=f.seq||'';[['R','#FF5D73',100],['Y','#FFC53D',184],['B','#5B9BFF',268]].forEach(([k,c,X],i)=>{const done=pulled.includes(k),len=done?70:170;
+      x.beginPath();x.moveTo(X-24,140);x.bezierCurveTo(X-30,140+len,X+30,140+len,X+24,140);x.lineWidth=13;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=8;x.strokeStyle=c;x.stroke();
+      x.setLineDash([4,6]);x.lineWidth=2;x.strokeStyle='rgba(255,255,255,.5)';x.stroke();x.setLineDash([])});
+    jnL(x,[60,150,300,150],'#C9A46B',9);
+    if(!f.tape){jnR(x,80,186,200,56,6,'#B8BEC8',3);x.fillStyle='rgba(255,255,255,.3)';for(let i=0;i<9;i++)x.fillRect(90+i*22,192,10,44);jnT(x,'DUCT TAPE',180,214,13,'#5E6B7E',undefined,400,'Bungee, Impact, sans-serif')}
+    else jnT(x,'PULL THE LOOPS',180,400,12,'#E9F6F0',undefined,400,'Bungee, Impact, sans-serif');
+  },
+  toilet(x,f,t){
+    jnShadow(x,180,410,80);jnR(x,96,250,168,160,8,'#E9F6F0',3);jnE(x,180,262,64,14,'#FFFFFF',3);jnE(x,180,262,40,8,'#2B2240',2.5);jnR(x,110,200,140,56,10,'#D5ECE2',3);
+    jnR(x,22,250,60,60,6,'#E9F6F0',3);jnE(x,52,280,20,20,'#F7F2E2',2.5);jnE(x,52,280,7,7,'#C9B68C',2);
+    x.save();x.strokeStyle='rgba(255,255,255,.8)';x.lineWidth=1.3;for(let i=0;i<6;i++){x.beginPath();x.moveTo(340,90);x.lineTo(340-Math.cos(i*.3)*80,90+Math.sin(i*.3)*80);x.stroke()}for(let r=1;r<5;r++){x.beginPath();x.arc(340,90,r*18,Math.PI/2,Math.PI);x.stroke()}x.restore();jnE(x,300,130+Math.sin(t*2)*4,5,5,JEAN_O,0);
+    const g=x.createRadialGradient(296,392,8,296,392,120);g.addColorStop(0,f.lit?'rgba(255,240,180,.4)':'rgba(5,14,12,.92)');g.addColorStop(.6,f.lit?'rgba(255,240,180,.12)':'rgba(5,14,12,.6)');g.addColorStop(1,'rgba(5,14,12,0)');x.save();x.beginPath();x.rect(170,260,240,150);x.clip();x.fillStyle=g;x.fillRect(170,260,240,150);x.restore();
+    if(f.lit){jnE(x,250,396,10,4,'#8BC34A',1.5);jnE(x,320,400,12,4,'#C98B57',1.5);x.save();x.translate(290,320);jnE(x,0,0,6,5,JEAN_O,0);for(let i=0;i<4;i++){jnL(x,[0,0,-12,-6+i*5],JEAN_O,1.5);jnL(x,[0,0,12,-6+i*5],JEAN_O,1.5)}x.restore();
+      if(!f.card){x.save();x.translate(292,376);x.rotate(-.2);jnR(x,-24,-16,48,32,4,'#FFF3B0',2.5);jnL(x,[-14,-4,14,-4],'#FF5D73',3);jnL(x,[-14,4,14,4],'#FFC53D',3);jnL(x,[-14,10,14,10],'#5B9BFF',3);x.restore()}}
+  },
+  window(x,f,t){
+    jnR(x,104,40,152,100,10,'#D5ECE2',3);
+    if(!f.vent){for(let i=0;i<6;i++)jnR(x,114,50+i*14,132,8,4,'#9ED9C6',2)}
+    else{jnR(x,112,48,136,84,6,jnG(x,0,48,0,132,'#152A4A','#2C4E7A'),2.5);for(let i=0;i<9;i++)jnE(x,120+((i*37)%120),56+((i*23)%40),1.2,1.2,'#FFFFFF',0);for(let i=0;i<4;i++)jnP(x,[112+i*40,132,132+i*40,90,152+i*40,132],'#1E4D35',0);
+      if(f.stolen&&!f.fed){const b=Math.sin(t*2)*3;x.save();x.translate(180,112+b);jnE(x,0,0,34,26,'#8E8A97',3);jnE(x,-26,-20,9,11,'#8E8A97',3);jnE(x,26,-20,9,11,'#8E8A97',3);jnE(x,0,-2,28,10,'#2B2240',0);jnE(x,-11,-3,6,6,'#FFFFFF',0);jnE(x,11,-3,6,6,'#FFFFFF',0);jnE(x,-11,-3,3,3,JEAN_O,0);jnE(x,11,-3,3,3,JEAN_O,0);jnE(x,0,12,6,4,JEAN_O,0);
+        x.rotate(-.3);x.font='34px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('🔦',2,-40);x.restore()}}
+    jnR(x,110,200,140,70,6,'#FFFFFF',3);jnT(x,'PLEASE CLOSE LID.',180,222,12,'#2B2240',undefined,800);jnT(x,'BEARS.',180,246,18,'#C7354A',undefined,400,'Bungee, Impact, sans-serif');
+    jnE(x,300,186,6,6,'#9AA3AE',2.5);jnP(x,[276,190,324,190,334,300,266,300],'#FF8A3D',3);jnL(x,[300,190,300,300],JEAN_O,2);
+    jnP(x,[24,330,94,330,90,410,28,410],'#2B2240',3);jnE(x,59,330,30,8,'#2B2240',2);x.save();x.translate(64,322+Math.sin(t*3)*2);jnE(x,0,0,9,8,'#A0522D',2);jnE(x,-3,-2,2,2,'#FFFFFF',0);x.restore();
+  }
+},
+/* ======================= castle ======================= */
+castle:{
+  door(x,f,t){
+    x.beginPath();x.moveTo(90,414);x.lineTo(90,140);x.arc(180,140,90,Math.PI,0);x.lineTo(270,414);x.closePath();x.fillStyle='#5C5866';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    if(f._open>0){x.save();x.beginPath();x.moveTo(100,410);x.lineTo(100,140);x.arc(180,140,80,Math.PI,0);x.lineTo(260,410);x.closePath();x.clip();jnDoorOpen(x,100,60,160,350,f._open,'#8A5A38',jnG(x,0,60,0,410,'#FFE7B0','#C98B57'));x.restore()}
+    else{x.beginPath();x.moveTo(100,410);x.lineTo(100,140);x.arc(180,140,80,Math.PI,0);x.lineTo(260,410);x.closePath();x.fillStyle=jnG(x,100,0,260,0,'#9A6A42','#80552F');x.fill();x.stroke();
+      for(let i=1;i<5;i++)jnL(x,[100+i*32,70+(i===2||i===3?-8:10),100+i*32,408],'rgba(0,0,0,.25)',3);
+      for(const Y of [130,230,350])for(const X of [116,148,212,244])jnE(x,X,Y,4,4,'#3A3440',0);
+      jnR(x,212,226,40,52,6,'#4A4452',3);jnE(x,232,244,5,5,'#14101A',0);jnP(x,[229,246,235,246,234,264,230,264],'#14101A',0);
+      if(!f.bar){jnR(x,90,290,180,28,4,'#4A4452',3);jnL(x,[80,296,90,304],'#4A4452',6)}}
+    if(f.bar&&!(f._open>0)){x.save();x.translate(84,300);x.rotate(-1.3);jnR(x,0,-14,180,28,4,'#4A4452',3);x.restore()}
+    jnR(x,296,214,28,46,4,'#4A4452',3);jnP(x,[290,200,330,200,320,216,300,216],'#4A4452',3);
+    if(f.lit){for(let i=0;i<3;i++){const h=40+Math.sin(t*10+i*2)*6;x.beginPath();x.moveTo(296+i*4,200);x.quadraticCurveTo(310-8+i*6,200-h,310+i*2,200-h*1.1);x.quadraticCurveTo(318+i*3,200-h*.6,324-i*4,200);x.fillStyle=['#FF5D2E','#FF9F43','#FFE08A'][i];x.fill()}}
+    else{jnP(x,[300,200,320,200,316,186,304,186],'#3A3440',2)}
+    jnTorchGlow(x,f,t,310,170);
+  },
+  seat(x,f,t){
+    jnR(x,96,250,168,160,6,'#7A7684',3);x.strokeStyle='#5F5B69';x.lineWidth=2;for(let y=278;y<410;y+=28){x.beginPath();x.moveTo(96,y);x.lineTo(264,y);x.stroke()}
+    jnR(x,90,236,180,24,4,'#8E8A97',3);jnE(x,180,248,40,10,'#14101A',2.5);
+    jnR(x,290,240,14,80,4,'#6B4A2E',2);jnR(x,282,232,30,14,4,'#6B4A2E',2);
+    if(f.lit&&!f.ghost){const b=Math.sin(t*1.8)*8;x.save();x.globalAlpha=.88;x.translate(180,140+b);x.beginPath();x.moveTo(-50,60);for(let i=0;i<=5;i++)x.lineTo(-50+i*20,60+(i%2?-12:0));x.lineTo(50,-10);x.arc(0,-10,50,0,Math.PI,true);x.closePath();x.fillStyle='#F4F2FF';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();jnE(x,-16,-14,8,11,JEAN_O,0);jnE(x,16,-14,8,11,JEAN_O,0);jnE(x,0,16,10,12,JEAN_O,0);x.restore();jnT(x,'?',250,96+b,30,'#F4F2FF',undefined,400,'Bungee, Impact, sans-serif')}
+    else if(f.lit&&f.ghost){const b=Math.sin(t*1.8)*6;x.save();x.globalAlpha=.6;x.translate(250,110+b);x.scale(.5,.5);x.beginPath();x.moveTo(-50,60);x.lineTo(50,60);x.lineTo(50,-10);x.arc(0,-10,50,0,Math.PI,true);x.closePath();x.fillStyle='#F4F2FF';x.fill();x.lineWidth=4;x.strokeStyle=JEAN_O;x.stroke();jnE(x,-16,-14,7,7,JEAN_O,0);jnE(x,16,-14,7,7,JEAN_O,0);x.beginPath();x.arc(0,10,14,.2,Math.PI-.2);x.stroke();x.restore()}
+    else{x.globalAlpha=.2+.15*Math.sin(t*2);jnE(x,180,140,40,50,'#F4F2FF',0);x.globalAlpha=1}
+    jnTorchGlow(x,f,t,-200,170);
+  },
+  riddle(x,f,t){
+    x.fillStyle='rgba(20,15,35,.55)';x.fillRect(-900,-900,2160,3000);
+    const b=Math.sin(t*1.8)*6;x.save();x.translate(180,120+b);x.globalAlpha=.94;x.beginPath();x.moveTo(-70,90);for(let i=0;i<=7;i++)x.lineTo(-70+i*20,90+(i%2?-14:0));x.lineTo(70,-10);x.arc(0,-10,70,0,Math.PI,true);x.closePath();x.fillStyle='#F4F2FF';x.fill();x.lineWidth=3;x.strokeStyle=JEAN_O;x.stroke();
+    jnE(x,-22,-18,10,14,JEAN_O,0);jnE(x,22,-18,10,14,JEAN_O,0);if(f.ghost){x.beginPath();x.arc(0,18,16,.2,Math.PI-.2);x.lineWidth=4;x.stroke()}else jnE(x,0,24,12,15,JEAN_O,0);x.restore();
+    jnR(x,30,206,300,52,12,'#FFF8E1',3);jnT(x,'“What has KEYS,',180,222,14,'#2B2240');jnT(x,'but opens no LOCKS?”',180,242,14,'#2B2240');
+    [['A piano'],['A jailer'],['A castle'],['A map']].forEach(([s],i)=>{const X=40+(i%2)*144,Y=272+Math.floor(i/2)*66;jnR(x,X,Y+4,136,56,10,'rgba(0,0,0,.3)',0);jnR(x,X,Y,136,56,10,'#E8D5A8',3);jnT(x,s,X+68,Y+28,15,'#5C3B26',undefined,400,'Bungee, Impact, sans-serif')});
+  },
+  tapestry(x,f,t){
+    jnR(x,90,56,180,10,4,'#6B4A2E',3);jnP(x,[96,64,264,64,264,300,250,312,236,300,222,312,208,300,194,312,180,300,166,312,152,300,138,312,124,300,110,312,96,300],'#B0233F',3);
+    jnR(x,108,76,144,212,4,null,2);x.strokeStyle='#FFC53D';x.lineWidth=2;x.strokeRect(112,80,136,204);
+    jnE(x,180,170,14,14,'#C9CFD8',2.5);jnR(x,168,184,24,50,6,'#C9CFD8',2.5);jnL(x,[172,234,166,270],'#C9CFD8',6);jnL(x,[188,234,194,270],'#C9CFD8',6);
+    const fl=(X,up)=>{jnL(x,[X,up?150:250,X,up?250:150],'#6B4A2E',3);jnP(x,up?[X,150,X+24,158,X,166]:[X,234,X+24,242,X,250],'#FFC53D',2)};
+    fl(126,true);jnL(x,[168,196,140,200],'#C9CFD8',5);fl(170,false);fl(222,true);jnL(x,[192,196,222,200],'#C9CFD8',5);
+    jnT(x,'I',132,270,12,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'II',176,280,12,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'III',230,270,12,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');
+    jnP(x,[284,150,344,150,344,190,314,232,284,190],'#5B6CFF',3);jnL(x,[314,150,314,226],'#FFC53D',4);jnL(x,[288,176,340,176],'#FFC53D',4);
+    jnR(x,20,330,90,80,6,'#6B4A2E',3);jnR(x,20,330,90,20,6,'#8A5A38',3);jnT(x,'SOCKS 1347',65,382,9,'#E8D5A8');
+    jnTorchGlow(x,f,t,-400,170);
+  },
+  window(x,f,t){
+    jnR(x,160,60,40,140,18,'#14101A',3);jnR(x,172,70,16,120,8,jnG(x,0,70,0,190,'#7FC8F8','#CBEBFF'),0);
+    if(!f.striker){jnE(x,78,196,4,4,'#9AA3AE',2);x.beginPath();x.moveTo(60,214);x.quadraticCurveTo(78,190,96,214);x.quadraticCurveTo(78,238,60,214);x.lineWidth=7;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=4;x.strokeStyle='#C9CFD8';x.stroke()}
+    jnR(x,150,236,180,140,8,'#6B4A2E',3);for(let i=0;i<3;i++){const X=180+i*60,up=f['l'+(i+1)];jnR(x,X-8,262,16,96,6,'#3A3440',2);jnL(x,[X,310,X+(up?0:0),up?266:350],JEAN_O,9);jnL(x,[X,310,X,up?266:350],'#C9CFD8',5);jnE(x,X,up?264:352,10,10,'#B0233F',2.5)}
+    jnT(x,'I   II   III',240,248,10,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');
+    jnTorchGlow(x,f,t,800,170);
+  },
+  levers(x,f,t){
+    jnR(x,24,80,312,340,14,'#6B4A2E',4);jnR(x,40,96,280,308,8,'#5A3A22',2);
+    [1,2,3].forEach(i=>{const X=86+(i-1)*94,up=f['l'+i];jnR(x,X-14,140,28,200,12,'#2B2240',3);jnL(x,[X,240,X,up?150:330],JEAN_O,16);jnL(x,[X,240,X,up?150:330],'#C9CFD8',10);jnE(x,X,up?146:334,20,20,'#B0233F',3);jnE(x,X,240,10,10,'#4A4452',2.5);
+      jnT(x,['I','II','III'][i-1],X,384,18,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');jnT(x,up?'UP':'DOWN',X,116,11,'#E8D5A8',undefined,400,'Bungee, Impact, sans-serif')});
+    if(f.bar)jnT(x,'⛓ CLANK! ⛓',180,98,13,'#FFC53D',undefined,400,'Bungee, Impact, sans-serif');
+  }
+},
+/* ======================= space ======================= */
+space:{
+  door(x,f,t){
+    jnE(x,180,221,96,96,'#C9D1DB',4);
+    if(f._open>0){jnE(x,180,221,82,82,jnG(x,0,140,0,300,'#2B3550','#0B1020'),3);x.save();x.beginPath();x.arc(180,221,82,0,Math.PI*2);x.clip();for(let i=0;i<20;i++)jnE(x,110+((i*37)%140),150+((i*53)%140),1.5,1.5,'#FFFFFF',0);jnE(x,180-82*f._open,221,82*(1-f._open*.9),82,'#AEB8C6',3);x.restore()}
+    else{jnE(x,180,221,82,82,jnG(x,98,0,262,0,'#E3E8EF','#B6C0CE'),3);jnE(x,180,221,30,30,null,6);for(let i=0;i<4;i++){const a=i*Math.PI/2+t*.0;jnL(x,[180,221,180+Math.cos(a)*30,221+Math.sin(a)*30],JEAN_O,6)}jnE(x,180,221,8,8,'#FF5D73',2.5);jnT(x,'HATCH 2',180,160,10,'#5E6B7E',undefined,400,'Bungee, Impact, sans-serif')}
+    jnR(x,278,180,60,92,10,'#2E3440',3);jnR(x,286,188,44,16,3,f.dry&&f.eq?'#8CF2A5':'#1E232C',2);for(let r=0;r<3;r++)for(let c=0;c<3;c++)jnR(x,288+c*14,212+r*16,10,12,2,'#DDE2EA',0);
+    if(!f.dry)for(const [X,Y,r] of [[296,224,9],[322,246,7],[306,262,6],[340,206,5]]){jnE(x,X+Math.sin(t*2+X)*2,Y+Math.cos(t*2+Y)*2,r,r,'rgba(110,190,240,.75)',1.5);jnE(x,X-r*.3,Y-r*.3,r*.25,r*.25,'#FFFFFF',0)}
+    jnR(x,22,180,62,120,10,'#F2F4F7',3);jnT(x,'PRESSURE',53,196,8,'#2B2240',undefined,400,'Bungee, Impact, sans-serif');jnR(x,48,206,10,74,4,'#5E6B7E',2);
+    const up=f.eq;jnL(x,[53,up?280:216,53,up?260:236],'#FF5D73',10);jnE(x,53,up?254:240,9,9,'#FF5D73',2.5);
+    x.save();x.translate(53,288);x.rotate(f.bolt?.5:0);jnP(x,[-8,-4,0,-9,8,-4,8,5,0,10,-8,5],'#9AA3AE',2);x.restore();
+    jnFloat(x,f,t,'door');
+  },
+  keypad(x,f,t){jnKeypadBox(x,f.dry&&f.eq,'#5B6CFF');if(f.dry&&!f.eq)jnT(x,'PRESSURE!',180,128,20,'#FF5D73',undefined,400,'Bungee, Impact, sans-serif');jnT(x,'AIRLOCK',180,420,12,'#C9D1DB',undefined,400,'Bungee, Impact, sans-serif')},
+  keypad_over(x,f,t){if(f.dry)return;for(const [X,Y,r] of [[120,200,26],[220,180,20],[170,260,32],[250,300,22],[110,320,18],[200,350,24],[260,240,14]]){const X2=X+Math.sin(t*1.5+X)*4,Y2=Y+Math.cos(t*1.3+Y)*4;jnE(x,X2,Y2,r,r*.92,'rgba(110,190,240,.72)',2);jnE(x,X2-r*.35,Y2-r*.35,r*.22,r*.18,'rgba(255,255,255,.9)',0)}},
+  toilet(x,f,t){
+    jnR(x,20,140,320,8,4,'#FFC53D',2);
+    jnR(x,110,250,140,150,20,'#F2F4F7',3);jnE(x,180,256,62,16,'#FFFFFF',3);jnE(x,180,256,26,8,'#2B2240',2.5);
+    jnL(x,[100,300,80,250],JEAN_O,10);jnL(x,[100,300,80,250],'#9AA3AE',6);jnL(x,[260,300,280,250],JEAN_O,10);jnL(x,[260,300,280,250],'#9AA3AE',6);
+    jnR(x,130,200,50,40,8,'#5B9BFF',3);jnT(x,'VAC',155,220,9,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');
+    x.beginPath();x.moveTo(250,340);x.bezierCurveTo(330,330,330,250,300,220);x.lineWidth=22;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=16;x.strokeStyle='#C9CFD8';x.stroke();x.setLineDash([3,6]);x.lineWidth=16;x.strokeStyle='#9AA3AE';x.stroke();x.setLineDash([]);
+    if(!f.funnel){x.save();x.translate(296,206);x.rotate(-.5);jnP(x,[-12,10,12,10,26,-22,-26,-22],'#FFC53D',3);x.restore()}
+    jnFloat(x,f,t,'toilet');
+  },
+  window(x,f,t){
+    jnE(x,180,130,86,62,'#C9D1DB',4);jnE(x,180,130,74,52,'#0B1020',3);x.save();x.beginPath();x.ellipse(180,130,74,52,0,0,Math.PI*2);x.clip();for(let i=0;i<14;i++)jnE(x,110+((i*47)%140),84+((i*31)%90),1.3,1.3,'#FFFFFF',0);
+    jnE(x,200,190,80,80,'#3D7BE0',0);jnE(x,170,150,22,14,'#5CC982',0);jnE(x,220,168,26,12,'#5CC982',0);jnE(x,200,190,80,80,null,0);x.restore();
+    jnR(x,226,196,112,120,6,'#FFFFFF',3);jnR(x,226,196,112,20,6,'#FF5D73',3);jnT(x,'DAYS IN ORBIT',282,206,8,'#FFFFFF',undefined,400,'Bungee, Impact, sans-serif');
+    for(let g=0;g<9;g++){const X=238+(g%3)*32,Y=228+Math.floor(g/3)*28,n=g<8?5:2;for(let k=0;k<Math.min(n,4);k++)jnL(x,[X+k*5,Y,X+k*5,Y+18],JEAN_O,2);if(n===5)jnL(x,[X-3,Y+15,X+19,Y+3],'#FF5D73',2)}
+    jnR(x,22,240,80,100,14,'rgba(200,240,210,.6)',3);for(let i=0;i<4;i++)jnE(x,52+i*6,300-i*10,14,8,'#5CC982',2,i*.4);
+    jnFloat(x,f,t,'window');
+  }
+}
+};
+/* item icons for chapters 4-8 */
+const JEAN_ITEMS_NEW={
+  eraser(x){jnR(x,-18,-10,36,20,4,'#6B4A2E',2.5);jnR(x,-18,2,36,8,2,'#2B2240',0);jnR(x,-18,-10,36,20,4,null,2.5)},
+  chalkwet(x){x.rotate(-.4);jnR(x,-16,-4,32,8,3,'#E3ECF2',2.5);jnE(x,-6,10,2.5,4,'#7FC8F8',0);jnE(x,6,12,2,3.5,'#7FC8F8',0)},
+  chalk(x){x.rotate(-.4);jnR(x,-16,-4,32,8,3,'#FFFFFF',2.5)},
+  dusty(x){jnR(x,-18,-10,36,20,4,'#6B4A2E',2.5);jnR(x,-18,2,36,8,2,'#F4F6FA',0);jnR(x,-18,-10,36,20,4,null,2.5);for(let i=0;i<5;i++)jnE(x,-14+i*7,-14-(i%2)*3,2,2,'#FFFFFF',0)},
+  brush(x){x.rotate(.6);jnL(x,[0,-20,0,8],JEAN_O,6);jnL(x,[0,-20,0,8],'#FF8A3D',3);jnE(x,0,13,8,8,'#E3ECF2',2)},
+  tkey(x){jnR(x,-4,-18,8,22,2,'#C9CFD8',2);jnE(x,0,10,10,10,'#C9CFD8',2.5);jnP(x,[0,4,6,14,-6,14],'#2B2240',0)},
+  knob(x){jnR(x,-4,4,8,12,2,'#C9CFD8',2);jnE(x,0,-2,13,10,jnG(x,0,-12,0,10,'#FFE08A','#D9A33A'),2.5)},
+  marshmallow(x){jnR(x,-12,-12,24,26,8,'#FFFFFF',2.5);jnE(x,0,-12,12,4,'#F4F0FF',2);jnE(x,4,4,2,1.5,'rgba(255,180,190,.8)',0)},
+  knife(x){x.rotate(-.5);jnR(x,-18,-5,22,10,4,'#FF5D73',2.5);jnP(x,[4,-4,22,-2,20,4,4,4],'#DDE2EA',2);jnE(x,-12,0,2,2,'#FFFFFF',0)},
+  card(x){x.rotate(-.12);jnR(x,-16,-12,32,24,3,'#FFF3B0',2.5);jnL(x,[-10,-4,10,-4],'#FF5D73',3);jnL(x,[-10,2,10,2],'#FFC53D',3);jnL(x,[-10,8,10,8],'#5B9BFF',3)},
+  flint(x){jnP(x,[-14,6,-8,-10,6,-14,16,-2,10,12,-6,14],'#8E8A97',2.5);jnL(x,[-4,-6,4,4],'rgba(255,255,255,.5)',2)},
+  striker(x){x.beginPath();x.moveTo(-16,0);x.quadraticCurveTo(0,-18,16,0);x.quadraticCurveTo(0,18,-16,0);x.lineWidth=6;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=3;x.strokeStyle='#C9CFD8';x.stroke()},
+  firekit(x){jnP(x,[-16,8,-12,-4,-2,-6,4,4,-2,12,-12,12],'#8E8A97',2);x.beginPath();x.moveTo(0,-4);x.quadraticCurveTo(10,-16,18,-4);x.lineWidth=5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2.5;x.strokeStyle='#C9CFD8';x.stroke();jnStar(x,4,-14,6,'#FFC53D')},
+  funnel(x){jnP(x,[-14,-12,14,-12,4,6,-4,6],'#FFC53D',2.5);jnR(x,-4,6,8,10,2,'#9AA3AE',2)}
+};
 
 /* ---------- drawing helpers (design space) ---------- */
 const JEAN_O='#2B2240';
@@ -12099,7 +12705,7 @@ function jnDoorOpen(x,X,Y,w,h,k,col,hall){
   const pw=w*(1-k*.82);jnP(x,[X,Y,X+pw,Y+k*18,X+pw,Y+h-k*12,X,Y+h],col,3);
 }
 /* wall + floor that run far past the design box, so any canvas shape is covered */
-const JEAN_BG={
+const JEAN_BG=Object.assign(JEAN_BG_NEW,{
   home(x,close){
     x.fillStyle='#FFE6CB';x.fillRect(-900,-900,2160,3000);
     x.fillStyle='#FCD9B4';for(let i=-30;i<42;i++)x.fillRect(i*30+11,-900,8,1150);
@@ -12131,13 +12737,13 @@ const JEAN_BG={
     x.fillStyle='#6C7486';x.fillRect(-900,410,2160,200);x.fillStyle='rgba(255,255,255,.12)';for(let i=0;i<260;i++)x.fillRect(((i*97)%2160)-900,412+((i*53)%110),3,3);
     jnR(x,-900,404,2160,10,0,'#4C5262',3);
   }
-};
+});
 /* side walls: a soft shadow past the design box edges so a wide canvas reads as a room corner */
 function jnCorners(x){x.fillStyle='rgba(40,30,70,.10)';x.fillRect(-900,-900,900,1800);x.fillRect(360,-900,900,1800);jnL(x,[0,-900,0,1300],'rgba(40,30,70,.18)',3);jnL(x,[360,-900,360,1300],'rgba(40,30,70,.18)',3)}
 function jnVignette(x){const g=x.createRadialGradient(180,260,120,180,260,420);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(30,20,50,.35)');x.fillStyle=g;x.fillRect(-900,-900,2160,2000)}
 function jnShadow(x,X,Y,rx){jnE(x,X,Y,rx,rx*.14,'rgba(40,30,60,.18)',0)}
 
-const JEAN_ART={
+const JEAN_ART=Object.assign(JEAN_ART_NEW,{
 /* ======================= home ======================= */
 home:{
   door(x,f,t){
@@ -12399,7 +13005,7 @@ plane:{
     jnT(x,'↔',180,310,22,'#5E6B7E');
   }
 }
-};
+});
 function jnGary(x,X,Y,s){
     x.save();x.translate(X,Y);x.scale(s,s);
     jnP(x,[-70,90,-60,40,60,40,70,90],'#5B6CFF',3);jnP(x,[-12,40,12,40,8,88,0,96,-8,88],'#FF5D73',3);
@@ -12412,6 +13018,7 @@ function jnGary(x,X,Y,s){
 /* scenes drawn while the lights are off (office): the room is dark, only glowing things show */
 function jnDark(x,set,v,f,t){
   x.fillStyle='rgba(6,8,24,.9)';x.fillRect(-900,-900,2160,2000);
+  if(set==='train'){if(v==='door'&&f.blinds){x.save();x.shadowColor='#7CFFB2';x.shadowBlur=20;jnT(x,'▲=5  ●=2  ★=7',180,58,26,'#A8FFCD',undefined,900);x.restore()}return}
   if(v==='door'){x.shadowColor='#FFE08A';x.shadowBlur=14;jnR(x,286,224,30,44,6,null,0);x.lineWidth=3;x.strokeStyle='#FFE08A';x.stroke();jnR(x,295,234,12,24,3,'rgba(255,224,138,.5)',0);x.shadowBlur=0}
   if(v==='toilet'){x.font='900 52px Nunito, sans-serif';x.textAlign='center';x.textBaseline='middle';x.shadowColor='#7CFFB2';x.shadowBlur=22;x.fillStyle='#A8FFCD';x.fillText('8 3 _ _',180,140);x.shadowBlur=0;x.strokeStyle='rgba(168,255,205,.12)';x.lineWidth=2;jnE(x,180,330,64,40,null,0);x.stroke()}
 }
@@ -12475,24 +13082,25 @@ function jnItem(x,id,X,Y,sz){
     hairpin(){x.rotate(-.6);x.beginPath();x.moveTo(-18,-3);x.lineTo(16,-3);x.arc(16,0,3,-Math.PI/2,Math.PI/2);x.lineTo(-14,3);x.lineWidth=4.5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2;x.strokeStyle='#6B4A2E';x.stroke()},
     hook(){x.beginPath();x.moveTo(-6,-18);x.lineTo(-6,8);x.arc(2,8,8,Math.PI,0,true);x.lineTo(10,2);x.lineWidth=5.5;x.strokeStyle=JEAN_O;x.stroke();x.lineWidth=2.5;x.strokeStyle='#8A5A38';x.stroke()}
   };
-  if(D[id])D[id]();
+  if(D[id])D[id]();else if(JEAN_ITEMS_NEW[id])JEAN_ITEMS_NEW[id](x);
   x.restore();
 }
 
 const JEAN_DARKLINES=['Too dark. I just high-fived the wall.','I can\'t see a thing. Is that my foot? Oh, it\'s the bin.','Darkness. Only the glowing stuff is visible.'];
-const JEAN_SNAP={home:'SNAP!',office:'BZZT!',plane:'CLUNK!'};
+const JEAN_SNAP={home:'SNAP!',office:'BZZT!',plane:'CLUNK!',school:'CLANG!',train:'KA-CHUNK!',camp:'THWACK!',castle:'SLAM!',space:'HISSS!'};
+const JEAN_HINTS=3,JEAN_RECHARGE=180;
 function jeanEscape(root,S){
   const lv=clamp(S.level||1,1,JEAN_CH.length),ch=JEAN_CH[lv-1],E=JEAN_E,KEY='jean:ch'+lv,ART=JEAN_ART[ch.set];
   status(root,'Help Jean escape the toilet! Inspect everything, collect items and use them in the room.');
-  function load(){const s=store.get(KEY);if(E.valid(ch,s)){s.n=s.n||{};s.d=s.d||{};s.hint=s.hint||[-1,0];return s}const n=E.fresh(ch);if(s&&s.intro)n.intro=1;return n}
+  function load(){const s=store.get(KEY);if(E.valid(ch,s)){s.n=s.n||{};s.d=s.d||{};s.hint=s.hint||[-1,0];if(typeof s.hints!=='number')s.hints=JEAN_HINTS;return s}const n=E.fresh(ch);if(s&&s.intro)n.intro=1;return n}
   let st=load();const save=()=>store.set(KEY,st);
   const wrap=el('div','jn-wrap',root),c=el('canvas','jn-cv',wrap),x=c.getContext('2d');
   const btn=(cls,html,label)=>{const b=el('button',cls,wrap,html);b.setAttribute('aria-label',label);return b};
   const bL=btn('jn-nav jn-l','◀','Turn left'),bR=btn('jn-nav jn-r','▶','Turn right'),bB=btn('jn-back','▼ Back','Back'),bReset=btn('jn-reset','↺','Reset chapter'),bSkip=btn('jn-skip','Skip ▸▸','Skip intro');
   const bar=el('div','jn-bar',root),slots=[];
   for(let i=0;i<6;i++){const b=el('button','jn-slot',bar,`<canvas width="96" height="96"></canvas><i>${i+1}</i>`);b.setAttribute('aria-label','Inventory slot '+(i+1));slots.push(b);S.on(b,'click',()=>slotTap(i))}
-  const bHint=el('button','jn-hint',bar,'💡<small>Hint</small>');bHint.setAttribute('aria-label','Hint');
-  let W=360,H=520,R=1,T=0,mode=st.won?'outro':st.intro?'play':'intro',introT=0,outT=0,sel=null,bub=null,insp=null,tr=null,flash=null,nexted=false,armed=0;
+  const bHint=el('button','jn-hint',bar,'<span>💡<b>3</b></span><small>Hints</small>');bHint.setAttribute('aria-label','Hint');
+  let saveT=0,tickT=0,W=360,H=520,R=1,T=0,mode=st.won?'outro':st.intro?'play':'intro',introT=0,outT=0,sel=null,bub=null,insp=null,tr=null,flash=null,nexted=false,armed=0;
   const P=sparks(),rip=[];
   /* ---------- layout: portrait phones get a tall scene, everything else a wide one ---------- */
   function layout(){
@@ -12527,9 +13135,10 @@ function jeanEscape(root,S){
   function run(a,pt){
     const prev=st.v,ev=E.act(ch,st,a);let nope=false;
     for(const e of ev){
-      if(e.say&&a.t!=='look')say(e.say,e.m);
+      if(e.say&&a.t!=='look'&&!(a.t==='tick'&&bub&&T-bub.t0<Math.min(bub.dur,4)))say(e.say,e.m);
       if(e.give){const b=slots[st.inv.indexOf(e.give)];if(b)restartAnim(b,'got');if(pt)P.add(pt.x,pt.y,'#FFC53D',16,150)}
       if(e.sfx)sfx(e.sfx);
+      if(e.shake)S.shake();
       if(e.nope){nope=true;sfx('nope')}
       if(e.go){trans(prev,e.go,e.turn?'turn':e.zoom?'zoom':'back',e.turn||0);if(e.turn)sfx('turn');else beep(e.zoom?700:500,40)}
       if(e.win){mode='won';S.after(1100,startOutro)}
@@ -12546,9 +13155,14 @@ function jeanEscape(root,S){
     sel=it;bub=null;beep(900,40);paint();
   }
   function hint(){
-    if(mode!=='play')return;insp=null;const s=E.step(ch,st),L=ch.steps[s].h;
-    if(st.hint[0]!==s)st.hint=[s,0];else st.hint[1]=Math.min(st.hint[1]+1,L.length-1);
-    say(`Hint ${st.hint[1]+1}/${L.length}: ${L[st.hint[1]]}`,'think','hint');sfx('hint');restartAnim(bHint,'got');save();
+    /* 3 hints per chapter (one recharges every 3 minutes of play). Showing a hint already revealed for this step is
+       free; tapping 💡 while that hint is on screen reveals the next, stronger one and spends a hint. */
+    if(mode!=='play')return;insp=null;const s=E.step(ch,st),L=ch.steps[s].h,got=st.hint[0]===s?st.hint[1]:-1;
+    const showing=bub&&bub.kind==='hint'&&bub.step===s&&bub.lvl===got;
+    const show=(lvl,spent)=>{say(`Hint ${lvl+1}/${L.length}: ${L[lvl]}`+(lvl<L.length-1?(spent?' (Tap 💡 again for a stronger hint.)':' (Tap 💡 again for a stronger hint: costs 1.)'):''),'think','hint');bub.step=s;bub.lvl=lvl;sfx('hint');restartAnim(bHint,'got')};
+    if(got>=0&&(!showing||got>=L.length-1)){show(got,false);return}
+    if(st.hints<=0){say(['No more hints... think, Jean, think!','My hint brain is empty. Like my bladder, finally.','Out of hints! Even Dad would make me figure this one out.'][rand(3)]+` (A new hint in ${clock()}.)`,'worried');beep(200,120);restartAnim(bHint,'got');return}
+    st.hints--;st.hint=[s,got+1];show(got+1,true);paintHint();save();
   }
   /* ---------- lock wheels / keypad (design space) ---------- */
   function lockGeo(L){
@@ -12618,9 +13232,14 @@ function jeanEscape(root,S){
     else if(k==='h'||k==='H')hint();
   });
   /* ---------- mode changes ---------- */
+  const clock=()=>{const r=Math.max(0,Math.ceil(JEAN_RECHARGE-(st.hcharge||0)));return Math.floor(r/60)+':'+String(r%60).padStart(2,'0')};
+  let hintTxt='';
+  /* update the text in place: replacing the button's elements would swallow a tap that lands mid-update */
+  const hintN=bHint.querySelector('b'),hintS=bHint.querySelector('small');
+  function paintHint(){const n=st.hints,t=n+'|'+(n<JEAN_HINTS?clock():'Hints');if(t!==hintTxt){hintTxt=t;hintN.textContent=n;hintS.textContent=n<JEAN_HINTS?clock():'Hints';bHint.classList.toggle('none',n<=0);bHint.setAttribute('aria-label',`Hint (${n} left)`)}}
   function startPlay(){
     if(mode!=='intro')return;mode='play';st.intro=1;save();paint();
-    say(st.inv.length&&Object.keys(st.f).length===0?'Tap around to look. ◀ ▶ turns me around. Tap an item below to select it, tap it again to inspect it.':'Where was I? Oh right. Stuck.','worried');
+    say(lv===1?'Tap around to look. ◀ ▶ turns me around. Tap an item below to select it, tap it again to inspect it.':['Okay. Deep breath. Look around, Jean.','Not again! Fine. Look around, pick things up, use them.','Every toilet has a way out. Probably.'][lv%3],'worried');
   }
   function startOutro(){mode='outro';outT=0;tr=null;insp=null;sel=null;bub=null;st.v=ch.walls[0];paint();say(ch.outro,'happy');sfx('unlock')}
   /* ---------- inventory bar ---------- */
@@ -12640,6 +13259,7 @@ function jeanEscape(root,S){
     const close=!isWall(v);JEAN_BG[ch.set](x,close);if(close)jnVignette(x);else jnCorners(x);
     ART[v](x,Object.assign({won:st.won},st.f,mode==='outro'&&v===ch.walls[0]?{_open:clamp(outT/.8,0,1)}:{}),T);
     if(V.lock&&!V.lock.done(st.f))drawLock(V.lock,v);
+    if(ART[v+'_over'])ART[v+'_over'](x,st.f,T);
     if(mode==='play')for(const h of E.hots(ch,st))if(h.glint&&h.glint(st.f)){const ph=(T*1.3+h.r[0]*.013)%2.2;if(ph<1){const a=Math.sin(ph*Math.PI);x.save();x.shadowColor='#FFF6C0';x.shadowBlur=8;jnStar(x,h.r[0]+h.r[2]*.78,h.r[1]+h.r[3]*.22,4+a*7,`rgba(255,255,255,${a})`);x.restore()}}
     if(st.f.dark&&mode==='play')jnDark(x,ch.set,v,st.f,T);
     x.restore();
@@ -12711,6 +13331,12 @@ function jeanEscape(root,S){
   }
   function frame(dt){
     T+=dt;x.setTransform(R,0,0,R,0,0);x.clearRect(0,0,W,H);
+    if(mode==='play'){
+      if(st.hints<JEAN_HINTS){st.hcharge=(st.hcharge||0)+dt;if(st.hcharge>=JEAN_RECHARGE){st.hcharge=0;st.hints++;save();restartAnim(bHint,'got');beep(1046,80,'sine')}}else st.hcharge=0;
+      paintHint();saveT+=dt;if(saveT>10){saveT=0;save()}
+      /* the world moves on its own in some chapters (train tunnels and curves, floating things in space) */
+      if(ch.tick&&!tr&&!insp){tickT+=dt;if(tickT>=4.5){tickT=0;run({t:'tick'})}}
+    }
     if(mode==='intro'){const p=introT;introT+=dt;
       const cue=(at,f)=>{if(p<at&&introT>=at)f()};
       cue(.3,()=>say(ch.intro[0],'happy'));cue(2.7,()=>sfx('click'));cue(3.8,()=>say(ch.intro[1],'happy'));cue(4.1,()=>sfx('bwomp'));cue(4.5,()=>sfx('whistle'));cue(4.8,()=>sfx('flush'));
@@ -12735,7 +13361,7 @@ function jeanEscape(root,S){
     dial(i,up){const L=ch.views[st.v].lock,g=lockGeo(L);return this.page(g[i].x+g[i].w/2,up?250:290)},
     key(k){const g=lockGeo(ch.views[st.v].lock).find(b=>b.k===k);return this.page(g.x+g.w/2,g.y+g.h/2)},
     size:()=>({W,H})};
-  layout();paint();S.loop(frame);if(mode==='outro')startOutro();
+  layout();paint();paintHint();S.loop(frame);if(mode==='outro')startOutro();
   S.after(60,layout);
 }
 
@@ -12804,7 +13430,7 @@ const GAMES=[
   {id:'sling',name:'Sling Smash',icon:'🪃',blurb:'Fling fluffy Puffs and topple towers to pop every Grumblob.',help:'Drag back anywhere on the game and let go to launch; the dotted line shows the start of the flight. Tap while a special Puff is flying to use its power. Keyboard: ↑ ↓ aim, ← → power, Space launches and uses powers.',mount:slingsmash,levels:12,open:true,names:['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10','Level 11','Level 12'],unit:'points',isNew:true},
   {id:'jumpquest',name:'Jump Quest',icon:'🍄',blurb:'Run, jump and stomp your way to the flag across 8 worlds.',help:'Move with ← → or A D, jump with Space, ↑ or W (hold for higher jumps), and throw sparks with X or Shift once you have the spark power. On a phone, slide on the left half of the game to run, tap the right half to jump and swipe down there to throw (or switch to the wheel or arrows).',mount:jumpquest,levels:8,open:true,names:['1-1','1-2','1-3','1-4','2-1','2-2','2-3','2-4'],unit:'points',isNew:true},
   {id:'arrows',name:'Arrows',icon:'➡️',blurb:'Tap arrows to slide them off the board, in the right order.',help:'Tap an arrow to send it sliding off the board in the direction it points. If another arrow is in the way it bounces back and you lose a heart. 💡 shows an arrow that can go (3 per map), 🔀 deals a new map. Pick Easy to Expert at the top.',mount:arrowsEscape,levels:4,open:true,names:['Easy','Medium','Hard','Expert'],unit:'in a row',isNew:true},
-  {id:'jean',name:'Jean Escapes the Toilet',icon:'🚽',blurb:'Jean is locked in the bathroom! Find clues and items to escape.',help:'Tap things to inspect them and pick up items. Tap an item to select it, then tap where to use it, or tap a second item to combine them. Tap a selected item again to inspect it. ◀ ▶ turn around, ▼ goes back, 💡 gives a hint, ↺ resets the chapter. Keys: arrows turn, 1-6 pick items, H hint.',mount:jeanEscape,levels:3,open:true,names:['1. The Stuck Door','2. The Office Bathroom','3. The Airplane Toilet'],isNew:true}
+  {id:'jean',name:'Jean Escapes the Toilet',icon:'🚽',blurb:'Jean is locked in the bathroom, again! Find clues and items to escape.',help:'Tap things to inspect them and pick up items. Tap an item to select it, then tap where to use it, or tap a second item to combine them. Tap a selected item again to inspect it. ◀ ▶ turn around, ▼ goes back, 💡 gives a hint (3 per chapter, one more every 3 minutes), ↺ resets the chapter. Keys: arrows turn, 1-6 pick items, H hint.',mount:jeanEscape,levels:8,open:true,names:['1. The Stuck Door','2. The Office Bathroom','3. The Airplane Toilet','4. The School Bathroom','5. The Train Toilet','6. The Camping Toilet','7. The Castle Garderobe','8. The Space Station Toilet'],isNew:true}
 ];
 GAMES.sort((a,b)=>a.name.localeCompare(b.name));
 const TC=['#FF8A99','#FFD166','#5FD8CC','#9FA9FF','#D2A8FF','#FFAA6B'];
